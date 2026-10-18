@@ -448,6 +448,10 @@
     if (!singleDay && granularitySelect.value === 'hour') granularitySelect.value = 'day';
     if (singleDay && granularitySelect.value === 'week') granularitySelect.value = 'hour';
     chartPoints = aggregatePoints(start, end, granularitySelect.value);
+    const totalMs = chartPoints.reduce((sum, point) => sum + point.ms, 0);
+    const averageMs = chartPoints.length ? totalMs / chartPoints.length : 0;
+    const averageName = { day: '日均', week: '周均', hour: '小时均值' }[granularitySelect.value];
+    const averageLabel = `${averageName} ${duration(averageMs)}`;
     const maxMs = Math.max(0, ...chartPoints.map(point => point.ms));
     const unitMs = maxMs >= 7_200_000 ? 3_600_000 : 60_000;
     const unitName = unitMs === 3_600_000 ? '小时' : '分钟';
@@ -459,7 +463,7 @@
     chartBounds = { left, right, top, bottom, width, height };
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     svg.dataset.chartType = chartType;
-    svg.setAttribute('aria-label', `${dateLabel(start)}至${dateLabel(end)}听歌时长${chartTypes[chartType]}，下方可展开数据表`);
+    svg.setAttribute('aria-label', `${dateLabel(start)}至${dateLabel(end)}听歌时长${chartTypes[chartType]}，${averageLabel}，包含零收听时段，下方可展开数据表`);
     const slotWidth = (right - left) / chartPoints.length;
     const xAt = index => chartType === 'bar' ? left + (index + 0.5) * slotWidth : left + (chartPoints.length === 1 ? (right - left) / 2 : index * (right - left) / (chartPoints.length - 1));
     const yAt = value => bottom - value / max * (bottom - top);
@@ -482,6 +486,10 @@
       markup += `<path class="chart-line" d="${pointPath}"/>`;
       if (values.length === 1) markup += `<circle class="chart-point" cx="${xAt(0)}" cy="${yAt(values[0])}" r="3"/>`;
     }
+    if (maxMs > 0) {
+      const averageY = yAt(averageMs / unitMs);
+      markup += `<g class="chart-average"><line class="chart-average-line" x1="${left}" x2="${right}" y1="${averageY}" y2="${averageY}"/><text class="chart-average-label" x="${right - 4}" y="${Math.max(top + 12, averageY - 7)}" text-anchor="end">${averageLabel}</text></g>`;
+    }
     const labelCount = Math.min(width < 500 ? 4 : 7, chartPoints.length);
     for (let label = 0; label < labelCount; label++) {
       const index = labelCount === 1 ? 0 : Math.round(label * (chartPoints.length - 1) / (labelCount - 1));
@@ -491,9 +499,7 @@
     svg.innerHTML = markup;
     chartPoints.forEach((point, index) => { point.x = xAt(index); point.y = yAt(values[index]); });
     $('chart-unit').textContent = `听歌时长（${unitName}）`;
-    const totalMs = chartPoints.reduce((sum, point) => sum + point.ms, 0);
     $('trend-caption').textContent = `这段时间听了 ${duration(totalMs)}`;
-    $('range-caption').textContent = start === end ? `${start.replaceAll('-', '.')} · 按${granularitySelect.value === 'hour' ? '小时' : '日'}统计` : `${start.replaceAll('-', '.')} — ${end.replaceAll('-', '.')}`;
     $('chart-empty').hidden = chartPoints.some(point => point.ms > 0);
     $('chart-table').innerHTML = chartPoints.map(point => `<tr><td>${point.fullLabel}</td><td>${duration(point.ms)}</td></tr>`).join('');
   }
@@ -542,12 +548,14 @@
 
   function renderSongs() {
     const query = $('song-search').value.trim().normalize('NFKC').toLocaleLowerCase('zh-CN');
-    const list = tracks.filter(track => `${track.title}\n${track.artist}`.normalize('NFKC').toLocaleLowerCase('zh-CN').includes(query));
-    list.sort((a, b) => b.plays - a.plays || a.title.localeCompare(b.title, 'zh-CN'));
+    const rankedTracks = [...tracks].sort((a, b) => b.plays - a.plays || a.title.localeCompare(b.title, 'zh-CN'));
+    const ranks = new Map(rankedTracks.map((track, index) => [track.id, index + 1]));
+    const list = rankedTracks.filter(track => `${track.title}\n${track.artist}`.normalize('NFKC').toLocaleLowerCase('zh-CN').includes(query));
     const fragment = document.createDocumentFragment();
     for (const track of list) {
       const row = document.createElement('tr');
       row.dataset.trackId = track.id;
+      const rank = document.createElement('td'); rank.className = 'song-rank'; rank.textContent = String(ranks.get(track.id));
       const song = document.createElement('td');
       const entry = document.createElement('div'); entry.className = 'song-entry';
       const cover = document.createElement('img');
@@ -562,11 +570,11 @@
       const album = document.createElement('td'); album.className = 'song-album'; album.textContent = track.album || '未知专辑';
       const count = document.createElement('td'); count.className = 'play-count'; count.append(document.createTextNode(number.format(track.plays)));
       const unit = document.createElement('span'); unit.textContent = '次'; count.append(unit);
-      row.append(song, album, count); fragment.append(row);
+      row.append(rank, song, album, count); fragment.append(row);
     }
     if (!list.length) {
       const row = document.createElement('tr'), cell = document.createElement('td');
-      cell.colSpan = 3; cell.className = 'song-empty';
+      cell.colSpan = 4; cell.className = 'song-empty';
       cell.textContent = query ? '没有找到匹配的歌曲' : '暂无逐首歌曲记录';
       row.append(cell); fragment.append(row);
     }
