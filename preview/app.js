@@ -139,14 +139,12 @@
     const peak = [...records].sort((a, b) => b.ms - a.ms)[0];
     $('peak-day').innerHTML = peak?.ms > 0 ? durationMarkup(peak.ms) : '暂无记录';
     $('peak-day').setAttribute('aria-label', peak?.ms > 0 ? duration(peak.ms) : '暂无记录');
-    $('peak-date').textContent = peak?.ms > 0 ? `${peak.date.slice(0, 4)}年${dateLabel(peak.date)}` : '开始听歌后生成小结';
+    $('peak-date').textContent = peak?.ms > 0 ? `${peak.date.slice(0, 4)}年${dateLabel(peak.date)}` : '暂无记录';
     $('daily-average').innerHTML = active.length ? durationMarkup(totalMs / active.length) : '暂无记录';
     $('daily-average').setAttribute('aria-label', active.length ? duration(totalMs / active.length) : '暂无记录');
     const hourly = Array.from({ length: 24 }, (_, h) => records.reduce((sum, record) => sum + record.hourlyMs[h], 0));
     const peakHour = hourly.indexOf(Math.max(...hourly));
     $('favorite-hours').textContent = totalMs ? `${String(peakHour).padStart(2, '0')}:00 — ${String(peakHour + 1).padStart(2, '0')}:00` : '暂无记录';
-    const daypart = peakHour < 6 ? '深夜' : peakHour < 12 ? '上午' : peakHour < 18 ? '下午' : '夜间';
-    $('favorite-hours-note').textContent = totalMs ? `${daypart}高频聆听` : '开始听歌后生成小结';
   }
 
   function setupYears() {
@@ -459,12 +457,14 @@
     granularitySelect.querySelector('[value="week"]').disabled = singleDay;
     if (!singleDay && granularitySelect.value === 'hour') granularitySelect.value = 'day';
     if (singleDay && granularitySelect.value === 'week') granularitySelect.value = 'hour';
+    const hourly = granularitySelect.value === 'hour';
     chartPoints = aggregatePoints(start, end, granularitySelect.value);
     const totalMs = chartPoints.reduce((sum, point) => sum + point.ms, 0);
     const averageMs = chartPoints.length ? totalMs / chartPoints.length : 0;
     const averageName = { day: '日均', week: '周均', hour: '小时均值' }[granularitySelect.value];
     const averageLabel = `${averageName} ${duration(averageMs)}`;
     const maxMs = Math.max(0, ...chartPoints.map(point => point.ms));
+    const showAverage = !hourly && maxMs > 0;
     const unitMs = maxMs >= 7_200_000 ? 3_600_000 : 60_000;
     const unitName = unitMs === 3_600_000 ? '小时' : '分钟';
     const values = chartPoints.map(point => point.ms / unitMs);
@@ -472,12 +472,13 @@
     const svg = $('trend-chart');
     const width = Math.max(280, svg.clientWidth), height = svg.clientHeight || 258;
     const left = 52, right = width - 10, top = 10, bottom = height - 30;
-    chartBounds = { left, right, top, bottom, width, height };
+    chartBounds = { left, right, top, bottom, width, height, hourly };
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     svg.dataset.chartType = chartType;
-    svg.setAttribute('aria-label', `${dateLabel(start)}至${dateLabel(end)}听歌时长${chartTypes[chartType]}，${averageLabel}，包含零收听时段`);
+    svg.setAttribute('aria-label', `${dateLabel(start)}至${dateLabel(end)}听歌时长${chartTypes[chartType]}${showAverage ? `，${averageLabel}，包含零收听时段` : ''}${hourly ? '，横坐标为00:00至24:00，各数据点表示对应小时内的收听时长' : ''}`);
     const slotWidth = (right - left) / chartPoints.length;
-    const xAt = index => chartType === 'bar' ? left + (index + 0.5) * slotWidth : left + (chartPoints.length === 1 ? (right - left) / 2 : index * (right - left) / (chartPoints.length - 1));
+    // Hourly values are interval totals: place them at the middle of each hour.
+    const xAt = index => hourly || chartType === 'bar' ? left + (index + 0.5) * slotWidth : left + (chartPoints.length === 1 ? (right - left) / 2 : index * (right - left) / (chartPoints.length - 1));
     const yAt = value => bottom - value / max * (bottom - top);
     const averageY = yAt(averageMs / unitMs);
     const averageValue = averageMs / unitMs;
@@ -487,7 +488,7 @@
       const value = max * tick / 4;
       const y = yAt(value);
       markup += `<line class="chart-grid" x1="${left}" x2="${right}" y1="${y}" y2="${y}"/>`;
-      if (maxMs === 0 || Math.abs(y - averageY) >= 14) {
+      if (!showAverage || Math.abs(y - averageY) >= 14) {
         markup += `<text class="chart-tick" x="${left - 12}" y="${y + 4}" text-anchor="end">${Number(value.toFixed(1))}</text>`;
       }
     }
@@ -504,13 +505,21 @@
       markup += `<path class="chart-line" d="${pointPath}"/>`;
       if (values.length === 1) markup += `<circle class="chart-point" cx="${xAt(0)}" cy="${yAt(values[0])}" r="3"/>`;
     }
-    if (maxMs > 0) {
+    if (showAverage) {
       markup += `<g class="chart-average"><title>${averageLabel}，单位：${unitName}</title><line class="chart-average-line" x1="${left - 6}" x2="${right}" y1="${averageY}" y2="${averageY}"/><text class="chart-average-label" x="${left - 12}" y="${averageY + 4}" text-anchor="end">${averageAxisLabel.replace('<', '&lt;')}</text></g>`;
     }
-    const labelCount = Math.min(width < 500 ? 4 : 7, chartPoints.length);
-    for (let label = 0; label < labelCount; label++) {
-      const index = labelCount === 1 ? 0 : Math.round(label * (chartPoints.length - 1) / (labelCount - 1));
-      markup += `<text class="chart-tick" x="${xAt(index)}" y="${height - 8}" text-anchor="${label === 0 ? 'start' : label === labelCount - 1 ? 'end' : 'middle'}">${chartPoints[index].label}</text>`;
+    if (hourly) {
+      const step = width < 500 ? 6 : 4;
+      for (let hour = 0; hour <= 24; hour += step) {
+        const x = left + hour / 24 * (right - left);
+        markup += `<line class="chart-grid" x1="${x}" x2="${x}" y1="${bottom}" y2="${bottom + 4}"/><text class="chart-tick" x="${x}" y="${height - 8}" text-anchor="${hour === 0 ? 'start' : hour === 24 ? 'end' : 'middle'}">${String(hour).padStart(2, '0')}:00</text>`;
+      }
+    } else {
+      const labelCount = Math.min(width < 500 ? 4 : 7, chartPoints.length);
+      for (let label = 0; label < labelCount; label++) {
+        const index = labelCount === 1 ? 0 : Math.round(label * (chartPoints.length - 1) / (labelCount - 1));
+        markup += `<text class="chart-tick" x="${xAt(index)}" y="${height - 8}" text-anchor="${label === 0 ? 'start' : label === labelCount - 1 ? 'end' : 'middle'}">${chartPoints[index].label}</text>`;
+      }
     }
     markup += '<g id="chart-hover" visibility="hidden"><line class="chart-crosshair" id="chart-crosshair"/><circle class="chart-point" id="chart-point" r="4"/></g>';
     svg.innerHTML = markup;
@@ -549,7 +558,8 @@
     if (!chartBounds || !chartPoints.length || !$('chart-empty').hidden) return;
     const rect = $('trend-chart').getBoundingClientRect();
     const localX = event.clientX - rect.left;
-    const index = chartPoints.length === 1 ? 0 : Math.max(0, Math.min(chartPoints.length - 1, Math.round((localX - chartPoints[0].x) / (chartPoints[chartPoints.length - 1].x - chartPoints[0].x) * (chartPoints.length - 1))));
+    const nearest = chartBounds.hourly ? Math.floor((localX - chartBounds.left) / (chartBounds.right - chartBounds.left) * chartPoints.length) : chartPoints.length === 1 ? 0 : Math.round((localX - chartPoints[0].x) / (chartPoints[chartPoints.length - 1].x - chartPoints[0].x) * (chartPoints.length - 1));
+    const index = Math.max(0, Math.min(chartPoints.length - 1, nearest));
     const point = chartPoints[index];
     $('trend-chart').querySelector('.chart-bar.is-active')?.classList.remove('is-active');
     $('trend-chart').querySelector(`[data-point-index="${index}"]`)?.classList.add('is-active');

@@ -173,7 +173,6 @@ th { color: var(--text); }
 .insights-section h2 { margin-bottom: 16px; }
 .summary-strip.insights-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 0; }
 .insight-item h3 { margin: 5px 0 0; font-weight: 400; }
-.insight-note { margin-top: 6px; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .page-footer { display: flex; justify-content: space-between; gap: 16px; color: var(--muted); font-size: 11px; margin-top: 36px; padding-top: 18px; border-top: 1px solid var(--line); }
 .status-dot { width: 5px; height: 5px; display: inline-block; background: var(--muted); border-radius: 50%; margin-right: 7px; vertical-align: 2px; }
 .tooltip { position: fixed; z-index: 10; background: var(--tooltip-bg); color: var(--tooltip-text); padding: 12px 14px; border-radius: 10px; pointer-events: none; min-width: 180px; box-shadow: var(--shadow); font-size: 12px; }
