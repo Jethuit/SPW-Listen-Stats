@@ -51,6 +51,13 @@ data class StatsData(
         )
     }
 
+    fun rankedTracks(query: String = ""): List<RankedTrack> {
+        val needle = query.trim().lowercase()
+        return sortedTracks().mapIndexed { index, track -> RankedTrack(index + 1, track) }
+            .filter { needle.isEmpty() || it.value.track.title.lowercase().contains(needle) ||
+                it.value.track.artist.lowercase().contains(needle) }
+    }
+
     companion object {
         fun empty(error: String? = null, databaseFound: Boolean = false): StatsData = StatsData(
             listens = emptyList(),
@@ -70,6 +77,8 @@ data class TrackRank(
     val track: TrackMeta,
     val count: Int
 )
+
+data class RankedTrack(val position: Int, val value: TrackRank)
 
 data class DateRange(
     val start: LocalDate,

@@ -22,7 +22,7 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
-import com.moriafly.salt.ui.Text
+import com.jethuit.spw.listenstats.ui.StatsText as Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -66,18 +66,14 @@ fun RankingPage(
     onPageChange: (Int) -> Unit
 ) {
     val colors = LocalStatsColors.current
-    val all = remember(data) { data.sortedTracks() }
     val searchState = remember { TextFieldState(query) }
     val searchText = searchState.text.toString()
     var searchFocused by remember { mutableStateOf(false) }
     LaunchedEffect(searchText) {
         if (searchText != query) onQueryChange(searchText)
     }
-    val filtered = remember(all, query) {
-        val needle = query.trim().lowercase()
-        if (needle.isEmpty()) all else all.filter {
-            it.track.title.lowercase().contains(needle) || it.track.artist.lowercase().contains(needle)
-        }
+    val filtered = remember(data, query) {
+        data.rankedTracks(query)
     }
     val totalPages = rankingTotalPages(filtered.size)
     val currentPage = rankingSafePage(filtered.size, page)
@@ -123,7 +119,7 @@ fun RankingPage(
                             focusedPlaceholderColor = colors.muted,
                             unfocusedPlaceholderColor = colors.muted
                         ),
-                        textStyle = AppType.bodySmall,
+                        textStyle = com.moriafly.salt.ui.LocalTextStyle.current.merge(AppType.bodySmall),
                         placeholder = {
                             Text(
                                 "搜索歌曲或歌手",
@@ -147,8 +143,8 @@ fun RankingPage(
         }
         Box(Modifier.height(8.dp))
         SongTableHeader()
-        rows.forEachIndexed { index, rank ->
-            SongRow(rank, from + index + 1, data.loadedAt)
+        rows.forEach { rank ->
+            SongRow(rank.value, rank.position, data.loadedAt)
         }
         if (rows.isEmpty()) {
             Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {

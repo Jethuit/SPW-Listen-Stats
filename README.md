@@ -6,14 +6,14 @@ GitHub：<https://github.com/Jethuit/SPW-Listen-Stats>。正式实现说明、�
 
 ## 正式模组
 
-当前 0.1.19 把排行列表行的常态底色也改成页面取色 `pageBackground`（浅色 #F8F8F8、深色 #232323），不再保留单独的白行；悬停仍用 subtle。
+当前 0.1.20 修复会话恢复误合并、时钟校正导致备份失败、滚动悬停、字体继承、搜索原排名和日期依赖测试；详见 [修复说明](docs/BUGFIX-0.1.20.md)。排行列表行继续使用页面底色 `pageBackground`（浅色 #F8F8F8、深色 #232323），悬停使用 subtle。
 
 ```powershell
 python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-产物为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.19.spmod`，在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。入口在模块管理页的插件配置“打开听歌统计”；不再有主界面浮动入口。
+产物为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.20.spmod`，在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。入口在模块管理页的插件配置“打开听歌统计”；不再有主界面浮动入口。
 
 当前只读宿主 `spw.db` 的 `Listen` 表，同时通过播放扩展点、单调时钟和实际收听片段保存 `live-sessions.json`；每遍听满 50% 为该歌曲计一次。新版正式备份 v2 按会话身份合并去重，兼容旧 v1 汇总并提示其保守合并可能少计。宿主历史缺少暂停片段，小时分布仍为近似，实时/宿主记录匹配也仍依赖开始时间启发式。封面通过 Workshop API 读取；主题、图表类型和粒度保存在插件配置中。
 
@@ -79,7 +79,7 @@ docs/          正式需求、交接、API 核查、正式实现说明
 .references/   上游参考源码，仅在本地保留，不提交 Git
 ```
 
-正式页面使用 Compose + Material3，通过宿主自身 fat jar 编译；没有打包 Salt UI，因为宿主 1.19.0 中的 Salt UI/部分 Compose 类经过混淆，直接按运行期签名编译更可靠。构建缓存、JDK、Kotlin、sqlite-jdbc、宿主 jar 和真实听歌数据均不提交 Git。
+正式页面使用 Compose、SaltUI 和部分 Material3 控件，通过宿主 fat jar 与 SaltUI 3.0.0-beta02 编译，包内包含 SaltUI core/UI。构建缓存、JDK、Kotlin、依赖 jar、宿主文件和真实听歌数据均不提交 Git。
 
 ## 许可证
 

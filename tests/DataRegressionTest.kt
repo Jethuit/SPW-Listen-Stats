@@ -205,9 +205,87 @@ fun main(args: Array<String>) {
         val open = LiveSession("open", "track", epoch, 5_000, track.title, track.artist,
             track.album, "", track.durationMs, false, mutableListOf(ListeningSpan(epoch, 5_000)))
         LiveStore.upsert(open); LiveStore.save(); LiveStore.load()
-        check(LiveStore.findOpen("track") != null)
+        check(LiveStore.findOpen("track", epoch + 60_000) != null)
+        check(LiveStore.findOpen("track", epoch + 6 * 60 * 60 * 1000L + 1) == null)
         LiveStore.upsert(open.copy(finalized = true)); LiveStore.save(); LiveStore.load()
-        check(LiveStore.findOpen("track") == null)
+        check(LiveStore.findOpen("track", epoch + 60_000) == null)
+    }
+    test("recovery only considers the first track and closes unrelated open sessions") {
+        isolate(root, "resume-switch")
+        val old = LiveSession("old-a", "track", epoch, 6_000, track.title, track.artist,
+            track.album, "", track.durationMs, false, mutableListOf(ListeningSpan(epoch, 6_000)))
+        LiveStore.upsert(old)
+        val other = track.copy(id = "other")
+        var calls = 0
+        val engine = PlaybackAccumulator({ LiveStore.upsert(it) }) {
+            calls++
+            LiveStore.recoverOpen(it.id, epoch + 60_000)
+        }
+        engine.playing(true)
+        var time = 60_000L
+        for (song in listOf(other, track)) {
+            for (position in 0L..6_000L step 1_000L) {
+                engine.sample(song, position, epoch + time, time * 1_000_000)
+                time += 1_000
+            }
+        }
+        engine.finish()
+        check(calls == 1)
+        val result = ListeningEvents.aggregate(StatsData.empty(), LiveStore.snapshot().map { it.event() })
+        check(result.playCount("track") == 2 && result.playCount("other") == 1)
+        check(result.dailyMillis.values.sum() == 18_000L)
+        LiveStore.save(); LiveStore.load()
+        check(LiveStore.findOpen("track", epoch + time) == null)
+    }
+    test("explicit restart before first sample does not recover a crashed play") {
+        var calls = 0
+        val engine = PlaybackAccumulator({}) { calls++; null }
+        engine.playing(true)
+        engine.seek(0)
+        engine.sample(track, 0, epoch, 0)
+        check(calls == 0)
+    }
+    test("clock corrections preserve elapsed time and remain exportable") {
+        isolate(root, "clock")
+        val saved = linkedMapOf<String, LiveSession>()
+        val engine = PlaybackAccumulator { saved[it.id] = it.copyForStore() }
+        engine.playing(true)
+        val wallOffsets = listOf(0L, 1_000L, 1_500L, -8_000L, -7_000L, 30_000L)
+        wallOffsets.forEachIndexed { index, offset ->
+            engine.sample(track, index * 1_000L, epoch + offset, index * 1_000_000_000L)
+        }
+        engine.finish()
+        val session = saved.values.single()
+        check(session.durationMs == 5_000L && session.approximate)
+        check(session.spans.zipWithNext().all { (a, b) -> a.startMs + a.durationMs <= b.startMs })
+        val roundtrip = BackupCodec.decode(BackupCodec.encode(BackupBundle(listOf(session.event()))))
+        check(roundtrip.events.single().durationMs == 5_000L)
+        check(ListeningEvents.aggregate(StatsData.empty(), roundtrip.events).playCount("track") == 1)
+    }
+    test("old overlapping live spans are repaired on load without losing listening time") {
+        isolate(root, "clock-migration")
+        val old = LiveSession("overlap", "track", epoch, 2_000, track.title, track.artist,
+            track.album, "", track.durationMs, true,
+            mutableListOf(ListeningSpan(epoch, 1_000), ListeningSpan(epoch + 500, 1_000)))
+        LiveStore.upsert(old); LiveStore.save(); LiveStore.load()
+        val repaired = LiveStore.snapshot().single()
+        check(repaired.approximate && repaired.durationMs == 2_000L)
+        check(repaired.spans[1].startMs == epoch + 1_000)
+        val decoded = BackupCodec.decode(BackupCodec.encode(BackupBundle(listOf(repaired.event()))))
+        check(decoded.events.single().durationMs == 2_000L)
+        LiveStore.save(); LiveStore.load()
+        check(LiveStore.snapshot().single().spans == repaired.spans)
+    }
+    test("ranking search retains full-list rank before pagination") {
+        val tracks = (1..80).associate { i ->
+            "$i" to track.copy(id = "$i", title = "song $i", artist = if (i >= 50) "match" else "other")
+        }
+        val data = StatsData.empty().copy(tracks = tracks, playCounts = (1..80).associate { "$it" to 81 - it })
+        val filtered = data.rankedTracks(" MATCH ")
+        check(filtered.first().position == 50 && filtered.last().position == 80)
+        check(filtered.drop(25).first().position == 75)
+        check(data.rankedTracks("song 80").single().position == 80)
+        check(data.rankedTracks("").size == 80 && data.rankedTracks("missing").isEmpty())
     }
     test("corrupt source id regenerates instead of failing every event") {
         isolate(root, "source-id")

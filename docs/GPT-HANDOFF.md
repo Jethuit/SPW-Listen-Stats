@@ -1,5 +1,7 @@
 # GPT 交接文档：SPW-Listen Stats
 
+> **2026-10-19 更新：当前源码 0.1.20。** 已处理审查发现的六项问题，当前变更及验证状态以 [BUGFIX-0.1.20.md](BUGFIX-0.1.20.md) 为准；下文 0.1.19 版本、提交和检查数字保留为上一轮背景。仍不能把离线回归视为真实播放或宿主字体/交互验收。
+
 > 这是给接手 GPT 的**单一入口文档**。先读本文件，再按需读 `docs/NATIVE-IMPLEMENTATION.md`、`docs/HANDOFF.md`、`docs/UI-FIXES.md`。
 > 最后更新：2026-10-19；源码版本 **0.1.19**；分支 `codex/listening-stats`。
 

@@ -17,7 +17,7 @@ data class LiveSession(
     var trackDurationMs: Long,
     var finalized: Boolean,
     val spans: MutableList<ListeningSpan> = mutableListOf(),
-    val approximate: Boolean = false,
+    var approximate: Boolean = false,
     var hostId: String? = null
 ) {
     fun copyForStore(): LiveSession = copy(spans = spans.toMutableList())
@@ -56,11 +56,22 @@ object LiveStore {
                 require(num("duration") >= 0 && spans.all { it.durationMs > 0 })
                 if (version == 2) require(spans.sumOf { it.durationMs } == num("duration"))
                 if (version == 1 && num("duration") > 0) spans.add(ListeningSpan(num("startTime"), num("duration")))
+                // Repair intervals produced by older versions during wall-clock corrections.
+                // Preserve elapsed duration and recorded order; only the wall placement is approximate.
+                var repaired = false
+                for (index in 1 until spans.size) {
+                    val previous = spans[index - 1]
+                    val end = previous.startMs + previous.durationMs
+                    if (spans[index].startMs < end) {
+                        spans[index] = spans[index].copy(startMs = end)
+                        repaired = true
+                    }
+                }
                 val finalized = if (version == 1) true
                     else item["finalized"]?.jsonPrimitive?.booleanOrNull ?: true
                 loaded[str("id")] = LiveSession(str("id"), str("trackId"), num("startTime"), num("duration"),
                     str("title"), str("artist"), str("album"), str("albumArtist"), num("trackDuration"),
-                    finalized, spans, version == 1 || item["approximate"]?.jsonPrimitive?.booleanOrNull == true,
+                    finalized, spans, repaired || version == 1 || item["approximate"]?.jsonPrimitive?.booleanOrNull == true,
                     item["hostId"]?.jsonPrimitive?.contentOrNull)
             }
             sessions.putAll(loaded)
@@ -109,12 +120,28 @@ object LiveStore {
      * A session left unfinished by a crash can be resumed when the same track is
      * observed again. Graceful stops finalize sessions and are never resumed.
      */
-    @Synchronized fun findOpen(trackId: String): LiveSession? {
-        val cutoff = System.currentTimeMillis() - 6 * 60 * 60 * 1000L
+    @Synchronized fun findOpen(trackId: String, nowMs: Long = System.currentTimeMillis()): LiveSession? {
+        val cutoff = nowMs - 6 * 60 * 60 * 1000L
         return sessions.values
             .filter { it.trackId == trackId && !it.finalized && it.startTimeMs >= cutoff }
             .maxByOrNull { it.startTimeMs }
             ?.copyForDisplay()
+    }
+
+    /** Called only for the first valid playback observation after initialization. */
+    @Synchronized fun recoverOpen(trackId: String, nowMs: Long = System.currentTimeMillis()): LiveSession? {
+        val recovered = findOpen(trackId, nowMs)
+        finalizeOpenExcept(recovered?.id)
+        return recovered
+    }
+
+    @Synchronized fun finalizeOpenExcept(keepId: String? = null) {
+        var changed = false
+        sessions.values.filter { !it.finalized && it.id != keepId }.forEach {
+            it.finalized = true
+            changed = true
+        }
+        if (changed) save()
     }
 
     @Synchronized fun snapshot() = sessions.values.map { it.copyForDisplay() }

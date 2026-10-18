@@ -19,6 +19,7 @@ class PlaybackAccumulator(
     private var position = -1L
     private var nano = 0L
     private var wall = 0L
+    private var recoveryAvailable = true
 
     fun playing(value: Boolean) {
         if (playing != value) resetBaseline()
@@ -26,6 +27,7 @@ class PlaybackAccumulator(
     }
 
     fun seek(target: Long) {
+        if (target == 0L) recoveryAvailable = false
         // An explicit restart at zero begins a new play; other backward seeks stay in this play.
         if (target == 0L && (current?.durationMs ?: 0) > 0) finish()
         resetBaseline()
@@ -43,8 +45,10 @@ class PlaybackAccumulator(
             session.trackDurationMs > 0 && position >= session.trackDurationMs - 3_000 &&
             nextPosition < position
         if (session?.trackId != track.id || loop) {
+            val recover = recoveryAvailable && !loop
+            recoveryAvailable = false
             finish()
-            val resumed = if (!loop) resume(track) else null
+            val resumed = if (recover) resume(track) else null
             if (resumed != null) {
                 current = resumed
                 if (track.durationMs > 0) resumed.trackDurationMs = track.durationMs
@@ -64,11 +68,17 @@ class PlaybackAccumulator(
         val elapsed = (nowNano - nano) / 1_000_000
         val delta = nextPosition - position
         // Position confirms progress; monotonic time caps actual listening. Discard sleep and seeks.
-        if (position >= 0 && elapsed in 1..3_000 && delta in 1..3_000 && nowWall - wall in 0..4_000) {
+        if (position >= 0 && elapsed in 1..3_000 && delta in 1..3_000) {
             val listened = elapsed
             session.durationMs += listened
-            val span = ListeningSpan(nowWall - listened, listened)
             val previous = session.spans.lastOrNull()
+            val observedStart = nowWall - listened
+            // Clock corrections must not create overlapping intervals or lose elapsed listening.
+            val start = maxOf(observedStart, previous?.let { it.startMs + it.durationMs } ?: observedStart)
+            if (start != observedStart || kotlin.math.abs(nowWall - wall - elapsed) > 100) {
+                session.approximate = true
+            }
+            val span = ListeningSpan(start, listened)
             if (previous != null && previous.startMs + previous.durationMs == span.startMs) {
                 session.spans[session.spans.lastIndex] = previous.copy(durationMs = previous.durationMs + listened)
             } else session.spans.add(span)
@@ -80,6 +90,7 @@ class PlaybackAccumulator(
     }
 
     fun finish() {
+        recoveryAvailable = false
         current?.let {
             it.finalized = true
             if (it.durationMs > 0) persist(it)
@@ -104,7 +115,7 @@ object PlaybackTracker {
         generation++
         if (executor.isShutdown) executor = newExecutor()
         LiveStore.load()
-        accumulator = PlaybackAccumulator(::persistSession) { track -> LiveStore.findOpen(track.id) }
+        accumulator = PlaybackAccumulator(::persistSession) { track -> LiveStore.recoverOpen(track.id) }
         lastSaveNano = System.nanoTime()
         active = true
     }
@@ -114,6 +125,7 @@ object PlaybackTracker {
             active = false
             generation++
             accumulator.finish()
+            LiveStore.finalizeOpenExcept()
             LiveStore.save()
             executor.also { it.shutdownNow() }
         }
@@ -138,6 +150,7 @@ object PlaybackTracker {
         if (state == PlaybackExtensionPoint.State.Ended || state == PlaybackExtensionPoint.State.Idle) {
             accumulator.finish()
             accumulator.playing(false)
+            LiveStore.finalizeOpenExcept()
             LiveStore.save()
         } else if (state == PlaybackExtensionPoint.State.Buffering) accumulator.suspendSampling()
     }
@@ -147,7 +160,11 @@ object PlaybackTracker {
         if (!isPlaying) LiveStore.save()
     }
 
-    fun onSeekTo(position: Long) = enqueue { accumulator.seek(position); LiveStore.save() }
+    fun onSeekTo(position: Long) = enqueue {
+        accumulator.seek(position)
+        if (position == 0L) LiveStore.finalizeOpenExcept()
+        LiveStore.save()
+    }
 
     fun onPositionUpdated(position: Long) {
         val wall = System.currentTimeMillis()

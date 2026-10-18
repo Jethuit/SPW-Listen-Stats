@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.Surface
-import com.moriafly.salt.ui.Text
+import com.jethuit.spw.listenstats.ui.StatsText as Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -294,6 +294,8 @@ fun ListenStatsApp(
     }
     LaunchedEffect(query) { rankPage = 1 }
 
+    CompositionLocalProvider(LocalViewportRevision provides
+        (if (embedded) scrollState.value else LocalViewportRevision.current)) {
     StatsTheme(themeMode) {
         val colors = LocalStatsColors.current
         SaltTheme(configs = saltConfigs(colors.isDark)) {
@@ -475,6 +477,8 @@ fun ListenStatsApp(
         }
     }
 
+}
+
 @Composable
 private fun PageHeader(
     themeMode: ThemeMode,
@@ -647,11 +651,7 @@ private fun LoadingPage(onClose: () -> Unit) {
 }
 
 private fun filteredRankCount(data: StatsData, query: String): Int {
-    val needle = query.trim().lowercase()
-    if (needle.isEmpty()) return data.playCounts.count { it.value > 0 }
-    return data.sortedTracks().count {
-        it.track.title.lowercase().contains(needle) || it.track.artist.lowercase().contains(needle)
-    }
+    return data.rankedTracks(query).size
 }
 
 private fun chooseDateRange(start: LocalDate?, end: LocalDate?): Pair<LocalDate, LocalDate>? {

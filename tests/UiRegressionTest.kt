@@ -40,5 +40,5 @@ fun main() {
     val hours = StatsCalculations.chartBuckets(data, DateRange(today, today), Granularity.Day)
     check(hours.size == 24 && hours.last().longLabel.endsWith("23:00–24:00"))
     println("PASS midnight interval ends at 24:00")
-    println("4 UI regression groups passed; rendered UI still requires user review")
+    println("5 UI regression groups passed; rendered UI still requires user review")
 }
