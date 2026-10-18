@@ -120,6 +120,7 @@ object StatsWindow {
         panel.setContent {
             ListenStatsApp(
                 onClose = { frame.dispose() },
+                onScrollTop = { SwingUtilities.invokeLater { scrollPane.verticalScrollBar.value = 0 } },
                 onContentHeight = { page, heightPx ->
                     contentHeightPx = heightPx
                     if (lastPage != page) {
@@ -190,6 +191,10 @@ object StatsWindow {
     }
 
     fun bounds(): Rectangle? = dialog?.bounds
+
+    fun close() {
+        SwingUtilities.invokeLater { dialog?.dispose(); dialog = null }
+    }
 }
 
 enum class StatsPage { Overview, Ranking }
@@ -197,6 +202,7 @@ enum class StatsPage { Overview, Ranking }
 @Composable
 fun ListenStatsApp(
     onClose: () -> Unit,
+    onScrollTop: () -> Unit = {},
     onContentHeight: (StatsPage, Int) -> Unit = { _, _ -> }
 ) {
     var data by remember { mutableStateOf<StatsData?>(null) }
@@ -266,7 +272,7 @@ fun ListenStatsApp(
             if (rankPage > totalPages) rankPage = totalPages
         }
         val contentHeight = if (page == StatsPage.Overview) {
-            if (snapshot.error != null || snapshot.listens.isEmpty()) 1380.dp else 1300.dp
+            if (snapshot.error != null || snapshot.dailyMillis.values.none { it > 0 }) 1380.dp else 1300.dp
         } else {
             600.dp + 71.dp * rowsOnPage + if (snapshot.error != null) 80.dp else 0.dp
         }
@@ -297,6 +303,8 @@ fun ListenStatsApp(
                                 },
                                 onImport = {
                                     if (BackupService.importBackup()) {
+                                        rankPage = 1
+                                        onScrollTop()
                                         reloadTick++
                                     }
                                 },
@@ -309,7 +317,7 @@ fun ListenStatsApp(
                             if (snapshot.error != null) {
                                 ErrorBanner(snapshot.error)
                                 Box(Modifier.height(18.dp))
-                            } else if (snapshot.listens.isEmpty()) {
+                            } else if (snapshot.dailyMillis.values.none { it > 0 }) {
                                 EmptyBanner()
                                 Box(Modifier.height(18.dp))
                             }
@@ -365,7 +373,7 @@ fun ListenStatsApp(
                                     query = query,
                                     onQueryChange = { query = it },
                                     page = safePage,
-                                    onPageChange = { rankPage = it }
+                                    onPageChange = { rankPage = it; onScrollTop() }
                                 )
                             }
                             PageFooter(snapshot)

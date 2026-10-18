@@ -29,7 +29,8 @@ data class StatsData(
     val covers: Map<String, ByteArray>,
     val loadedAt: Long,
     val databaseFound: Boolean,
-    val error: String?
+    val error: String?,
+    val events: List<ListeningEvent> = emptyList()
 ) {
     fun millisOn(date: LocalDate): Long = dailyMillis[date] ?: 0L
 
@@ -47,7 +48,6 @@ data class StatsData(
         return entries.sortedWith(
             compareByDescending<TrackRank> { it.count }
                 .thenComparator { left, right -> collator.compare(left.track.title, right.track.title) }
-                .thenBy { it.track.id }
         )
     }
 

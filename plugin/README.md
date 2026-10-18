@@ -1,61 +1,27 @@
 # SPW Listen Stats 正式模组
 
-Kotlin / Compose 模组源码。界面基准是仓库根目录的 `preview/`。
+Kotlin / Compose 模组源码，视觉基准为根目录 `preview/`。当前 0.1.1 是数据正确性修订版，仍需真实宿主验收。
 
 ## 构建
-
-从仓库根目录运行：
 
 ```powershell
 python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-产物：
+产物：`build/libs/plugin-com.jethuit.spw.listenstats-0.1.1.spmod`；解包目录 `build/install/spw-listen-stats/`。工具链缓存在 `build/tools/`，不提交 Git。
 
-```text
-build/libs/plugin-com.jethuit.spw.listenstats-0.1.0.spmod
-build/install/spw-listen-stats/     # 可直接放进 PF4J 插件目录
+在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。Hook 失败时可在配置页打开统计。页面是宿主浮层入口加独立无边框窗口，仍绑定 SPW 1.19.0。
+
+## 数据与检查
+
+实际收听按单调时钟和逐段墙钟区间累计，每遍最多计一次；暂停继续与回拖非零位置保留同一遍。实时 JSON v2 支持旧版迁移。正式备份 v2 按会话身份合并去重；旧 v1 汇总保守合并并提示限制。宿主历史小时分配及实时/宿主开始时间匹配仍有近似误差。
+
+```powershell
+python tests/run-data-tests.py
+python tests/spmod-structure.py
 ```
 
-工具链（JDK 25、Kotlin 2.4.20、sqlite-jdbc、宿主 fat jar）缓存在 `build/tools/`，不提交 Git。
+检查数据和日志仅写 `build/tests/` 的隔离目录。实际运行日志位于 `%APPDATA%\Salt Player for Windows\workshop\data\com.jethuit.spw.listenstats\status.log`。
 
-## 安装
-
-在 SPW 创意工坊使用“本地导入”选择 `.spmod`，启用并授权：
-
-- `library-read`：读取歌曲元数据与内嵌封面；
-- `class-transform`：注册主界面 UI Hook。
-
-授权后主界面右下角显示“听歌统计”入口。若 Hook 不可用，可在插件配置页点击“打开听歌统计”。
-
-## 数据
-
-- 只读宿主 `spw.db` 的 `Listen` / `Track`，按 `startTime + duration` 拆分到本地小时和日期；
-- 播放扩展点驱动 `PlaybackTracker`：播放中用相邻位置差（0–3 秒）累计，暂停/seek/循环回跳不计；
-- 实时会话每 10 秒、暂停、切歌、结束和插件停用时写入 `live-sessions.json`；宿主 `Listen` 落库后按开始时间 ±10 秒去重，以宿主记录为准；
-- 每首歌仅当单次 `Listen.duration` 或实时会话累计时长 ≥ `Track.duration × 50%` 时计一次；
-- 统计不写入宿主数据库；
-- 备份为版本 1 JSON，带 SHA-256 校验，导入按日期/小时/次数取较大值合并。
-
-## 配置与诊断
-
-`src/main/resources/preference_config.json` 提供“打开听歌统计”和“写入诊断日志”两个按钮。日志位于：
-
-```text
-%APPDATA%\Salt Player for Windows\workshop\data\com.jethuit.spw.listenstats\status.log
-```
-
-## 结构
-
-```text
-src/main/kotlin/com/jethuit/spw/listenstats/
-  MainPlugin.kt, PlaybackExtension.kt, PluginLog.kt, PluginState.kt, Prefs.kt
-  data/   宿主数据库、统计、封面、备份
-  ui/     Compose 页面、热力图、图表、主题、组件
-src/main/resources/
-  preference_config.json
-  META-INF/extensions.idx
-```
-
-实现细节与限制见 [../docs/NATIVE-IMPLEMENTATION.md](../docs/NATIVE-IMPLEMENTATION.md)。
+架构、完整限制与验收说明见 [正式实现说明](../docs/NATIVE-IMPLEMENTATION.md)，最新接手状态见 [交接](../docs/HANDOFF.md)。

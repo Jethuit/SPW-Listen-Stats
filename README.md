@@ -11,11 +11,11 @@ python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Sa
 python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-产物为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.0.spmod`，在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。主界面右下角出现“听歌统计”入口；未授权 Hook 时可从插件配置页打开。
+产物为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.1.spmod`，在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。主界面右下角出现“听歌统计”入口；未授权 Hook 时可从插件配置页打开。
 
-当前读取宿主 `spw.db` 的 `Listen` 表，同时通过播放扩展点实时累计位置差并保存 `live-sessions.json`；宿主写入 `Listen` 后按开始时间去重。统计按本地时间拆分为每日/每小时，按“同一首歌实际听满 50% 计一次”计算排行；封面通过 Workshop API 读取内嵌图片。主题、图表类型和粒度保存在插件配置中。导入导出的版本化备份采用保守合并策略。
+当前只读宿主 `spw.db` 的 `Listen` 表，同时通过播放扩展点、单调时钟和实际收听片段保存 `live-sessions.json`；每遍听满 50% 为该歌曲计一次。新版正式备份 v2 按会话身份合并去重，兼容旧 v1 汇总并提示其保守合并可能少计。宿主历史缺少暂停片段，小时分布仍为近似，实时/宿主记录匹配也仍依赖开始时间启发式。封面通过 Workshop API 读取；主题、图表类型和粒度保存在插件配置中。
 
-已知限制：入口是宿主主界面浮层 + 借助宿主主窗口尺寸的无边框页面，不是宿主原生导航页；实时回调与状态机已测试，但测试环境的音频限制使真实播放/暂停/seek 的完整链路仍需你在本机确认；页面每 5 秒刷新；Hook 目标类名绑定 1.19.0；未做宿主级鼠标交互自动化。详细说明见 [docs/NATIVE-IMPLEMENTATION.md](docs/NATIVE-IMPLEMENTATION.md)。
+已知限制：入口是宿主浮层 + 无边框窗口，不是宿主原生导航页；0.1.1 的真实播放/暂停/seek、宿主落库去重和鼠标交互仍需本机验收；页面每 5 秒刷新；Hook 目标类名绑定 1.19.0。下图来自先前 0.1.0，不代表新版已运行验收。数据检查命令为 `python tests/run-data-tests.py`，需先构建。详细说明见 [docs/NATIVE-IMPLEMENTATION.md](docs/NATIVE-IMPLEMENTATION.md)。
 
 ![正式模组听歌概览](docs/screenshots/overview-light.png)
 

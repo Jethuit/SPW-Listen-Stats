@@ -17,7 +17,7 @@ object TimeSplitter {
     ) {
         if (durationMs <= 0) return
         var cursor = Instant.ofEpochMilli(startTimeMs).atZone(zone)
-        val end = cursor.plusNanos(durationMs * 1_000_000L)
+        val end = cursor.plus(Duration.ofMillis(durationMs))
         while (cursor.isBefore(end)) {
             val nextHour = cursor.truncatedTo(ChronoUnit.HOURS).plusHours(1)
             val segmentEnd = if (end.isBefore(nextHour)) end else nextHour

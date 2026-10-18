@@ -44,9 +44,14 @@ class MainPlugin(
 
     override fun stop() {
         PluginLog.info("stop plugin")
-        hookHandle?.close()
-        hookHandle = null
-        com.jethuit.spw.listenstats.data.PlaybackTracker.shutdown()
+        try {
+            hookHandle?.close()
+        } finally {
+            hookHandle = null
+            com.jethuit.spw.listenstats.data.PlaybackTracker.shutdown()
+            com.jethuit.spw.listenstats.ui.StatsWindow.close()
+            com.jethuit.spw.listenstats.data.CoverStore.clear()
+        }
     }
 
     override fun delete() {

@@ -1,245 +1,181 @@
 package com.jethuit.spw.listenstats.data
 
-import com.jethuit.spw.listenstats.PluginLog
 import com.xuncorp.spw.workshop.api.PlaybackExtensionPoint
 import com.xuncorp.spw.workshop.api.WorkshopApi
 import java.util.UUID
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.math.max
 
-/**
- * Turns the host's playback callbacks into durable listening sessions.
- *
- * Position callbacks arrive every second. Only forward gaps of at most three
- * seconds are treated as listened time; pause/seek/loop jumps are discarded.
- * A session is finalized on track change, Ended/Idle, or plugin shutdown.
- */
-object PlaybackTracker {
-    private val lock = ReentrantLock()
-    private var executor = newExecutor()
-    private val resolvePending = AtomicBoolean(false)
-
+/** Callback timestamps, not async lookup completion times. Pauses never fill the gaps. */
+class PlaybackAccumulator(private val persist: (LiveSession) -> Unit) {
     private var current: LiveSession? = null
     private var playing = false
-    private var lastPosition = -1L
-    private var lastResolveWall = 0L
-    private var lastSaveWall = 0L
-    private var hint: PlaybackExtensionPoint.MediaItem? = null
-    private var permissionLogged = false
+    private var position = -1L
+    private var nano = 0L
+    private var wall = 0L
 
-    @Volatile
-    private var stopping = false
+    fun playing(value: Boolean) {
+        if (playing != value) resetBaseline()
+        playing = value
+    }
 
-    fun initialize() {
-        stopping = false
-        if (executor.isShutdown) {
-            executor = newExecutor()
+    fun seek(target: Long) {
+        // An explicit restart at zero begins a new play; other backward seeks stay in this play.
+        if (target == 0L && (current?.durationMs ?: 0) > 0) finish()
+        resetBaseline()
+    }
+
+    fun suspendSampling() = resetBaseline()
+
+    fun sample(track: TrackMeta?, nextPosition: Long, nowWall: Long, nowNano: Long) {
+        if (track == null || track.id.isBlank() || !playing) {
+            resetBaseline()
+            return
         }
-        resolvePending.set(false)
+        var session = current
+        val loop = session != null && session.trackId == track.id && nextPosition in 0..2_000L &&
+            session.trackDurationMs > 0 && position >= session.trackDurationMs - 3_000 &&
+            nextPosition < position
+        if (session?.trackId != track.id || loop) {
+            finish()
+            session = LiveSession(UUID.randomUUID().toString(), track.id,
+                nowWall - nextPosition.coerceAtLeast(0), 0,
+                track.title, track.artist, track.album, track.albumArtist, track.durationMs, false,
+                spans = mutableListOf())
+            current = session
+        }
+        session!!
+        if (track.durationMs > 0) session.trackDurationMs = track.durationMs
+        val elapsed = (nowNano - nano) / 1_000_000
+        val delta = nextPosition - position
+        // Position confirms progress; monotonic time caps actual listening. Discard sleep and seeks.
+        if (position >= 0 && elapsed in 1..3_000 && delta in 1..3_000 && nowWall - wall in 0..4_000) {
+            val listened = elapsed
+            session.durationMs += listened
+            val span = ListeningSpan(nowWall - listened, listened)
+            val previous = session.spans.lastOrNull()
+            if (previous != null && previous.startMs + previous.durationMs == span.startMs) {
+                session.spans[session.spans.lastIndex] = previous.copy(durationMs = previous.durationMs + listened)
+            } else session.spans.add(span)
+            persist(session)
+        }
+        position = nextPosition
+        nano = nowNano
+        wall = nowWall
+    }
+
+    fun finish() {
+        current?.let {
+            it.finalized = true
+            if (it.durationMs > 0) persist(it)
+        }
+        current = null
+        resetBaseline()
+    }
+
+    private fun resetBaseline() { position = -1L; nano = 0; wall = 0 }
+}
+
+/** Serialized callbacks; generation guards cover lookups returning after stop/re-enable. */
+object PlaybackTracker {
+    private val lock = Any()
+    private var executor = newExecutor()
+    private var generation = 0L
+    private var active = false
+    private var accumulator = PlaybackAccumulator(::persistSession)
+    private var lastSaveNano = 0L
+
+    fun initialize() = synchronized(lock) {
+        generation++
+        if (executor.isShutdown) executor = newExecutor()
         LiveStore.load()
-        lastSaveWall = System.currentTimeMillis()
+        accumulator = PlaybackAccumulator(::persistSession)
+        lastSaveNano = System.nanoTime()
+        active = true
     }
 
     fun shutdown() {
-        stopping = true
-        withLock {
-            finalizeCurrent()
+        val old = synchronized(lock) {
+            active = false
+            generation++
+            accumulator.finish()
+            LiveStore.save()
+            executor.also { it.shutdownNow() }
         }
-        LiveStore.save()
-        executor.shutdown()
+        try { old.awaitTermination(2, TimeUnit.SECONDS) }
+        catch (_: InterruptedException) { Thread.currentThread().interrupt() }
+    }
+
+    private fun enqueue(action: () -> Unit) = synchronized(lock) {
+        if (!active) return@synchronized
+        val expected = generation
         try {
-            executor.awaitTermination(2, TimeUnit.SECONDS)
-        } catch (ignored: InterruptedException) {
-            Thread.currentThread().interrupt()
-        }
-    }
-
-    fun onStateChanged(state: PlaybackExtensionPoint.State) {
-        PluginLog.info("playback state=$state")
-        if (state == PlaybackExtensionPoint.State.Ended ||
-            state == PlaybackExtensionPoint.State.Idle
-        ) {
-            withLock {
-                finalizeCurrent()
-                playing = false
+            executor.execute {
+                synchronized(lock) {
+                    if (!active || generation != expected) return@execute
+                    action()
+                }
             }
-            LiveStore.save()
-        }
+        } catch (_: RejectedExecutionException) { }
     }
 
-    fun onIsPlayingChanged(isPlaying: Boolean) {
-        PluginLog.info("playing=$isPlaying")
-        withLock {
-            playing = isPlaying
-            if (isPlaying) {
-                lastResolveWall = 0L
-            }
-        }
-        if (isPlaying) {
-            scheduleResolve()
-        } else {
+    fun onStateChanged(state: PlaybackExtensionPoint.State) = enqueue {
+        if (state == PlaybackExtensionPoint.State.Ended || state == PlaybackExtensionPoint.State.Idle) {
+            accumulator.finish()
+            accumulator.playing(false)
             LiveStore.save()
-        }
+        } else if (state == PlaybackExtensionPoint.State.Buffering) accumulator.suspendSampling()
     }
 
-    fun onSeekTo(position: Long) {
-        withLock { lastPosition = position }
+    fun onIsPlayingChanged(isPlaying: Boolean) = enqueue {
+        accumulator.playing(isPlaying)
+        if (!isPlaying) LiveStore.save()
     }
+
+    fun onSeekTo(position: Long) = enqueue { accumulator.seek(position); LiveStore.save() }
 
     fun onPositionUpdated(position: Long) {
-        var schedule = false
-        var persist = false
-        withLock {
-            val session = current
-            if (session != null && playing) {
-                if (lastPosition >= 0) {
-                    val delta = position - lastPosition
-                    if (delta in 1..3_000) {
-                        session.durationMs += delta
-                        LiveStore.upsert(session)
-                    } else if (delta < -2_000) {
-                        // Loop/repeat or a backward seek that did not fire onSeekTo.
-                        finalizeCurrent()
-                        schedule = true
-                    }
-                }
-                lastPosition = position
-            } else {
-                lastPosition = position
-            }
-            val now = System.currentTimeMillis()
-            if (playing && (current == null || now - lastResolveWall > 1_500)) {
-                lastResolveWall = now
-                schedule = true
-            }
-            if (now - lastSaveWall > 10_000) {
-                lastSaveWall = now
-                persist = true
-            }
-        }
-        if (schedule) scheduleResolve()
-        if (persist) LiveStore.save()
-    }
-
-    fun onMediaItemHint(mediaItem: PlaybackExtensionPoint.MediaItem) {
-        hint = mediaItem
-        withLock {
-            if (playing && (current == null || current?.trackId != mediaItem.id)) {
-                lastResolveWall = 0L
-            }
-        }
-        scheduleResolve()
-    }
-
-    private fun scheduleResolve() {
-        if (!resolvePending.compareAndSet(false, true)) return
-        executor.execute {
+        val wall = System.currentTimeMillis()
+        val nano = System.nanoTime()
+        synchronized(lock) {
+            if (!active) return
+            val expected = generation
             try {
-                val item = try {
-                    WorkshopApi.playback.getCurrentMediaItem()
-                } catch (failure: Throwable) {
-                    if (!permissionLogged) {
-                        permissionLogged = true
-                        PluginLog.error("reading current media item failed", failure)
+                executor.execute {
+                    if (!synchronized(lock) { active && generation == expected }) return@execute
+                    // Host IO stays outside the lifecycle lock, so shutdown can invalidate this result.
+                    val track = try {
+                        WorkshopApi.playback.getCurrentMediaItem()?.let {
+                            TrackMeta(it.id, it.title, it.artist, it.album, it.albumArtist, it.duration)
+                        }
+                    } catch (_: Exception) { null }
+                    synchronized(lock) {
+                        if (!active || generation != expected) return@execute
+                        if (System.nanoTime() - nano > 3_000_000_000L) {
+                            accumulator.suspendSampling()
+                            return@execute
+                        }
+                        accumulator.sample(track, position, wall, nano)
+                        if (nano - lastSaveNano >= 10_000_000_000L) {
+                            lastSaveNano = nano
+                            LiveStore.save()
+                        }
                     }
-                    null
                 }
-                if (item != null) {
-                    applyResolved(item, lastPosition)
-                }
-            } finally {
-                resolvePending.set(false)
-            }
+            } catch (_: RejectedExecutionException) { }
         }
     }
 
-    private fun applyResolved(item: PlaybackExtensionPoint.MediaItem, position: Long) {
-        if (stopping || item.id.isBlank()) return
-        var duration = item.duration
-        if (duration <= 0) {
-            duration = try {
-                WorkshopApi.library.getTrackById(item.id)
-                    .toCompletableFuture()
-                    .get(2, TimeUnit.SECONDS)
-                    ?.duration ?: 0L
-            } catch (failure: Throwable) {
-                0L
-            }
-        }
-        withLock {
-            val session = current
-            if (session != null && session.trackId == item.id) {
-                mergeMetadata(session, item, duration)
-                LiveStore.upsert(session)
-            } else {
-                if (session != null) {
-                    finalizeCurrent()
-                }
-                val observedPosition = position.coerceAtLeast(0L)
-                val start = System.currentTimeMillis() -
-                    observedPosition.coerceAtMost(if (duration > 0) duration else observedPosition)
-                val existing = LiveStore.findResumable(item.id, start)
-                val next = existing ?: LiveSession(
-                    id = UUID.randomUUID().toString(),
-                    trackId = item.id,
-                    startTimeMs = start,
-                    durationMs = 0L,
-                    title = item.title,
-                    artist = item.artist,
-                    album = item.album,
-                    albumArtist = item.albumArtist,
-                    trackDurationMs = duration,
-                    finalized = false
-                )
-                next.finalized = false
-                mergeMetadata(next, item, duration)
-                current = next
-                LiveStore.upsert(next)
-                lastPosition = observedPosition
-                PluginLog.info(
-                    "session start ${next.trackId} '${next.title}' " +
-                        "position=$observedPosition track=${next.trackDurationMs}"
-                )
-            }
-        }
-    }
+    // Lyrics prefetch is not a track-change notification and must never create sessions.
+    fun onMediaItemHint(mediaItem: PlaybackExtensionPoint.MediaItem) = Unit
 
-    private fun mergeMetadata(
-        session: LiveSession,
-        item: PlaybackExtensionPoint.MediaItem,
-        duration: Long
-    ) {
-        if (item.title.isNotBlank()) session.title = item.title
-        if (item.artist.isNotBlank()) session.artist = item.artist
-        if (item.album.isNotBlank()) session.album = item.album
-        if (item.albumArtist.isNotBlank()) session.albumArtist = item.albumArtist
-        if (duration > 0) session.trackDurationMs = duration
-    }
-
-    private fun finalizeCurrent() {
-        val session = current ?: return
-        session.finalized = true
-        PluginLog.info(
-            "finalize session ${session.trackId} start=${session.startTimeMs} " +
-                "listened=${session.durationMs} track=${session.trackDurationMs}"
-        )
+    private fun persistSession(session: LiveSession) {
         LiveStore.upsert(session)
-        current = null
+        if (session.finalized) LiveStore.save()
     }
 
-    private fun <T> withLock(block: () -> T): T {
-        lock.lock()
-        try {
-            return block()
-        } finally {
-            lock.unlock()
-        }
-    }
-
-    private fun newExecutor() = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "ListenStats-Playback").apply { isDaemon = true }
+    private fun newExecutor() = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "ListenStats-Playback").apply { isDaemon = true }
     }
 }

@@ -2,6 +2,8 @@ package com.jethuit.spw.listenstats.data
 
 import com.jethuit.spw.listenstats.PluginLog
 import com.jethuit.spw.listenstats.PluginState
+import com.xuncorp.spw.workshop.api.PluginPermission
+import com.xuncorp.spw.workshop.api.WorkshopApi
 import java.nio.file.Path
 
 object StatsStore {
@@ -14,13 +16,23 @@ object StatsStore {
     }
 
     fun load(): StatsData {
+        val allowed = runCatching {
+            WorkshopApi.manager.isPermissionGranted(PluginPermission.LIBRARY_READ)
+        }.getOrDefault(false)
+        if (!allowed) return StatsData.empty(error = "请先授权曲库读取权限")
         val path = databasePath ?: resolveDatabasePath(PluginState.pluginPath)
         if (path == null) {
             return StatsData.empty(error = "无法定位播放器数据目录")
         }
         databasePath = path
         val host = HostDatabase.load(path)
-        return BackupService.merge(LiveStore.merge(host))
+        return try {
+            val merged = BackupService.merge(LiveStore.merge(host))
+            LiveStore.storageError()?.let { merged.copy(error = it) } ?: merged
+        } catch (failure: Exception) {
+            PluginLog.error("loading statistics failed", failure)
+            host.copy(error = "统计数据读取失败：${failure.message}")
+        }
     }
 
     private fun resolveDatabasePath(pluginPath: String?): Path? {

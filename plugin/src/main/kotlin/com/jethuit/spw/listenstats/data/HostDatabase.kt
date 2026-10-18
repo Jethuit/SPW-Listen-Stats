@@ -93,16 +93,7 @@ object HostDatabase {
         val config = SQLiteConfig()
         config.setReadOnly(true)
         config.setBusyTimeout(4_000)
-        return try {
-            DriverManager.getConnection("jdbc:sqlite:$absolute", config.toProperties())
-        } catch (failure: Throwable) {
-            PluginLog.error("read-only sqlite connection failed, retrying with query_only", failure)
-            val fallback = SQLiteConfig()
-            fallback.setBusyTimeout(4_000)
-            DriverManager.getConnection("jdbc:sqlite:$absolute", fallback.toProperties()).also {
-                it.createStatement().use { statement -> statement.execute("PRAGMA query_only = ON") }
-            }
-        }
+        return DriverManager.getConnection("jdbc:sqlite:$absolute", config.toProperties())
     }
 
     private fun splitIntoHours(
