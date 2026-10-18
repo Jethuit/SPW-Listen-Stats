@@ -210,7 +210,7 @@
       }
       const show = () => {
         if (week.future) return;
-        tooltipContent(coverage, week.ms, true);
+        tooltipContent(coverage, week.ms);
         positionTooltip(button.getBoundingClientRect());
       };
       button.addEventListener('mouseenter', show);
@@ -555,9 +555,9 @@
     tooltip.style.top = `${top}px`;
   }
 
-  function tooltipContent(label, ms, compactUnits = false) {
-    const time = compactUnits ? duration(ms).replaceAll(' ', '') : duration(ms);
-    $('tooltip').innerHTML = `<div class="tooltip-title">${label}</div><div class="tooltip-row"><span>听歌时长</span><span>${time}</span></div>`;
+  function tooltipContent(label, ms) {
+    const time = duration(ms).replaceAll(' ', '');
+    $('tooltip').innerHTML = `<div class="tooltip-title">${label}</div><div class="tooltip-row"><span class="tooltip-label">听歌时长</span><span class="tooltip-value">${time}</span></div>`;
   }
 
   function showRecordTooltip(key, rect) {
