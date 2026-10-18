@@ -1,6 +1,14 @@
 # 新聊天交接
 
-## 最新：0.1.10 控件等高与留白
+## 最新：0.1.11 标题字号与圆角
+
+- 排行页“歌曲播放次数”通过 `SectionHeading(titleStyle=...)` 从 16sp 放大到 18sp，行高 24sp；标题行仍 34dp。
+- `SegmentedControl` 外框和 `SelectBox` 统一为 **8dp** 圆角；分段内部 active 按钮仍 5dp（嵌套状态）。
+- 0.1.10 的 34dp 控件高度、排行标题行 34dp、导航下 18dp 留白继续保留。
+
+未在宿主中截图，需用户确认 18sp 标题和 8dp 圆角。
+
+## 0.1.10 控件等高与留白
 
 - `ControlHeight = 34dp`：`SegmentedControl` 外层固定 34dp（内边距 3dp，按钮 28dp），`SelectBox` 固定 34dp 且内容垂直居中；图一图表类型/日期、图二每天每周/年份高度一致。
 - 排行页标题行 `SectionHeading` 高度从 42dp 收到 34dp；`PageNav` 在排行页下方间距从 30dp 收到 18dp，减少红框上方空白。
@@ -105,8 +113,8 @@ SaltUI 已用于主题、滚动、文本和概览/错误卡片；热力图、部
 ## 路径
 
 - 正式源码 `plugin/src/main/kotlin/com/jethuit/spw/listenstats/`
-- 构建 `tools/build_plugin.py`，版本 0.1.10
-- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.10.spmod`
+- 构建 `tools/build_plugin.py`，版本 0.1.11
+- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.11.spmod`
 - 数据回归 `tests/DataRegressionTest.kt`、`tests/run-data-tests.py`（data / ui 两个 suite）
 - 结构检查 `tests/spmod-structure.py`
 - 详细设计和限制 `docs/NATIVE-IMPLEMENTATION.md`

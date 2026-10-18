@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.jethuit.spw.listenstats.data.CoverStore
 import com.jethuit.spw.listenstats.data.StatsData
 import com.jethuit.spw.listenstats.data.TrackRank
@@ -82,7 +83,8 @@ fun RankingPage(
         SectionHeading(
             icon = IconPaths.QueueMusic,
             title = "歌曲播放次数",
-            headingHeight = 34.dp
+            headingHeight = 34.dp,
+            titleStyle = AppType.sectionTitle.copy(fontSize = 18.sp, lineHeight = 24.sp)
         ) {
             Surface(
                 modifier = Modifier.width(190.dp).height(34.dp),

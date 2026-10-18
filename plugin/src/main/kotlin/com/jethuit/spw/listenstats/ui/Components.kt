@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.unit.Dp
@@ -200,7 +201,7 @@ fun SelectBox(
         Surface(
             onClick = { expanded = true },
             modifier = Modifier.height(ControlHeight),
-            shape = AppShape(7.dp),
+            shape = AppShape(8.dp),
             color = colors.subtle
         ) {
             Row(
@@ -241,6 +242,7 @@ fun SectionHeading(
     caption: String? = null,
     controlsGap: Dp = 12.dp,
     headingHeight: Dp = 42.dp,
+    titleStyle: TextStyle = AppType.sectionTitle,
     controls: @Composable () -> Unit
 ) {
     val colors = LocalStatsColors.current
@@ -251,7 +253,7 @@ fun SectionHeading(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppIcon(icon, colors.muted, iconSize = 19.dp)
-                Text(title, style = AppType.sectionTitle.copy(color = colors.text))
+                Text(title, style = titleStyle.copy(color = colors.text))
             }
             if (caption != null) {
                 Text(
