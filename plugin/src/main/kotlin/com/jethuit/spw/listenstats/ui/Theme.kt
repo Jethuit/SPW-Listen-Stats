@@ -12,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import com.xuncorp.voxzen.util.AppConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -97,17 +98,17 @@ val LocalStatsColors = staticCompositionLocalOf { LightStatsColors }
 
 @Composable
 fun StatsTheme(mode: ThemeMode, content: @Composable () -> Unit) {
-    var systemDark by remember { mutableStateOf(false) }
+    var followedDark by remember { mutableStateOf(false) }
     LaunchedEffect(mode) {
         if (mode == ThemeMode.System) {
             while (true) {
-                systemDark = withContext(Dispatchers.IO) { readSystemDarkTheme() }
-                delay(3_000)
+                followedDark = withContext(Dispatchers.IO) { readFollowedDarkTheme() }
+                delay(1_000)
             }
         }
     }
     val dark = when (mode) {
-        ThemeMode.System -> systemDark
+        ThemeMode.System -> followedDark
         ThemeMode.Light -> false
         ThemeMode.Dark -> true
     }
@@ -141,6 +142,22 @@ fun StatsTheme(mode: ThemeMode, content: @Composable () -> Unit) {
     }
     CompositionLocalProvider(LocalStatsColors provides colors) {
         MaterialTheme(colorScheme = scheme, content = content)
+    }
+}
+
+private fun readFollowedDarkTheme(): Boolean {
+    return readHostDarkTheme() ?: readSystemDarkTheme()
+}
+
+private fun readHostDarkTheme(): Boolean? {
+    return try {
+        when (AppConfig.lightDarkTheme.name) {
+            "Light" -> false
+            "Dark" -> true
+            else -> null
+        }
+    } catch (failure: Throwable) {
+        null
     }
 }
 

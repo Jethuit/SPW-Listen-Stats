@@ -1,6 +1,13 @@
 # 新聊天交接
 
-## 最新：0.1.14 第三页跳转 bug
+## 最新：0.1.15 主题跟随 SPW
+
+- 主题循环第一档从“跟随系统”改为“跟随 SPW”：`StatsTheme` 每秒读取宿主 `com.xuncorp.voxzen.util.AppConfig.lightDarkTheme`；Light/Dark 直接采用，FollowSystem 回退本机系统主题。
+- 宿主内部 API 失败时捕获并回退系统，不让插件崩溃；日志/可见性尚未在宿主中验证。
+- 0.1.14 的 25 条/页和第三页修复继续保留。
+- **背景样式（椒盐经典/亚克力/云母/云母 Alt）尚未实现。** 宿主的 `SpwWindowStyle` 是 Windows DWM 窗口背景效果，插件只能读取枚举；真正的 Acrylic/Mica 由宿主窗口设置，插件页无法自行创建。可行方案是让页面根透明/半透明以继承宿主背景，或只模拟颜色（无真实模糊）；需用户选择，不能默认改。
+
+## 0.1.14 第三页跳转 bug
 
 - 根因：`RankingPage` 已改为 25 条/页，但 `StatsWindow` 仍用旧公式 `(rankCount + 49) / 50` 计算 `safePage`；点第 3 页时 `rankPage=3` 被夹回 2。
 - 修复：新增 `RANKING_PAGE_SIZE=25`、`rankingTotalPages(count)`、`rankingSafePage(count,page)`，`RankingPage` 和 `StatsWindow` 共用；删除 `rowsOnPage` 旧公式。
@@ -139,8 +146,8 @@ SaltUI 已用于主题、滚动、文本和概览/错误卡片；热力图、部
 ## 路径
 
 - 正式源码 `plugin/src/main/kotlin/com/jethuit/spw/listenstats/`
-- 构建 `tools/build_plugin.py`，版本 0.1.14
-- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.14.spmod`
+- 构建 `tools/build_plugin.py`，版本 0.1.15
+- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.15.spmod`
 - 数据回归 `tests/DataRegressionTest.kt`、`tests/run-data-tests.py`（data / ui 两个 suite）
 - 结构检查 `tests/spmod-structure.py`
 - 详细设计和限制 `docs/NATIVE-IMPLEMENTATION.md`

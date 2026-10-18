@@ -499,9 +499,9 @@ private fun PageHeader(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconAction(themeIcon, when (themeMode) {
-                ThemeMode.System -> "跟随系统 · 点击切换浅色"
+                ThemeMode.System -> "跟随 SPW · 点击切换浅色"
                 ThemeMode.Light -> "浅色 · 点击切换深色"
-                ThemeMode.Dark -> "深色 · 点击跟随系统"
+                ThemeMode.Dark -> "深色 · 点击跟随 SPW"
             }, colors.muted, onTheme, tooltip = null)
             VerticalRule(colors.line, 17.dp)
             TextAction(IconPaths.Download, "导入", colors.text, onImport)
