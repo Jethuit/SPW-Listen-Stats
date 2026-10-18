@@ -225,7 +225,6 @@
         selectedWeek = week.start;
         customStart = week.from; customEnd = week.until; range = 'custom';
         $('range-select').value = range;
-        $('granularity-select').value = 'day';
         hideTooltip(); renderHeatmap(); renderChart();
         $('heatmap').querySelector(`[data-week="${week.start}"]`)?.focus({ preventScroll: true });
         hideTooltip();
@@ -315,9 +314,8 @@
     range = 'selected';
     const selectedOption = $('range-select').querySelector('[value="selected"]');
     selectedOption.hidden = false;
-    selectedOption.textContent = dateLabel(key);
+    selectedOption.textContent = fullDateLabel(key);
     $('range-select').value = range;
-    $('granularity-select').value = 'hour';
     hideTooltip();
     renderHeatmap();
     renderChart();
@@ -331,6 +329,14 @@
     if (range === 'month') return [`${TODAY.slice(0, 7)}-01`, TODAY];
     if (range === 'custom') return [customStart, customEnd];
     return [addDays(TODAY, -(Number(range) - 1)), TODAY];
+  }
+
+  function trendResolution(start, end, preference) {
+    const days = Math.round((parseDate(end) - parseDate(start)) / 86_400_000) + 1;
+    return {
+      canChoose: days >= 14,
+      granularity: days === 1 ? 'hour' : days < 14 ? 'day' : preference === 'week' ? 'week' : 'day'
+    };
   }
 
   function aggregatePoints(start, end, granularity) {
@@ -459,17 +465,18 @@
   function renderChart() {
     if ($('overview-page').hidden) return;
     const [start, end] = getRange();
-    const singleDay = start === end;
     const granularitySelect = $('granularity-select');
-    granularitySelect.querySelector('[value="hour"]').disabled = !singleDay;
-    granularitySelect.querySelector('[value="week"]').disabled = singleDay;
-    if (!singleDay && granularitySelect.value === 'hour') granularitySelect.value = 'day';
-    if (singleDay && granularitySelect.value === 'week') granularitySelect.value = 'hour';
-    const hourly = granularitySelect.value === 'hour';
-    chartPoints = aggregatePoints(start, end, granularitySelect.value);
+    const resolution = trendResolution(start, end, granularitySelect.value);
+    const granularity = resolution.granularity;
+    $('granularity-control').hidden = !resolution.canChoose;
+    const customOption = $('range-select').querySelector('[value="custom"]');
+    customOption.textContent = range === 'custom' ? start === end ? fullDateLabel(start) : `${start.replaceAll('-', '/')} - ${end.replaceAll('-', '/')}` : '自定义日期';
+    $('range-select').title = `日期范围：${start.replaceAll('-', '/')} - ${end.replaceAll('-', '/')}`;
+    const hourly = granularity === 'hour';
+    chartPoints = aggregatePoints(start, end, granularity);
     const totalMs = chartPoints.reduce((sum, point) => sum + point.ms, 0);
     const averageMs = chartPoints.length ? totalMs / chartPoints.length : 0;
-    const averageName = { day: '日均', week: '周均', hour: '小时均值' }[granularitySelect.value];
+    const averageName = { day: '日均', week: '周均', hour: '小时均值' }[granularity];
     const averageLabel = `${averageName} ${duration(averageMs)}`;
     const maxMs = Math.max(0, ...chartPoints.map(point => point.ms));
     const showAverage = !hourly && maxMs > 0;
@@ -736,7 +743,6 @@
   $('range-select').addEventListener('change', event => {
     if (event.target.value === 'custom') { event.target.value = range; openDateDialog(); return; }
     range = event.target.value;
-    if (range === 'today' || range === 'selected') $('granularity-select').value = 'hour';
     hideTooltip(); renderChart();
   });
   $('granularity-select').addEventListener('change', () => { hideTooltip(); renderChart(); });
@@ -756,7 +762,6 @@
     if ((parseDate(end) - parseDate(start)) / 86_400_000 > 730) { $('date-error').textContent = '一次最多查看两年的趋势。'; return; }
     customStart = start; customEnd = end; range = 'custom';
     $('range-select').value = range;
-    if (start === end) $('granularity-select').value = 'hour';
     $('date-dialog').close(); renderChart();
   });
   $('export-button').addEventListener('click', () => {

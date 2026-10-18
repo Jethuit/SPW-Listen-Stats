@@ -79,14 +79,19 @@ function near(actual, expected, message) {
 let cases = 0;
 for (const fixture of ['empty', 'tiny', 'uniform', 'sparse']) {
   model.fixture(fixture);
-  for (const scenario of scenarios) for (const granularity of ['day', 'week', 'hour']) {
+  for (const scenario of scenarios) for (const granularity of ['day', 'week']) {
     for (const type of ['bar', 'line', 'curve']) for (const width of [220, 280, 360, 499, 500, 760, 1080, 1651]) {
       const svg = get('trend-chart');
       svg.clientWidth = width; svg.clientHeight = width < 600 ? 225 : 258;
       get('granularity-select').value = granularity;
       model.configure(type, scenario); model.renderChart();
       const markup = svg.innerHTML, points = model.points(), bounds = model.bounds();
-      const hourly = get('granularity-select').value === 'hour';
+      const [start, end] = model.getRange();
+      const days = Math.round((new Date(end + 'T12:00:00') - new Date(start + 'T12:00:00')) / 86400000) + 1;
+      const hourly = days === 1;
+      assert.equal(get('granularity-control').hidden, days < 14);
+      assert.equal(points.length, hourly ? 24 : days < 14 || granularity === 'day' ? days : Math.ceil(days / 7));
+      assert.equal(get('granularity-select').value, granularity, 'automatic view must preserve the long-range preference');
       const total = points.reduce((sum, point) => sum + point.ms, 0);
       assert(!markup.includes('NaN') && !markup.includes('Infinity'));
       assert.equal(get('chart-empty').hidden, total > 0);
@@ -163,4 +168,17 @@ for (const fixture of ['empty', 'tiny', 'uniform', 'sparse']) {
   }
 }
 assert.notEqual(model.axisNumber(0.000005, 0.000005), model.axisNumber(0.00001, 0.000005));
-console.log(`Passed ${cases} coordinate scenarios: all chart types, granularities, date presets/custom boundaries, 8 widths, 4 data distributions and scaled hover positions.`);
+model.fixture('uniform');
+get('granularity-select').value = 'week';
+for (const [end, count, hidden] of [['2026-01-01', 24, true], ['2026-01-13', 13, true], ['2026-01-14', 2, false], ['2026-01-30', 5, false]]) {
+  model.configure('bar', {range: 'custom', start: '2026-01-01', end});
+  model.renderChart();
+  assert.equal(model.points().length, count);
+  assert.equal(get('granularity-control').hidden, hidden);
+  assert.equal(get('granularity-select').value, 'week');
+  const option = get('range-select').querySelector('[value="custom"]');
+  assert.equal(option.textContent, end === '2026-01-01' ? '2026年1月1日' : `2026/01/01 - ${end.replaceAll('-', '/')}`);
+}
+get('granularity-select').value = 'day'; model.renderChart();
+assert.equal(model.points().length, 30);
+console.log(`Passed ${cases} coordinate scenarios plus single/short/long range transitions: auto hourly/daily views, long-range day/week preferences, actual date labels, all chart types, 8 widths, 4 data distributions and scaled hover positions.`);
