@@ -109,6 +109,8 @@ select option { background: var(--background); color: var(--text); }
 .segmented-control button { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 29px; padding: 5px 8px; border: 1px solid transparent; border-radius: 5px; color: var(--muted); font-size: 11px; white-space: nowrap; }
 .segmented-control button:hover { color: var(--text); }
 .segmented-control button.active { color: var(--text); background: var(--background); border-color: var(--line); box-shadow: 0 1px 3px rgba(0,0,0,.035); }
+.chart-type-toggle { flex-shrink: 0; }
+.chart-type-toggle button { width: 32px; padding: 5px; }
 .material-icon { display: block; flex-shrink: 0; width: 17px; height: 17px; fill: currentColor; }
 .chart-wrapper { position: relative; }
 .chart-unit { color: var(--muted); font-size: 11px; margin-bottom: 7px; padding-left: 1px; }
@@ -215,8 +217,6 @@ dialog input { display: block; width: 100%; border: 1px solid var(--line); color
   .trend-section { margin-top: 33px; }
   .trend-section .section-heading { align-items: flex-start; }
   .trend-section .section-controls { width: 100%; justify-content: flex-start; gap: 8px; }
-  .chart-type-toggle { flex-basis: 100%; }
-  .chart-type-toggle button { flex: 1; }
   .segmented-control button { min-height: 32px; }
   .select-wrap select { font-size: 11px; padding-left: 9px; }
   #trend-chart { height: 225px; }
