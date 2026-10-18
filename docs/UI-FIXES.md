@@ -1,5 +1,14 @@
 # UI 修订
 
+## 0.1.9 提示块与标题行
+
+| 问题 | 修订 |
+| --- | --- |
+| 图表类型按钮仍有“柱状图”等黑色提示 | `SegmentedControl` 的 `HoverColor` 不再传 tooltip；保留 `contentDescription` |
+| 排行标题/搜索/摘要行上下不居中 | 桌面 `SectionHeading` 固定 42dp，标题与操作区分别在 42dp 内 `CenterStart`/`CenterEnd` |
+
+检查：构建、13 组数据回归、4 组几何回归、107 项包结构检查通过；未在宿主中截图。
+
 ## 0.1.8 排行榜/封面/字体
 
 | 问题 | 修订 |

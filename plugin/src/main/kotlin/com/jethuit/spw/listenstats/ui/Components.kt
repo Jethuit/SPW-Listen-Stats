@@ -137,7 +137,7 @@ fun SegmentedControl(
                 HoverColor(
                     if (active) colors.background else Color.Transparent,
                     if (active) colors.background else colors.hover,
-                    option.tooltip
+                    tooltip = null
                 ) { background ->
                     Surface(
                         onClick = { onSelected(option.key) },
@@ -269,10 +269,13 @@ fun SectionHeading(
             ) { heading(); actions() }
         } else {
             Row(
-                Modifier.fillMaxWidth().heightIn(min = 42.dp),
+                Modifier.fillMaxWidth().height(42.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
-            ) { heading(); actions() }
+            ) {
+                Box(Modifier.height(42.dp), contentAlignment = Alignment.CenterStart) { heading() }
+                Box(Modifier.height(42.dp), contentAlignment = Alignment.CenterEnd) { actions() }
+            }
         }
     }
 }

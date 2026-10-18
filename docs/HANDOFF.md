@@ -1,6 +1,14 @@
 # 新聊天交接
 
-## 最新：0.1.8 排行榜/封面/字体修复
+## 最新：0.1.9 提示块与标题行对齐
+
+- 图表类型按钮的“柱状图/折线图/曲线图”黑色悬停提示删除；`SegmentedControl` 仍保留 `contentDescription`，只是不再显示黑色 tooltip。
+- 排行页标题/搜索框/摘要所在标题行改为固定 42dp，两个子区域分别在 42dp 内 `CenterStart`/`CenterEnd`，修正上下不居中。
+- 之前的 0.1.8 修复继续有效：顶部重复分页删除、播放次数列 96dp 居中、封面 30 秒冷却重试、canvas 使用宿主字体、主题/返回 tooltip 删除。
+
+0.1.9 只做构建和离线回归，未在宿主中截图；标题行居中和按钮提示需要在正常 SPW 中确认。
+
+## 0.1.8 排行榜/封面/字体修复
 
 用户对当前宿主内嵌页提出 5 项，已修：
 
@@ -89,8 +97,8 @@ SaltUI 已用于主题、滚动、文本和概览/错误卡片；热力图、部
 ## 路径
 
 - 正式源码 `plugin/src/main/kotlin/com/jethuit/spw/listenstats/`
-- 构建 `tools/build_plugin.py`，版本 0.1.8
-- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.8.spmod`
+- 构建 `tools/build_plugin.py`，版本 0.1.9
+- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.9.spmod`
 - 数据回归 `tests/DataRegressionTest.kt`、`tests/run-data-tests.py`（data / ui 两个 suite）
 - 结构检查 `tests/spmod-structure.py`
 - 详细设计和限制 `docs/NATIVE-IMPLEMENTATION.md`
