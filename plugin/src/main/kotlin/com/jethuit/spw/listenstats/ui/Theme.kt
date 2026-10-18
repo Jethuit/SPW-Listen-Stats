@@ -70,7 +70,7 @@ val LightStatsColors = StatsColors(
     tooltipBackground = Color(0xFF25272B),
     tooltipText = Color(0xFFFFFFFF),
     danger = Color(0xFFCF4545),
-    pageBackground = Color(0xFFF3F3F3)
+    pageBackground = Color(0xFFF8F8F8)
 )
 
 val DarkStatsColors = StatsColors(
@@ -93,7 +93,7 @@ val DarkStatsColors = StatsColors(
     tooltipBackground = Color(0xFFEEEEEF),
     tooltipText = Color(0xFF202124),
     danger = Color(0xFFFF8A8A),
-    pageBackground = Color(0xFF1E1E20)
+    pageBackground = Color(0xFF232323)
 )
 
 val LocalStatsColors = staticCompositionLocalOf { LightStatsColors }

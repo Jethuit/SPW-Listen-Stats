@@ -1,6 +1,13 @@
 # 新聊天交接
 
-## 最新：0.1.17 椒盐经典直接取色
+## 最新：0.1.18 重新取顶部颜色
+
+- 用户指出 0.1.17 取错：取了页面内容区（#F3F3F3 / #1E1E20），应取截图**最顶部**色。
+- 重新采样：浅色 y=0–50 为 **#F8F8F8**；深色 y=0–35 为 **#232323**。
+- `pageBackground` 已改为 #F8F8F8 / #232323；卡片/行仍用 `background`（白/深色）。
+- Acrylic/Mica 继续回退经典色；主题跟随 SPW。
+
+## 0.1.17 椒盐经典直接取色
 
 - 不再对 `StatsColors.background` 做 55% 色调混合（那让四种样式都近似白）。
 - 新增 `StatsColors.pageBackground`：浅色取宿主截图侧栏/经典页的 **#F3F3F3**，深色 **#1E1E20**；页面根 Surface 用它，卡片/表格行继续用白色 `background`。
@@ -161,8 +168,8 @@ SaltUI 已用于主题、滚动、文本和概览/错误卡片；热力图、部
 ## 路径
 
 - 正式源码 `plugin/src/main/kotlin/com/jethuit/spw/listenstats/`
-- 构建 `tools/build_plugin.py`，版本 0.1.17
-- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.17.spmod`
+- 构建 `tools/build_plugin.py`，版本 0.1.18
+- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.18.spmod`
 - 数据回归 `tests/DataRegressionTest.kt`、`tests/run-data-tests.py`（data / ui 两个 suite）
 - 结构检查 `tests/spmod-structure.py`
 - 详细设计和限制 `docs/NATIVE-IMPLEMENTATION.md`
