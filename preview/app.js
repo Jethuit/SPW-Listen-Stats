@@ -349,12 +349,14 @@
       const record = recordAt(start);
       return record.hourlyMs.map((ms, h) => ({ label: `${String(h).padStart(2, '0')}:00`, fullLabel: `${dateLabel(start)} ${String(h).padStart(2, '0')}:00 — ${String(h + 1).padStart(2, '0')}:00`, ms }));
     }
+    const multiYear = start.slice(0, 4) !== end.slice(0, 4);
+    const fullDate = key => `${multiYear ? `${key.slice(0, 4)}年` : ''}${dateLabel(key)}`;
     const points = [];
     for (let key = start; key <= end; key = addDays(key, granularity === 'week' ? 7 : 1)) {
       const until = granularity === 'week' && addDays(key, 6) < end ? addDays(key, 6) : granularity === 'week' ? end : key;
       let ms = 0;
       for (let date = key; date <= until; date = addDays(date, 1)) ms += recordAt(date).ms;
-      points.push({ label: shortDate(key), fullLabel: key === until ? dateLabel(key) : `${dateLabel(key)} — ${dateLabel(until)}`, ms });
+      points.push({ label: multiYear ? key.replaceAll('-', '/') : shortDate(key), fullLabel: key === until ? fullDate(key) : `${fullDate(key)} — ${fullDate(until)}`, ms });
     }
     return points;
   }
@@ -364,6 +366,23 @@
     const magnitude = 10 ** Math.floor(Math.log10(value));
     const fraction = value / magnitude;
     return (fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 4 ? 4 : fraction <= 5 ? 5 : 10) * magnitude;
+  }
+
+  function axisNumber(value, step) {
+    const digits = Math.max(0, Math.min(8, Math.ceil(-Math.log10(step)) + 1));
+    return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: digits }).format(Number(value.toFixed(digits)));
+  }
+
+  function chartTickIndices(points, xAt, minGap) {
+    if (points.length <= 1) return [0];
+    const last = points.length - 1;
+    const count = Math.max(2, Math.min(7, Math.floor((xAt(last) - xAt(0)) / minGap) + 1));
+    const stride = Math.ceil(last / (count - 1));
+    const indices = [0];
+    for (let index = stride; index < last; index += stride) indices.push(index);
+    while (indices.length > 1 && xAt(last) - xAt(indices.at(-1)) < minGap) indices.pop();
+    indices.push(last);
+    return indices;
   }
 
   // Monotone cubic interpolation: each segment stays between its two measured endpoints.
@@ -471,14 +490,19 @@
     const max = niceCeiling(Math.max(...values) * 1.1);
     const svg = $('trend-chart');
     const width = Math.max(280, svg.clientWidth), height = svg.clientHeight || 258;
-    const left = 52, right = width - 10, top = 10, bottom = height - 30;
-    chartBounds = { left, right, top, bottom, width, height, hourly };
+    const measure = document.createElement('canvas').getContext('2d');
+    if (measure) measure.font = `11px ${getComputedStyle(svg).fontFamily}`;
+    const labelWidth = Math.max(...chartPoints.map(point => measure ? measure.measureText(point.label).width : point.label.length * 7));
+    // Reserve space for centered endpoint labels instead of shifting the labels away from their data.
+    const left = Math.max(52, labelWidth / 2 + 6), right = width - Math.max(10, labelWidth / 2 + 6), top = 10, bottom = height - 30;
+    const banded = hourly || chartType === 'bar';
+    chartBounds = { left, right, top, bottom, width, height, banded };
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     svg.dataset.chartType = chartType;
-    svg.setAttribute('aria-label', `${dateLabel(start)}至${dateLabel(end)}听歌时长${chartTypes[chartType]}${showAverage ? `，${averageLabel}，包含零收听时段` : ''}${hourly ? '，横坐标为00:00至24:00，各数据点表示对应小时内的收听时长' : ''}`);
+    svg.setAttribute('aria-label', `${dateLabel(start)}至${dateLabel(end)}听歌时长${chartTypes[chartType]}${showAverage ? `，${averageLabel}，包含零收听时段` : ''}${hourly ? '，时间标签表示小时区间起点，最后一段为23:00至24:00' : ''}`);
     const slotWidth = (right - left) / chartPoints.length;
     // Hourly values are interval totals: place them at the middle of each hour.
-    const xAt = index => hourly || chartType === 'bar' ? left + (index + 0.5) * slotWidth : left + (chartPoints.length === 1 ? (right - left) / 2 : index * (right - left) / (chartPoints.length - 1));
+    const xAt = index => banded ? left + (index + 0.5) * slotWidth : left + (chartPoints.length === 1 ? (right - left) / 2 : index * (right - left) / (chartPoints.length - 1));
     const yAt = value => bottom - value / max * (bottom - top);
     const averageY = yAt(averageMs / unitMs);
     const averageValue = averageMs / unitMs;
@@ -489,7 +513,7 @@
       const y = yAt(value);
       markup += `<line class="chart-grid" x1="${left}" x2="${right}" y1="${y}" y2="${y}"/>`;
       if (!showAverage || Math.abs(y - averageY) >= 14) {
-        markup += `<text class="chart-tick" x="${left - 12}" y="${y + 4}" text-anchor="end">${Number(value.toFixed(1))}</text>`;
+        markup += `<text class="chart-tick" data-axis-value="${value}" x="${left - 12}" y="${y + 4}" text-anchor="end">${axisNumber(value, max / 4)}</text>`;
       }
     }
     if (chartType === 'bar') {
@@ -508,18 +532,9 @@
     if (showAverage) {
       markup += `<g class="chart-average"><title>${averageLabel}，单位：${unitName}</title><line class="chart-average-line" x1="${left - 6}" x2="${right}" y1="${averageY}" y2="${averageY}"/><text class="chart-average-label" x="${left - 12}" y="${averageY + 4}" text-anchor="end">${averageAxisLabel.replace('<', '&lt;')}</text></g>`;
     }
-    if (hourly) {
-      const step = width < 500 ? 6 : 4;
-      for (let hour = 0; hour <= 24; hour += step) {
-        const x = left + hour / 24 * (right - left);
-        markup += `<line class="chart-grid" x1="${x}" x2="${x}" y1="${bottom}" y2="${bottom + 4}"/><text class="chart-tick" x="${x}" y="${height - 8}" text-anchor="${hour === 0 ? 'start' : hour === 24 ? 'end' : 'middle'}">${String(hour).padStart(2, '0')}:00</text>`;
-      }
-    } else {
-      const labelCount = Math.min(width < 500 ? 4 : 7, chartPoints.length);
-      for (let label = 0; label < labelCount; label++) {
-        const index = labelCount === 1 ? 0 : Math.round(label * (chartPoints.length - 1) / (labelCount - 1));
-        markup += `<text class="chart-tick" x="${xAt(index)}" y="${height - 8}" text-anchor="${label === 0 ? 'start' : label === labelCount - 1 ? 'end' : 'middle'}">${chartPoints[index].label}</text>`;
-      }
+    for (const index of chartTickIndices(chartPoints, xAt, labelWidth + 16)) {
+      const x = xAt(index);
+      markup += `<line class="chart-axis-tick" x1="${x}" x2="${x}" y1="${bottom}" y2="${bottom + 4}"/><text class="chart-tick" data-tick-index="${index}" x="${x}" y="${height - 8}" text-anchor="middle">${chartPoints[index].label}</text>`;
     }
     markup += '<g id="chart-hover" visibility="hidden"><line class="chart-crosshair" id="chart-crosshair"/><circle class="chart-point" id="chart-point" r="4"/></g>';
     svg.innerHTML = markup;
@@ -557,8 +572,10 @@
   function showChartPoint(event) {
     if (!chartBounds || !chartPoints.length || !$('chart-empty').hidden) return;
     const rect = $('trend-chart').getBoundingClientRect();
-    const localX = event.clientX - rect.left;
-    const nearest = chartBounds.hourly ? Math.floor((localX - chartBounds.left) / (chartBounds.right - chartBounds.left) * chartPoints.length) : chartPoints.length === 1 ? 0 : Math.round((localX - chartPoints[0].x) / (chartPoints[chartPoints.length - 1].x - chartPoints[0].x) * (chartPoints.length - 1));
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const scaleX = rect.width / chartBounds.width, scaleY = rect.height / chartBounds.height;
+    const localX = (event.clientX - rect.left) / scaleX;
+    const nearest = chartBounds.banded ? Math.floor((localX - chartBounds.left) / (chartBounds.right - chartBounds.left) * chartPoints.length) : chartPoints.length === 1 ? 0 : Math.round((localX - chartPoints[0].x) / (chartPoints[chartPoints.length - 1].x - chartPoints[0].x) * (chartPoints.length - 1));
     const index = Math.max(0, Math.min(chartPoints.length - 1, nearest));
     const point = chartPoints[index];
     $('trend-chart').querySelector('.chart-bar.is-active')?.classList.remove('is-active');
@@ -569,7 +586,7 @@
     $('chart-point').setAttribute('cx', point.x); $('chart-point').setAttribute('cy', point.y);
     $('chart-hover').setAttribute('visibility', 'visible');
     tooltipContent(point.fullLabel, point.ms);
-    positionTooltip({ left: rect.left + point.x, top: rect.top + point.y, bottom: rect.top + point.y, width: 0 });
+    positionTooltip({ left: rect.left + point.x * scaleX, top: rect.top + point.y * scaleY, bottom: rect.top + point.y * scaleY, width: 0 });
   }
 
   function renderSongs() {
