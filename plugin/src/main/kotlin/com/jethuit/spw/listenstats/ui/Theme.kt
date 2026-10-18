@@ -12,7 +12,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -47,7 +46,8 @@ data class StatsColors(
     val cells: List<Color>,
     val tooltipBackground: Color,
     val tooltipText: Color,
-    val danger: Color
+    val danger: Color,
+    val pageBackground: Color = background
 )
 
 val LightStatsColors = StatsColors(
@@ -69,7 +69,8 @@ val LightStatsColors = StatsColors(
     ),
     tooltipBackground = Color(0xFF25272B),
     tooltipText = Color(0xFFFFFFFF),
-    danger = Color(0xFFCF4545)
+    danger = Color(0xFFCF4545),
+    pageBackground = Color(0xFFF3F3F3)
 )
 
 val DarkStatsColors = StatsColors(
@@ -91,7 +92,8 @@ val DarkStatsColors = StatsColors(
     ),
     tooltipBackground = Color(0xFFEEEEEF),
     tooltipText = Color(0xFF202124),
-    danger = Color(0xFFFF8A8A)
+    danger = Color(0xFFFF8A8A),
+    pageBackground = Color(0xFF1E1E20)
 )
 
 val LocalStatsColors = staticCompositionLocalOf { LightStatsColors }
@@ -116,9 +118,7 @@ fun StatsTheme(mode: ThemeMode, content: @Composable () -> Unit) {
         ThemeMode.Dark -> true
     }
     val baseColors = if (dark) DarkStatsColors else LightStatsColors
-    val colors = baseColors.copy(
-        background = styledBackground(hostAppearance.windowStyle, dark, baseColors.background)
-    )
+    val colors = baseColors
     val scheme = if (dark) {
         darkColorScheme(
             primary = colors.accent,
@@ -149,16 +149,6 @@ fun StatsTheme(mode: ThemeMode, content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalStatsColors provides colors) {
         MaterialTheme(colorScheme = scheme, content = content)
     }
-}
-
-private fun styledBackground(style: String?, dark: Boolean, base: Color): Color {
-    val tint = when (style) {
-        "WindowsAcrylic" -> if (dark) Color(0xFF2A3038) else Color(0xFFF1F5FA)
-        "WindowsMica" -> if (dark) Color(0xFF24211E) else Color(0xFFF8F4EE)
-        "WindowsMicaAlt" -> if (dark) Color(0xFF1B222A) else Color(0xFFEDF3F9)
-        else -> return base
-    }
-    return lerp(base, tint, 0.55f)
 }
 
 private fun readSystemDarkTheme(): Boolean {

@@ -1,6 +1,14 @@
 # 新聊天交接
 
-## 最新：0.1.16 近似背景样式
+## 最新：0.1.17 椒盐经典直接取色
+
+- 不再对 `StatsColors.background` 做 55% 色调混合（那让四种样式都近似白）。
+- 新增 `StatsColors.pageBackground`：浅色取宿主截图侧栏/经典页的 **#F3F3F3**，深色 **#1E1E20**；页面根 Surface 用它，卡片/表格行继续用白色 `background`。
+- 用户要求先只做“椒盐经典”；Acrylic/Mica/云母 Alt 暂回退经典页底色，不做透明、不做真实 DWM，也不假装支持。
+- 主题仍跟随 SPW，三档保留。
+- 宿主 `SpwWindowStyle` 读取代码保留在 `HostAppearanceReader`，但当前不用于页面底色。
+
+## 0.1.16 近似背景样式
 
 - 新增 `HostAppearanceReader`，读取宿主 `AppConfig.spwWindowStyle` 与 `lightDarkTheme`；失败时返回空值安全回退。
 - `StatsTheme` 按 `WindowsAcrylic` / `WindowsMica` / `WindowsMicaAlt` 对 `StatsColors.background` 做 55% 色调混合；`None`/椒盐经典保持原色。**没有透明/DWM 模糊**，避免透出宿主底层歌曲页。
@@ -153,8 +161,8 @@ SaltUI 已用于主题、滚动、文本和概览/错误卡片；热力图、部
 ## 路径
 
 - 正式源码 `plugin/src/main/kotlin/com/jethuit/spw/listenstats/`
-- 构建 `tools/build_plugin.py`，版本 0.1.16
-- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.16.spmod`
+- 构建 `tools/build_plugin.py`，版本 0.1.17
+- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.17.spmod`
 - 数据回归 `tests/DataRegressionTest.kt`、`tests/run-data-tests.py`（data / ui 两个 suite）
 - 结构检查 `tests/spmod-structure.py`
 - 详细设计和限制 `docs/NATIVE-IMPLEMENTATION.md`

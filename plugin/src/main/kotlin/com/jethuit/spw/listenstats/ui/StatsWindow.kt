@@ -299,7 +299,7 @@ fun ListenStatsApp(
         SaltTheme(configs = saltConfigs(colors.isDark)) {
         val snapshot = data
         if (snapshot == null) {
-            Surface(Modifier.fillMaxSize(), color = colors.background) {
+            Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {
                 LoadingPage(onClose)
             }
             return@SaltTheme
@@ -311,7 +311,7 @@ fun ListenStatsApp(
         LaunchedEffect(totalPages) {
             if (rankPage > totalPages) rankPage = totalPages
         }
-        Surface(Modifier.fillMaxSize(), color = colors.background) {
+        Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val density = LocalDensity.current
             val pageWidth = when {
