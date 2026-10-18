@@ -1,6 +1,15 @@
 # 新聊天交接
 
-## 最新：0.1.12 排行底栏与图注
+## 最新：0.1.13 底栏/头部/每页数
+
+- 排行底栏去掉说明末尾的“·”和虚线引导线，只保留“听满单曲 50% 计一次”与右侧 `‹ 页码 ›` 按钮组。
+- `TextAction`（导入/导出）和主题 `IconAction` 统一：按钮 34dp、圆角 8dp、图标 19px、图标色 `muted`；文字仍用正文色。
+- 排行 `PAGE_SIZE` 从 50 改为 **25**。
+- 概览标题“年度足迹”改为“听歌热力图”。
+
+0.1.13 只做构建/离线回归，未在宿主中截图；头部图标尺寸、每页 25 首和标题需用户核对。
+
+## 0.1.12 排行底栏与图注
 
 - 排行底部改为单行：左侧“听满单曲 50% 计一次 ·”，中间虚线 leader，右侧 `‹ 1 2 ›` 分组按钮；删除排行页原来的独立分页行、重复说明和 `PageFooter` 状态行（`PageFooter` 只保留概览页）。
 - 分页按钮放进 `subtle` 圆角组，外组 8dp、内部 5dp，无描边；上一页/下一页用 `‹`/`›`，页码仍最多 7 个并用省略号。
@@ -123,8 +132,8 @@ SaltUI 已用于主题、滚动、文本和概览/错误卡片；热力图、部
 ## 路径
 
 - 正式源码 `plugin/src/main/kotlin/com/jethuit/spw/listenstats/`
-- 构建 `tools/build_plugin.py`，版本 0.1.12
-- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.12.spmod`
+- 构建 `tools/build_plugin.py`，版本 0.1.13
+- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.13.spmod`
 - 数据回归 `tests/DataRegressionTest.kt`、`tests/run-data-tests.py`（data / ui 两个 suite）
 - 结构检查 `tests/spmod-structure.py`
 - 详细设计和限制 `docs/NATIVE-IMPLEMENTATION.md`

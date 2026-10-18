@@ -84,7 +84,7 @@ fun OverviewPage(
 
         SectionHeading(
             icon = IconPaths.CalendarMonth,
-            title = "年度足迹",
+            title = "听歌热力图",
             caption = "$year 年 · $yearActiveDays 个听歌日 · ${formatDuration(yearTotal)}"
         ) {
             SegmentedControl(

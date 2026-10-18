@@ -33,11 +33,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,7 +49,7 @@ import com.jethuit.spw.listenstats.util.formatNumber
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private const val PAGE_SIZE = 50
+private const val PAGE_SIZE = 25
 
 @Composable
 fun RankingPage(
@@ -161,30 +159,16 @@ fun RankingPage(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "听满单曲 50% 计一次 ·",
+                    "听满单曲 50% 计一次",
                     style = AppType.tiny.copy(color = colors.muted)
                 )
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .height(1.dp)
-                        .padding(horizontal = 12.dp)
-                        .drawBehind {
-                            drawLine(
-                                color = colors.line,
-                                start = Offset(0f, size.height / 2f),
-                                end = Offset(size.width, size.height / 2f),
-                                strokeWidth = 1.dp.toPx(),
-                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 4f))
-                            )
-                        }
-                )
+                Box(Modifier.weight(1f))
                 Pagination(currentPage, totalPages, onPageChange)
             }
         } else if (rows.isNotEmpty()) {
             Box(Modifier.height(16.dp))
             Text(
-                "听满单曲 50% 计一次 ·",
+                "听满单曲 50% 计一次",
                 style = AppType.tiny.copy(color = colors.muted)
             )
         }

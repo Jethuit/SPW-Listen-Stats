@@ -108,13 +108,18 @@ fun TextAction(
 ) {
     val colors = LocalStatsColors.current
     HoverColor(Color.Transparent, colors.hover) { background ->
-        Surface(onClick = onClick, shape = AppShape(8.dp), color = background) {
+        Surface(
+            onClick = onClick,
+            modifier = Modifier.height(34.dp),
+            shape = AppShape(8.dp),
+            color = background
+        ) {
             Row(
-                Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                Modifier.fillMaxHeight().padding(horizontal = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(7.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AppIcon(path, tint, iconSize = 17.dp)
+                AppIcon(path, colors.muted, iconSize = 19.dp)
                 Text(label, style = AppType.action.copy(color = tint))
             }
         }
