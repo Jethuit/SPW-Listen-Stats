@@ -111,6 +111,13 @@
     return minutes ? `${minutes}${compact ? '分钟' : ' 分钟'}` : ms > 0 ? '不足 1 分钟' : '0 分钟';
   }
 
+  function durationMarkup(ms) {
+    const minutes = Math.floor(ms / 60_000);
+    const hours = Math.floor(minutes / 60);
+    if (hours) return `${number.format(hours)}<small>小时</small>${minutes % 60 ? `${minutes % 60}<small>分钟</small>` : ''}`;
+    return minutes ? `${minutes}<small>分钟</small>` : ms > 0 ? '<small>不足</small>1<small>分钟</small>' : '0<small>分钟</small>';
+  }
+
   function renderSummary() {
     const totalMs = records.reduce((sum, record) => sum + record.ms, 0);
     const hours = Math.floor(totalMs / 3_600_000);
@@ -130,9 +137,11 @@
     $('current-streak').innerHTML = `${current}<small>天</small>`;
     $('current-streak').title = '连续听歌天数；当天尚未听歌时，延续到昨天的连续记录。';
     const peak = [...records].sort((a, b) => b.ms - a.ms)[0];
-    $('peak-day').textContent = peak?.ms > 0 ? duration(peak.ms) : '暂无记录';
+    $('peak-day').innerHTML = peak?.ms > 0 ? durationMarkup(peak.ms) : '暂无记录';
+    $('peak-day').setAttribute('aria-label', peak?.ms > 0 ? duration(peak.ms) : '暂无记录');
     $('peak-date').textContent = peak?.ms > 0 ? `${peak.date.slice(0, 4)}年${dateLabel(peak.date)}` : '开始听歌后生成小结';
-    $('daily-average').textContent = active.length ? duration(totalMs / active.length) : '暂无记录';
+    $('daily-average').innerHTML = active.length ? durationMarkup(totalMs / active.length) : '暂无记录';
+    $('daily-average').setAttribute('aria-label', active.length ? duration(totalMs / active.length) : '暂无记录');
     const hourly = Array.from({ length: 24 }, (_, h) => records.reduce((sum, record) => sum + record.hourlyMs[h], 0));
     const peakHour = hourly.indexOf(Math.max(...hourly));
     $('favorite-hours').textContent = totalMs ? `${String(peakHour).padStart(2, '0')}:00 — ${String(peakHour + 1).padStart(2, '0')}:00` : '暂无记录';
@@ -466,7 +475,7 @@
     chartBounds = { left, right, top, bottom, width, height };
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     svg.dataset.chartType = chartType;
-    svg.setAttribute('aria-label', `${dateLabel(start)}至${dateLabel(end)}听歌时长${chartTypes[chartType]}，${averageLabel}，包含零收听时段，下方可展开数据表`);
+    svg.setAttribute('aria-label', `${dateLabel(start)}至${dateLabel(end)}听歌时长${chartTypes[chartType]}，${averageLabel}，包含零收听时段`);
     const slotWidth = (right - left) / chartPoints.length;
     const xAt = index => chartType === 'bar' ? left + (index + 0.5) * slotWidth : left + (chartPoints.length === 1 ? (right - left) / 2 : index * (right - left) / (chartPoints.length - 1));
     const yAt = value => bottom - value / max * (bottom - top);
@@ -509,7 +518,6 @@
     $('chart-unit').textContent = `听歌时长（${unitName}）`;
     $('trend-caption').textContent = `这段时间听了 ${duration(totalMs)}`;
     $('chart-empty').hidden = chartPoints.some(point => point.ms > 0);
-    $('chart-table').innerHTML = chartPoints.map(point => `<tr><td>${point.fullLabel}</td><td>${duration(point.ms)}</td></tr>`).join('');
   }
 
   function positionTooltip(rect) {

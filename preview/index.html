@@ -79,7 +79,6 @@
         <svg id="trend-chart" viewBox="0 0 1000 258" preserveAspectRatio="none" role="img" aria-label="听歌时长趋势图"></svg>
         <div class="chart-empty" id="chart-empty" hidden>这段时间还没有听歌记录</div>
       </div>
-      <details class="chart-accessible"><summary>查看图表数据</summary><div class="data-table-scroll"><table><thead><tr><th>日期 / 时段</th><th>听歌时长</th></tr></thead><tbody id="chart-table"></tbody></table></div></details>
     </section>
 
     <section class="insights-section" aria-labelledby="insights-title">
@@ -87,17 +86,17 @@
       <div class="insights-grid">
         <article class="insight-card" aria-labelledby="peak-day-title">
           <h3 id="peak-day-title">听得最多的一天</h3>
-          <p class="insight-value" id="peak-day">—</p>
+          <p class="insight-value summary-number" id="peak-day">—</p>
           <p class="insight-note" id="peak-date">—</p>
         </article>
         <article class="insight-card" aria-labelledby="daily-average-title">
           <h3 id="daily-average-title">每个听歌日平均收听</h3>
-          <p class="insight-value" id="daily-average">—</p>
+          <p class="insight-value summary-number" id="daily-average">—</p>
           <p class="insight-note">按有收听记录的日期计算</p>
         </article>
         <article class="insight-card" aria-labelledby="favorite-hours-title">
           <h3 id="favorite-hours-title">最常听歌的时段</h3>
-          <p class="insight-value" id="favorite-hours">—</p>
+          <p class="insight-value summary-number" id="favorite-hours">—</p>
           <p class="insight-note" id="favorite-hours-note">—</p>
         </article>
       </div>
