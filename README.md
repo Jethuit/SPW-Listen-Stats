@@ -6,18 +6,18 @@ GitHub：<https://github.com/Jethuit/SPW-Listen-Stats>。正式实现说明、�
 
 ## 正式模组
 
-当前 0.1.4 在 0.1.3 的恢复修复上按 `preview/` 重新对齐页面边距、排行搜索、表格列宽、分页、图表坐标与关闭按钮位置；0.1.2 已修复截图中提示框错位、空数据刻度重复等问题。详见 [UI 修订记录](docs/UI-FIXES.md)。0.1.4 的 UI 还需要你在真实 SPW 中核对。
+当前 0.1.5 把统计页改成 **宿主内容区内嵌页面**：不再创建 `JDialog`/浮动 `Popup`，移除右下角 pill，入口只保留模块管理页插件配置里的“打开听歌统计”。同时按宿主的 Salt UI **3.0.0-beta02**（CMP 1.12.1 兼容线）打包了 SaltUI，页面主题和滚动使用 SaltUI；0.1.4 的预览布局对齐和 0.1.3 的恢复修复继续保留。0.1.5 的内嵌/滚动已在隔离配置中验证，组件仍有一部分是自绘/Compose 原语，尚未全部换成 SaltUI 组件。
 
 ```powershell
 python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-产物为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.4.spmod`，在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。主界面右下角出现“听歌统计”入口；未授权 Hook 时可从插件配置页打开。
+产物为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.5.spmod`，在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。入口在模块管理页的插件配置“打开听歌统计”；不再有主界面浮动入口。
 
 当前只读宿主 `spw.db` 的 `Listen` 表，同时通过播放扩展点、单调时钟和实际收听片段保存 `live-sessions.json`；每遍听满 50% 为该歌曲计一次。新版正式备份 v2 按会话身份合并去重，兼容旧 v1 汇总并提示其保守合并可能少计。宿主历史缺少暂停片段，小时分布仍为近似，实时/宿主记录匹配也仍依赖开始时间启发式。封面通过 Workshop API 读取；主题、图表类型和粒度保存在插件配置中。
 
-已知限制：入口是宿主浮层 + 无边框窗口，不是宿主原生导航页；真实播放/暂停/seek、宿主落库去重仍需本机验收；页面每 5 秒刷新；Hook 目标类名绑定 1.19.0。0.1.2/0.1.3 的独立配置检查已实际点击主题循环、页签切换、日/周热力图、热力图日期选择和图表类型（截图见 `build/screenshots/`，不提交），但仍需完整鼠标回归。下图来自先前 0.1.0，不代表新版已运行验收。数据检查命令为 `python tests/run-data-tests.py data|ui`，需先构建。详细说明见 [docs/NATIVE-IMPLEMENTATION.md](docs/NATIVE-IMPLEMENTATION.md)。
+已知限制：页面通过 `AppNavigation` hook 占住宿主右侧内容区，不是宿主原生导航路由；Hook 目标类名绑定 1.19.0；侧栏仍可点击宿主原页面。真实播放/暂停/seek、宿主落库去重仍需本机验收；页面每 5 秒刷新。SaltUI 已打包 3.0.0-beta02，但当前主要使用 `SaltTheme` 和 SaltUI 滚动，卡片/按钮/文本等仍是预览定制实现，后续按你的选择继续迁移。0.1.3 的独立配置检查已实际点击主题循环、页签切换、日/周热力图、热力图日期选择和图表类型；0.1.5 的内嵌与滚动已在隔离配置中截图验证，见 `build/screenshots/embed_proto.png`（不提交）。下图来自先前 0.1.0，不代表新版已运行验收。数据检查命令为 `python tests/run-data-tests.py data|ui`，需先构建。详细说明见 [docs/NATIVE-IMPLEMENTATION.md](docs/NATIVE-IMPLEMENTATION.md)。
 
 ![正式模组听歌概览](docs/screenshots/overview-light.png)
 

@@ -24,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,8 +45,13 @@ import com.jethuit.spw.listenstats.data.StatsCalculations
 import com.jethuit.spw.listenstats.data.StatsData
 import com.jethuit.spw.listenstats.data.StatsStore
 import com.jethuit.spw.listenstats.util.formatDay
+import com.moriafly.salt.ui.SaltTheme
+import com.moriafly.salt.ui.rememberScrollState
+import com.moriafly.salt.ui.saltConfigs
+import com.moriafly.salt.ui.verticalScroll
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.BorderLayout
 import java.awt.Color as AwtColor
@@ -208,10 +214,20 @@ enum class StatsPage { Overview, Ranking }
 
 @Composable
 fun ListenStatsApp(
+    embedded: Boolean = false,
     onClose: () -> Unit,
     onScrollTop: () -> Unit = {},
     onContentHeight: (StatsPage, Int) -> Unit = { _, _ -> }
 ) {
+    val scrollState = rememberScrollState(0)
+    val scope = rememberCoroutineScope()
+    val scrollTop: () -> Unit = {
+        if (embedded) {
+            scope.launch { scrollState.scrollTo(0) }
+        } else {
+            onScrollTop()
+        }
+    }
     var data by remember { mutableStateOf<StatsData?>(null) }
     var today by remember { mutableStateOf(LocalDate.now()) }
     var page by remember {
@@ -279,12 +295,13 @@ fun ListenStatsApp(
 
     StatsTheme(themeMode) {
         val colors = LocalStatsColors.current
+        SaltTheme(configs = saltConfigs(colors.isDark)) {
         val snapshot = data
         if (snapshot == null) {
             Surface(Modifier.fillMaxSize(), color = colors.background) {
                 LoadingPage(onClose)
             }
-            return@StatsTheme
+            return@SaltTheme
         }
         val summary = remember(snapshot, today) { StatsCalculations.summary(snapshot, today) }
         val rankCount = remember(snapshot, query) { filteredRankCount(snapshot, query) }
@@ -309,7 +326,14 @@ fun ListenStatsApp(
                 maxWidth > 600.dp -> 34.dp
                 else -> 26.dp
             }
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            Box(
+                Modifier
+                    .then(
+                        if (embedded) Modifier.fillMaxSize().verticalScroll(scrollState)
+                        else Modifier.fillMaxWidth()
+                    ),
+                contentAlignment = Alignment.TopCenter
+            ) {
                         Column(
                             Modifier
                                 .width(pageWidth)
@@ -329,7 +353,7 @@ fun ListenStatsApp(
                                 onImport = {
                                     if (BackupService.importBackup()) {
                                         rankPage = 1
-                                        onScrollTop()
+                                        scrollTop()
                                         reloadTick++
                                     }
                                 },
@@ -337,7 +361,7 @@ fun ListenStatsApp(
                             )
                             PageNav(page) { newPage ->
                                 page = newPage
-                                onScrollTop()
+                                scrollTop()
                             }
                             if (snapshot.error != null) {
                                 ErrorBanner(snapshot.error)
@@ -409,14 +433,14 @@ fun ListenStatsApp(
                                     query = query,
                                     onQueryChange = { query = it },
                                     page = safePage,
-                                    onPageChange = { rankPage = it; onScrollTop() }
+                                    onPageChange = { rankPage = it; scrollTop() }
                                 )
                             }
                             PageFooter(snapshot)
                         }
                     }
-                    // Window-only affordance: the undecorated dialog has no title bar.
-                    // Keep it outside the preview page column so the header still ends at 导出.
+                    // Host-composed page: no title bar, so keep the close affordance
+                    // outside the preview page column.
                     IconAction(
                         IconPaths.Close,
                         "关闭",
@@ -426,6 +450,7 @@ fun ListenStatsApp(
                     )
                 }
             }
+        }
         }
     }
 

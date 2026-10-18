@@ -27,7 +27,7 @@ TOOLS = BUILD / 'tools'
 PLUGIN_SRC = ROOT / 'plugin' / 'src' / 'main' / 'kotlin'
 RESOURCES = ROOT / 'plugin' / 'src' / 'main' / 'resources'
 PLUGIN_ID = 'com.jethuit.spw.listenstats'
-PLUGIN_VERSION = '0.1.4'
+PLUGIN_VERSION = '0.1.5'
 PLUGIN_CLASS = 'com.jethuit.spw.listenstats.MainPlugin'
 DEFAULT_SPW_DIR = Path(r'E:\SteamLibrary\steamapps\common\Salt Player for Windows')
 
@@ -76,7 +76,8 @@ def compile_kotlin(jdk: Path, kotlinc: Path, host_jar: Path, output: Path) -> No
     # stdlib, but compiling inline functions against it trips a compiler
     # inliner bug; the compiler stdlib has the same ABI at runtime.
     stdlib_jar = kotlin_home / 'lib' / 'kotlin-stdlib.jar'
-    classpath = str(stdlib_jar) + os.pathsep + str(host_jar)
+    classpath = str(stdlib_jar) + os.pathsep + os.pathsep.join(str(p) for p in saltui_jars())
+    classpath += os.pathsep + str(host_jar)
     if sqlite_jar.exists():
         classpath += os.pathsep + str(sqlite_jar)
     # Invoke the compiler through java.exe: kotlinc.bat breaks when the
@@ -156,11 +157,22 @@ def package(classes: Path) -> Path:
     return target
 
 
+def saltui_jars() -> list[Path]:
+    directory = TOOLS / 'saltui'
+    if not directory.is_dir():
+        raise SystemExit('missing SaltUI jars; run tools/prepare_toolchain.py')
+    jars = sorted(directory.glob('*.jar'))
+    if not jars:
+        raise SystemExit('missing SaltUI jars; run tools/prepare_toolchain.py')
+    return jars
+
+
 def lib_jars() -> list[Path]:
     result = []
     sqlite_jar = TOOLS / 'sqlite-jdbc.jar'
     if sqlite_jar.exists():
         result.append(sqlite_jar)
+    result.extend(saltui_jars())
     return result
 
 

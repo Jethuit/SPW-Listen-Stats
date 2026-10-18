@@ -1,5 +1,19 @@
 # UI 修订
 
+## 0.1.5 宿主内嵌 + SaltUI
+
+用户指出独立无边框窗口不能拖动、看起来永远置顶，且右下角浮动 pill 会盖住宿主按钮。已改为：
+
+- 删除 `JDialog` 展示路径和 `Popup` pill；`StatsOverlay` 直接在 `AppNavigation` hook 的宿主编排中渲染页面。
+- 内嵌页面占宿主右侧内容区，保留侧栏和底部播放栏；无独立窗口、无拖动、无置顶。
+- 唯一入口改为模块管理页插件配置的“打开听歌统计”；`MainPlugin.openStats` 只设置 `StatsHostState.visible`。
+- 打包 SaltUI **3.0.0-beta02**（宿主 Salt UI 3.0.0-SNAPSHOT / CMP 1.12.1）；使用 `SaltTheme` 和 SaltUI `verticalScroll`，内嵌页可滚轮滚动。
+- 控制行 `FlowRow` 改为垂直居中，修复图一“每天/每周”和“2026年”不横向对齐。
+
+隔离配置截图：`build/screenshots/embed_proto.png`、`embed_scrolled.png`（不提交）。截图确认页面在宿主内容区、pill 消失、播放栏未遮挡、滚动后图表和听歌小结可见。
+
+**未完成：** 关闭/返回按钮当前在内容区左上角（X），位置/图标待用户确认；卡片、按钮、文本和热力图仍主要是 Material3/自绘，SaltUI 目前只承担主题和滚动；固定 dp 的响应式替换尚未完成；配置页入口尚未由用户点击验证。
+
 ## 0.1.4 按 preview 布局对齐
 
 用户指出 0.1.2 仍偏离示例，要求严格按 `preview/` 实现。按 CSS/JS 值重新对齐：

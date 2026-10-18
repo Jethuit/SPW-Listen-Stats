@@ -1,6 +1,6 @@
 # SPW Listen Stats 正式模组
 
-Kotlin / Compose 模组源码，视觉基准为根目录 `preview/`。当前 0.1.4 在数据修订上按预览布局对齐页面、排行和图表，仍需真实宿主验收。
+Kotlin / Compose 模组源码，视觉基准为根目录 `preview/`。当前 0.1.5 把页面内嵌到宿主内容区，移除浮动入口，并打包 SaltUI 3.0.0-beta02（CMP 1.12.1）；仍需真实宿主验收。
 
 ## 构建
 
@@ -9,9 +9,9 @@ python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Sa
 python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-产物：`build/libs/plugin-com.jethuit.spw.listenstats-0.1.4.spmod`；解包目录 `build/install/spw-listen-stats/`。工具链缓存在 `build/tools/`，不提交 Git。
+产物：`build/libs/plugin-com.jethuit.spw.listenstats-0.1.5.spmod`；解包目录 `build/install/spw-listen-stats/`。工具链缓存在 `build/tools/`，SaltUI jar 缓存在 `build/tools/saltui/`，不提交 Git。
 
-在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。Hook 失败时可在配置页打开统计。页面是宿主浮层入口加独立无边框窗口，仍绑定 SPW 1.19.0。
+在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。入口在模块管理页插件配置“打开听歌统计”；页面通过 AppNavigation hook 内嵌在宿主内容区，不再创建 JDialog/Popup。Hook 仍绑定 SPW 1.19.0。
 
 ## 数据与检查
 

@@ -21,6 +21,7 @@ TOOLS = ROOT / 'build' / 'tools'
 DEFAULT_SPW_DIR = Path(r'E:\SteamLibrary\steamapps\common\Salt Player for Windows')
 KOTLIN_VERSION = '2.4.20'
 SQLITE_VERSION = '3.50.3.0'
+SALTUI_VERSION = '3.0.0-beta02'
 JDK_MAJOR = '25'
 
 
@@ -113,6 +114,17 @@ def sqlite() -> None:
     )
 
 
+def saltui() -> None:
+    target = TOOLS / 'saltui'
+    for artifact in ('salt-ui-desktop', 'salt-core-desktop'):
+        path = target / f'{artifact}-{SALTUI_VERSION}.jar'
+        download(
+            f'https://repo1.maven.org/maven2/io/github/moriafly/{artifact}/{SALTUI_VERSION}/'
+            f'{artifact}-{SALTUI_VERSION}.jar',
+            path,
+        )
+
+
 def host_jar(spw_dir: Path) -> None:
     source = spw_dir / 'app' / 'ffmpeg-x64.dll'
     target = TOOLS / 'spw-host.jar'
@@ -133,6 +145,7 @@ def main() -> None:
     jdk()
     kotlin()
     sqlite()
+    saltui()
     host_jar(args.spw_dir)
     print('toolchain ready under', TOOLS)
 

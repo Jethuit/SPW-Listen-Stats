@@ -63,8 +63,10 @@ def main() -> None:
         index = archive.read('classes/META-INF/extensions.idx').decode('utf-8')
         assert 'com.jethuit.spw.listenstats.PlaybackExtension' in index, index
         libraries = sorted(n for n in names if n.startswith('lib/') and n.endswith('.jar'))
-        assert libraries == ['lib/sqlite-jdbc.jar'], libraries
-        print(f'OK {package.name}: {len(names)} entries, permissions={sorted(permissions)}')
+        assert 'lib/sqlite-jdbc.jar' in libraries, libraries
+        assert any(n.startswith('lib/salt-ui-desktop-') for n in libraries), libraries
+        assert any(n.startswith('lib/salt-core-desktop-') for n in libraries), libraries
+        print(f'OK {package.name}: {len(names)} entries, permissions={sorted(permissions)}, libs={libraries}')
 
 
 if __name__ == '__main__':

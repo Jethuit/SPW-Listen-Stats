@@ -1,6 +1,20 @@
 # 新聊天交接
 
-## 最新：0.1.4 按 preview 布局对齐
+## 最新：0.1.5 宿主内嵌页 + SaltUI
+
+用户明确否定了 0.1.4 的独立窗口/浮动 pill：
+
+- 当前页面通过 `AppNavigation` hook 直接注入宿主右侧内容区，不再创建 `JDialog` 或 Compose `Popup`；宿主侧栏和底部播放栏保留，页面占据中间内容区。无独立窗口、无拖动、无置顶。
+- 右下角浮动 pill 已删除；唯一入口是 **模块管理页 → 插件配置 → 打开听歌统计**（`preference_config.json` 的按钮）。`MainPlugin.openStats` 现在设置 `StatsHostState.visible`。
+- SaltUI 版本由宿主“更多”页确认为 **3.0.0-SNAPSHOT / CMP 1.12.1**；Maven 对应的发布版是 **3.0.0-beta02**。已下载并打包 `salt-ui-desktop-3.0.0-beta02.jar`、`salt-core-desktop-3.0.0-beta02.jar` 到插件 `lib/`，使用 `SaltTheme` + SaltUI `verticalScroll`。
+- 滚动改为 SaltUI `rememberScrollState`/`verticalScroll`，宿主内嵌页可滚动到图表与听歌小结。
+- 当前关闭按钮显示在内容区左上角（原 X），这是内嵌页的临时返回/关闭 affordance；位置和图标还需要用户确认。
+
+隔离配置实测（截图 `build/screenshots/embed_proto.png`、`embed_scrolled.png`，不提交）：页面确实嵌入宿主内容区，侧栏/播放栏未被遮挡；滚轮可滚动，图表 tooltip、听歌小结正常。**仍未在用户正常 Steam 启动中验收，且配置页入口的点击链路尚未由用户确认。**
+
+当前仍使用 Material3/自绘的卡片、按钮、文本和热力图；SaltUI 目前承担主题和滚动。是否把所有控件都换成 SaltUI 组件、以及左上角关闭/返回的具体样式，需要用户确认，不能默认继续改。
+
+## 0.1.4 按 preview 布局对齐
 
 用户指出当前 UI 仍偏离示例，要求严格按 `preview/` 的布局实现。已按 CSS 逐项修一轮：
 
@@ -54,15 +68,15 @@
 ## 路径
 
 - 正式源码 `plugin/src/main/kotlin/com/jethuit/spw/listenstats/`
-- 构建 `tools/build_plugin.py`，版本 0.1.4
-- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.4.spmod`
+- 构建 `tools/build_plugin.py`，版本 0.1.5
+- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.5.spmod`
 - 数据回归 `tests/DataRegressionTest.kt`、`tests/run-data-tests.py`（data / ui 两个 suite）
 - 结构检查 `tests/spmod-structure.py`
 - 详细设计和限制 `docs/NATIVE-IMPLEMENTATION.md`
 
 ## 集中验证
 
-本轮集中检查已通过：30 个 Kotlin 文件编译成功；13 组数据回归通过；4 组 UI 几何回归通过；`.spmod` 结构检查通过（106 项，仅 library-read / class-transform 权限）。包大小约 14.67 MB。0.1.4 未在宿主中渲染，0.1.2 的统计页渲染/点击已在独立配置中截图核对；新版 UI 需用户核对。
+本轮集中检查已通过：30 个 Kotlin 文件编译成功；13 组数据回归通过；4 组 UI 几何回归通过；`.spmod` 结构检查通过（107 项，权限仅 `library-read` / `class-transform`，`lib/` 含 sqlite、SaltUI core/UI）。包约 17 MB。0.1.5 的内嵌页已在隔离配置中实际截图并滚轮滚动；配置页入口和正常 Steam 启动仍需用户验收。
 
 ## 启动崩溃报告
 

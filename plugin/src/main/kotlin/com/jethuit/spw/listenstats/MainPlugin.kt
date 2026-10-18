@@ -49,6 +49,9 @@ class MainPlugin(
         } finally {
             hookHandle = null
             com.jethuit.spw.listenstats.data.PlaybackTracker.shutdown()
+            javax.swing.SwingUtilities.invokeLater {
+                com.jethuit.spw.listenstats.ui.StatsHostState.close()
+            }
             com.jethuit.spw.listenstats.ui.StatsWindow.close()
             com.jethuit.spw.listenstats.data.CoverStore.clear()
         }
@@ -66,9 +69,9 @@ class MainPlugin(
         @JvmStatic
         fun openStats() {
             PluginLog.info("openStats requested from preference")
-            Thread {
-                com.jethuit.spw.listenstats.ui.StatsWindow.open()
-            }.apply { isDaemon = true }.start()
+            javax.swing.SwingUtilities.invokeLater {
+                com.jethuit.spw.listenstats.ui.StatsHostState.open()
+            }
         }
 
         @JvmStatic
