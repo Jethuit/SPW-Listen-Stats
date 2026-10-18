@@ -1,8 +1,21 @@
 # SPW-Listen Stats
 
-面向 Salt Player for Windows 的听歌统计模组。目前提供第一版前端交互预览，尚未连接播放器。
+面向 Salt Player for Windows 的听歌统计模组。`preview/` 是已确认的前端基准；正式模组位于 `plugin/`，当前第一版已可构建、安装，并在 SPW 1.19.0 中读取真实听歌记录，显示听歌概览与排行。
 
-GitHub：<https://github.com/Jethuit/SPW-Listen-Stats>。正式开发从 [新聊天交接](docs/HANDOFF.md)、[完整需求](docs/REQUIREMENTS.md) 和 [API 可行性](docs/API-FEASIBILITY.md) 开始；当前预览是已确认的界面基准。
+GitHub：<https://github.com/Jethuit/SPW-Listen-Stats>。正式实现说明、构建命令、已验证范围和剩余限制见 [正式模组实现说明](docs/NATIVE-IMPLEMENTATION.md)；需求、交接与 API 核查见 [完整需求](docs/REQUIREMENTS.md)、[新聊天交接](docs/HANDOFF.md)、[API 可行性](docs/API-FEASIBILITY.md)。
+
+## 正式模组
+
+```powershell
+python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
+python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
+```
+
+产物为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.0.spmod`，在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。主界面右下角出现“听歌统计”入口；未授权 Hook 时可从插件配置页打开。
+
+当前读取宿主 `spw.db` 的 `Listen` 表，按本地时间拆分为每日/每小时，按“同一首歌实际听满 50% 计一次”计算排行；封面通过 Workshop API 读取内嵌图片。主题、图表类型和粒度保存在插件配置中。导入导出的版本化备份采用保守合并策略。
+
+已知限制：入口是宿主主界面浮层 + 借助宿主主窗口尺寸的无边框页面，不是宿主原生导航页；统计通常在该次播放被宿主写入 `Listen` 后更新；Hook 目标类名绑定 1.19.0；未做宿主级鼠标交互自动化。详细说明见 [docs/NATIVE-IMPLEMENTATION.md](docs/NATIVE-IMPLEMENTATION.md)。
 
 ## 查看预览
 
@@ -49,15 +62,19 @@ GitHub：<https://github.com/Jethuit/SPW-Listen-Stats>。正式开发从 [新聊
 坐标回归检查可运行 `node tests/chart-geometry.test.cjs`，无需安装依赖。覆盖三种图形、三种粒度、日期预设及跨月／跨年／闰年等自定义边界、窄屏与宽屏、零数据／极小值／均匀数据／稀疏峰值，以及缩放后的悬停位置；实际字体与视觉效果仍需在浏览器预览中核对。
 
 ```text
-preview/       无依赖的 HTML / CSS / JavaScript 交互预览
+plugin/        正式 Kotlin / Compose 模组源码与插件资源
+  src/main/kotlin/  生命周期、数据、统计、Compose 页面
+  src/main/resources/ preference_config.json、extensions.idx
+tools/         本地工具链准备与 .spmod 构建脚本
+preview/       无依赖的 HTML / CSS / JavaScript 交互预览（已确认的前端基准）
   assets/icons/ Google Material Symbols 本地图标、来源说明与许可证
   assets/covers/ 示例专辑封面和缺失封面占位图
-tests/         无依赖的图表坐标回归检查
-docs/          正式需求、开发交接、API 与环境核查
+tests/         预览回归检查与 .spmod 结构检查
+docs/          正式需求、交接、API 核查、正式实现说明
 .references/   上游参考源码，仅在本地保留，不提交 Git
 ```
 
-这个阶段用于确认布局和交互。HTML 是设计原型；正式模组计划使用 Kotlin / Compose 和原生 Salt UI，具体主页嵌入方式还需要在 SPW 1.19.0 中验证。
+正式页面使用 Compose + Material3，通过宿主自身 fat jar 编译；没有打包 Salt UI，因为宿主 1.19.0 中的 Salt UI/部分 Compose 类经过混淆，直接按运行期签名编译更可靠。构建缓存、JDK、Kotlin、sqlite-jdbc、宿主 jar 和真实听歌数据均不提交 Git。
 
 ## 许可证
 

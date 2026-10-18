@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""Lightweight structure check for a built SPW .spmod package.
+
+Usage: python tests/spmod-structure.py [path/to/plugin.spmod]
+If no path is given, the newest build/libs/*.spmod is used.
+"""
+
+from __future__ import annotations
+
+import glob
+import os
+import sys
+import zipfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+PLUGIN_ID = 'com.jethuit.spw.listenstats'
+PLUGIN_CLASS = 'com.jethuit.spw.listenstats.MainPlugin'
+
+
+def find_package() -> Path:
+    if len(sys.argv) > 1:
+        return Path(sys.argv[1])
+    candidates = sorted(glob.glob(str(ROOT / 'build' / 'libs' / '*.spmod')), key=os.path.getmtime)
+    if not candidates:
+        raise SystemExit('no .spmod found; run tools/build_plugin.py first')
+    return Path(candidates[-1])
+
+
+def main() -> None:
+    package = find_package()
+    if not package.is_file():
+        raise SystemExit(f'missing package: {package}')
+    with zipfile.ZipFile(package) as archive:
+        names = set(archive.namelist())
+        required = {
+            'classes/META-INF/MANIFEST.MF',
+            'classes/META-INF/extensions.idx',
+            'classes/preference_config.json',
+            'lib/sqlite-jdbc.jar',
+        }
+        missing = required - names
+        assert not missing, f'missing entries: {sorted(missing)}'
+        class_entry = 'classes/' + PLUGIN_CLASS.replace('.', '/') + '.class'
+        assert class_entry in names, f'missing plugin class: {class_entry}'
+
+        manifest = archive.read('classes/META-INF/MANIFEST.MF').decode('utf-8')
+        fields = {}
+        for line in manifest.splitlines():
+            if line.startswith(' ') and fields:
+                key = next(reversed(fields))
+                fields[key] += line[1:]
+            elif ': ' in line:
+                key, value = line.split(': ', 1)
+                fields[key] = value
+        assert fields.get('Plugin-Class') == PLUGIN_CLASS, fields
+        assert fields.get('Plugin-Id') == PLUGIN_ID, fields
+        assert fields.get('Plugin-Has-Config') == 'true', fields
+        permissions = set(fields.get('Plugin-Permissions', '').split(','))
+        assert {'library-read', 'class-transform'} <= permissions, permissions
+        assert 'key-bindings' not in permissions, 'unused permission declared'
+
+        index = archive.read('classes/META-INF/extensions.idx').decode('utf-8')
+        assert 'com.jethuit.spw.listenstats.PlaybackExtension' in index, index
+        libraries = sorted(n for n in names if n.startswith('lib/') and n.endswith('.jar'))
+        assert libraries == ['lib/sqlite-jdbc.jar'], libraries
+        print(f'OK {package.name}: {len(names)} entries, permissions={sorted(permissions)}')
+
+
+if __name__ == '__main__':
+    main()

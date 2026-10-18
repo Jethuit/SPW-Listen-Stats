@@ -1,0 +1,24 @@
+{
+  "configs": [
+    {
+      "title": "听歌统计",
+      "config": "config.json",
+      "preferences": [
+        {
+          "type": "button",
+          "title": "打开听歌统计",
+          "summary": "在主界面显示听歌概览与排行",
+          "arrow_type": "arrow",
+          "on_click": "com.jethuit.spw.listenstats.MainPlugin.openStats"
+        },
+        {
+          "type": "button",
+          "title": "写入诊断日志",
+          "summary": "在插件数据目录记录当前状态，便于排查宿主兼容问题",
+          "arrow_type": "none",
+          "on_click": "com.jethuit.spw.listenstats.MainPlugin.writeDiagnostics"
+        }
+      ]
+    }
+  ]
+}

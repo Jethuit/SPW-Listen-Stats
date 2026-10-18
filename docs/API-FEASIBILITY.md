@@ -54,3 +54,16 @@
 
 先建立可加载、可停止的最小 `.spmod` 并验证兼容依赖；同时确认 UI 入口和真实播放事件。再做独立的统计状态机和本地存储，接入原生界面、分页与封面，最后实现正式备份及完整宿主验证。依赖下载、首次构建和 SPW 运行测试尚未在本轮执行。
 
+## 本轮实测补充（2026-10-18）
+
+以下结论来自实际构建与 SPW 1.19.0 运行测试，详见 [正式模组实现说明](NATIVE-IMPLEMENTATION.md)。
+
+1. **宿主包。** `app/ffmpeg-x64.dll` 实际是约 110 MB 的 ZIP/fat jar，包含全部宿主类、Compose、Material3、PF4J、API 与 sqlite native；`MainKt` 只是入口。直接以它为编译类路径可以锁定 1.19.0 的实际 JVM 签名。
+2. **Host 数据库已有听歌历史。** `%APPDATA%\Salt Player for Windows\spw.db`（Room，schema 34）含 `Listen(id, trackId, audioHash, year, month, day, startTime, duration)` 与 `Track(...)`；测试库有 57–58 条 `Listen`。`Track.playCount` 全为 0，因此排行次数必须由每次 `Listen` 的 `duration` 与 `Track.duration` 比较（≥50%）得出。原先“历史无法补回”的判断只适用于 Library API；宿主内部 `Listen` 表在保留期内可以提供真实历史，但该表不是公开稳定 API，插件需容错并明确说明。
+3. **Hook 入口可用但绑定版本。** 1.19.0 中 `AppNavigationKt.AppNavigation` 的唯一调用点在混淆类 `androidx.compose.ui.ۄ`；`afterComposable` 注册成功并实际组合。宿主自附加 agent 需要启动参数 `-Djdk.attach.allowAttachSelf=true`（官方启动器已设置），缺失时宿主会停止插件。宿主升级后类名可能变化，必须保留配置页入口。
+4. **Salt UI 被混淆。** 宿主内 `com.moriafly.salt.ui` 的公开组件类名/顶层函数大量不可从 Kotlin 元数据解析（例如 `Modifier.background`、`Canvas`、`LazyColumn`、`clickable`、`TooltipArea` 均无法直接引用）。正式实现改用 Material3 + 自定义 `DrawModifier`/`JScrollPane`，避免依赖被混淆的 Salt UI 符号。
+5. **插件安装/授权。** PF4J 3.14.1；插件目录为 `workshop/plugins/<目录>/classes`，`enabled.txt` 按插件 ID 启用，`permissions.json` 保存 reviewed/granted。权限 ID 为 `library-read`、`class-transform`、`key-bindings`。
+6. **SQLite 访问。** 插件自带 `sqlite-jdbc` 只读打开宿主 DB 可行；不要写入宿主数据库。需要保留 DB 缺失、schema 变化、WAL 读取失败时的错误/空状态。
+7. **实时性。** 当前版本以宿主已写入的 `Listen` 行为准；`onPositionUpdated` 等扩展点可作为后续实时叠加状态机的来源，但暂停/seek/跨日拆分仍需产品级口径确认。
+
+

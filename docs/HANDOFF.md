@@ -1,5 +1,21 @@
 # 新聊天交接
 
+## 本轮进度（2026-10-18）
+
+已按 `preview/` 完成第一版正式模组，源码在 `plugin/`，构建脚本在 `tools/`，产物为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.0.spmod`。完整实现说明、已验证范围与限制见 [正式模组实现说明](NATIVE-IMPLEMENTATION.md)。
+
+本轮已验证：
+
+- JDK 25 + Kotlin 2.4.20 直接以宿主 `app/ffmpeg-x64.dll`（实际是 fat jar）为编译类路径，产出可安装 `.spmod`；
+- 插件被 PF4J 加载，声明 `library-read`、`class-transform`；独立 `APPDATA` 测试配置中启用并授权；
+- 自附加 agent 成功后，`afterComposable` 在宿主 `AppNavigation` 后显示右下角“听歌统计”入口，点击打开与宿主同尺寸的无边框页面；
+- 真实读取宿主 `spw.db` 的 `Listen`/`Track`，概览与排行使用真实数据；封面通过 Workshop API 读取并显示；
+- 浅色/深色主题、JScrollPane 滚动、50 首分页和排行搜索已渲染通过。
+
+未完成/需用户确认：真实鼠标交互逐项点击（主题循环、日/周切换、点击热力图联动、图表类型、下拉、导入导出）、当前曲目实时进度叠加、宿主原生导航页（目前是浮层入口 + 独立页面窗口）、宿主升级后的 Hook 兼容。
+
+## 原始交接说明
+
 本轮安排已由用户确认：**本轮整理需求、交接和上传 GitHub；正式模组在新聊天继续。** 用户已经授权后续全面施工，要求前端按当前示例实现，遇到不能实现的功能明确告知。
 
 ## 从哪里开始

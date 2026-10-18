@@ -5,4 +5,7 @@
 node_modules/
 .idea/
 *.log
+*.spmod
+__pycache__/
+*.pyc
 .DS_Store
