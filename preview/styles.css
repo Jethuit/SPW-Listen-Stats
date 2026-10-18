@@ -61,7 +61,7 @@ h2 .material-icon { width: 19px; height: 19px; color: var(--muted); }
 .icon-button .material-icon { width: 19px; height: 19px; }
 .action-divider { width: 1px; height: 17px; background: var(--line); margin: 0 1px; }
 .page-nav { display: flex; gap: 26px; border-bottom: 1px solid var(--line); margin-bottom: 30px; }
-.page-nav a { position: relative; display: flex; align-items: center; gap: 7px; padding: 0 1px 13px; color: var(--muted); text-decoration: none; font-size: 13px; }
+.page-nav a { position: relative; display: flex; align-items: center; gap: 7px; padding: 0 1px 13px; color: var(--muted); text-decoration: none; font-size: 15px; }
 .page-nav a:hover { color: var(--text); }
 .page-nav a.active { color: var(--text); font-weight: 600; }
 .page-nav a.active::after { content: ""; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: var(--accent); border-radius: 2px; }
