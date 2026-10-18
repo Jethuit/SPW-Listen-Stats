@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -48,6 +49,8 @@ data class SegmentOption(
     val icon: String? = null,
     val tooltip: String? = null
 )
+
+private val ControlHeight = 34.dp
 
 val LocalViewportRevision = staticCompositionLocalOf { 0 }
 
@@ -126,9 +129,13 @@ fun SegmentedControl(
 ) {
     val colors = LocalStatsColors.current
     CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-    Surface(color = colors.subtle, shape = AppShape(8.dp)) {
+    Surface(
+        modifier = Modifier.height(ControlHeight),
+        color = colors.subtle,
+        shape = AppShape(8.dp)
+    ) {
         Row(
-            Modifier.padding(3.dp),
+            Modifier.fillMaxHeight().padding(3.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -148,7 +155,7 @@ fun SegmentedControl(
                     ) {
                         Row(
                             Modifier
-                                .height(29.dp)
+                                .height(ControlHeight - 6.dp)
                                 .padding(horizontal = if (iconOnly) 7.dp else 8.dp)
                                 .then(if (iconOnly) Modifier.width(18.dp) else Modifier),
                             horizontalArrangement = Arrangement.Center,
@@ -192,13 +199,15 @@ fun SelectBox(
     Box(modifier) {
         Surface(
             onClick = { expanded = true },
+            modifier = Modifier.height(ControlHeight),
             shape = AppShape(7.dp),
             color = colors.subtle
         ) {
             Row(
                 Modifier
+                    .fillMaxHeight()
                     .then(if (minWidth > 0.dp) Modifier.width(minWidth) else Modifier)
-                    .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                    .padding(start = 12.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(label, style = AppType.bodySmall.copy(color = colors.text))
@@ -231,6 +240,7 @@ fun SectionHeading(
     title: String,
     caption: String? = null,
     controlsGap: Dp = 12.dp,
+    headingHeight: Dp = 42.dp,
     controls: @Composable () -> Unit
 ) {
     val colors = LocalStatsColors.current
@@ -264,17 +274,17 @@ fun SectionHeading(
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         if (maxWidth < 600.dp) {
             Column(
-                Modifier.heightIn(min = 42.dp),
+                Modifier.heightIn(min = headingHeight),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) { heading(); actions() }
         } else {
             Row(
-                Modifier.fillMaxWidth().height(42.dp),
+                Modifier.fillMaxWidth().height(headingHeight),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(Modifier.height(42.dp), contentAlignment = Alignment.CenterStart) { heading() }
-                Box(Modifier.height(42.dp), contentAlignment = Alignment.CenterEnd) { actions() }
+                Box(Modifier.height(headingHeight), contentAlignment = Alignment.CenterStart) { heading() }
+                Box(Modifier.height(headingHeight), contentAlignment = Alignment.CenterEnd) { actions() }
             }
         }
     }

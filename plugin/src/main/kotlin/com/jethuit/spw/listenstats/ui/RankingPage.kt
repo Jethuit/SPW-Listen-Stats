@@ -81,7 +81,8 @@ fun RankingPage(
     Column(Modifier.fillMaxWidth()) {
         SectionHeading(
             icon = IconPaths.QueueMusic,
-            title = "歌曲播放次数"
+            title = "歌曲播放次数",
+            headingHeight = 34.dp
         ) {
             Surface(
                 modifier = Modifier.width(190.dp).height(34.dp),

@@ -1,6 +1,14 @@
 # 新聊天交接
 
-## 最新：0.1.9 提示块与标题行对齐
+## 最新：0.1.10 控件等高与留白
+
+- `ControlHeight = 34dp`：`SegmentedControl` 外层固定 34dp（内边距 3dp，按钮 28dp），`SelectBox` 固定 34dp 且内容垂直居中；图一图表类型/日期、图二每天每周/年份高度一致。
+- 排行页标题行 `SectionHeading` 高度从 42dp 收到 34dp；`PageNav` 在排行页下方间距从 30dp 收到 18dp，减少红框上方空白。
+- 图表类型按钮 tooltip 已在 0.1.9 删除；本次保留。
+
+0.1.10 只做构建/离线回归，需用户实际确认控件等高和留白。
+
+## 0.1.9 提示块与标题行对齐
 
 - 图表类型按钮的“柱状图/折线图/曲线图”黑色悬停提示删除；`SegmentedControl` 仍保留 `contentDescription`，只是不再显示黑色 tooltip。
 - 排行页标题/搜索框/摘要所在标题行改为固定 42dp，两个子区域分别在 42dp 内 `CenterStart`/`CenterEnd`，修正上下不居中。
@@ -97,8 +105,8 @@ SaltUI 已用于主题、滚动、文本和概览/错误卡片；热力图、部
 ## 路径
 
 - 正式源码 `plugin/src/main/kotlin/com/jethuit/spw/listenstats/`
-- 构建 `tools/build_plugin.py`，版本 0.1.9
-- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.9.spmod`
+- 构建 `tools/build_plugin.py`，版本 0.1.10
+- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.10.spmod`
 - 数据回归 `tests/DataRegressionTest.kt`、`tests/run-data-tests.py`（data / ui 两个 suite）
 - 结构检查 `tests/spmod-structure.py`
 - 详细设计和限制 `docs/NATIVE-IMPLEMENTATION.md`
