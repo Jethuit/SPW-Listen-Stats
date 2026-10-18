@@ -169,6 +169,15 @@ th { color: var(--text); }
 .play-count span { color: var(--muted); font-size: 11px; margin-left: 4px; }
 .song-table .song-empty { padding: 30px 0; text-align: center; color: var(--muted); }
 .song-count-note { margin-top: 12px; color: var(--muted); font-size: 11px; }
+.song-pagination-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+.song-page-summary { color: var(--muted); font-size: 11px; line-height: 1.6; }
+.song-pagination { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
+.song-pagination button { min-width: 30px; min-height: 30px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.song-pagination button:hover:not(:disabled) { background: var(--hover); }
+.song-pagination button[aria-current="page"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.song-pagination button:disabled { opacity: .4; }
+.song-pagination > span { color: var(--muted); padding: 0 3px; }
+.song-pagination-bottom { margin-top: 14px; }
 .insights-section { margin-top: 34px; padding-top: 27px; border-top: 1px solid var(--line); }
 .insights-section h2 { margin-bottom: 16px; }
 .summary-strip.insights-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 0; }
@@ -230,6 +239,7 @@ dialog input { display: block; width: 100%; border: 1px solid var(--line); color
   .search-wrap { flex: 1; min-width: 0; }
   .search-wrap input { width: 100%; }
   .song-table td { font-size: 12px; }
+  .song-pagination { justify-content: flex-start; }
   .song-table th:first-child { width: 34px; }
   .song-entry { gap: 9px; padding-right: 12px; }
   .album-cover { width: 40px; height: 40px; }

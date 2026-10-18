@@ -31,6 +31,8 @@
   let customEnd = TODAY;
   let chartPoints = [];
   let chartBounds = null;
+  const SONGS_PER_PAGE = 50;
+  let songPage = 1;
   let toastTimer;
 
   function random(seed) {
@@ -594,8 +596,12 @@
     const rankedTracks = [...tracks].sort((a, b) => b.plays - a.plays || a.title.localeCompare(b.title, 'zh-CN'));
     const ranks = new Map(rankedTracks.map((track, index) => [track.id, index + 1]));
     const list = rankedTracks.filter(track => `${track.title}\n${track.artist}`.normalize('NFKC').toLocaleLowerCase('zh-CN').includes(query));
+    const pageCount = Math.max(1, Math.ceil(list.length / SONGS_PER_PAGE));
+    songPage = Math.max(1, Math.min(songPage, pageCount));
+    const start = (songPage - 1) * SONGS_PER_PAGE;
+    const pageTracks = list.slice(start, start + SONGS_PER_PAGE);
     const fragment = document.createDocumentFragment();
-    for (const track of list) {
+    for (const track of pageTracks) {
       const row = document.createElement('tr');
       row.dataset.trackId = track.id;
       const rank = document.createElement('td'); rank.className = 'song-rank'; rank.textContent = String(ranks.get(track.id));
@@ -622,6 +628,53 @@
       row.append(cell); fragment.append(row);
     }
     $('song-table').replaceChildren(fragment);
+    const countLabel = query ? `匹配 ${number.format(list.length)} 首 / 共 ${number.format(tracks.length)} 首` : `共 ${number.format(tracks.length)} 首`;
+    $('song-page-summary').textContent = `${countLabel}${list.length ? ` · 显示 ${number.format(start + 1)}–${number.format(start + pageTracks.length)} 首` : ''} · 每页 ${SONGS_PER_PAGE} 首`;
+    renderSongPagination(pageCount);
+  }
+
+  function renderSongPagination(pageCount) {
+    document.querySelectorAll('[data-song-pagination]').forEach(nav => {
+      nav.hidden = pageCount <= 1;
+      const fragment = document.createDocumentFragment();
+      const addButton = (label, page, disabled = false, current = false) => {
+        const button = document.createElement('button');
+        button.type = 'button'; button.textContent = label;
+        button.dataset.songPage = String(page); button.disabled = disabled;
+        button.setAttribute('aria-label', /^\d+$/.test(label) ? `第 ${page} 页，共 ${pageCount} 页` : label);
+        if (current) button.setAttribute('aria-current', 'page');
+        fragment.append(button);
+      };
+      addButton('上一页', songPage - 1, songPage === 1);
+      const pages = new Set([1, pageCount]);
+      const from = pageCount <= 7 ? 1 : songPage <= 3 ? 2 : Math.max(2, songPage - 1);
+      const until = pageCount <= 7 ? pageCount : songPage >= pageCount - 2 ? pageCount - 1 : Math.min(pageCount - 1, Math.max(4, songPage + 1));
+      for (let page = from; page <= until; page++) pages.add(page);
+      let previous = 0;
+      for (const page of [...pages].sort((a, b) => a - b)) {
+        if (previous && page - previous > 1) {
+          const ellipsis = document.createElement('span'); ellipsis.textContent = '…';
+          ellipsis.setAttribute('aria-hidden', 'true'); fragment.append(ellipsis);
+        }
+        addButton(String(page), page, false, page === songPage);
+        previous = page;
+      }
+      addButton('下一页', songPage + 1, songPage === pageCount);
+      nav.replaceChildren(fragment);
+    });
+  }
+
+  function changeSongPage(page) {
+    if (!Number.isInteger(page) || page < 1 || page === songPage) return;
+    songPage = page;
+    renderSongs();
+    $('ranking-page').scrollIntoView({ block: 'start' });
+    $('song-pagination-top').querySelector('[aria-current="page"]')?.focus({ preventScroll: true });
+  }
+
+  function searchSongs() {
+    songPage = 1;
+    renderSongs();
   }
 
   function renderPage() {
@@ -686,7 +739,11 @@
 
   document.querySelectorAll('[data-chart-type]').forEach(button => button.addEventListener('click', () => setChartType(button.dataset.chartType)));
   document.querySelectorAll('[data-heatmap-mode]').forEach(button => button.addEventListener('click', () => setHeatmapMode(button.dataset.heatmapMode)));
-  $('song-search').addEventListener('input', renderSongs);
+  $('song-search').addEventListener('input', searchSongs);
+  document.querySelectorAll('[data-song-pagination]').forEach(nav => nav.addEventListener('click', event => {
+    const button = event.target.closest('button[data-song-page]');
+    if (button && !button.disabled) changeSongPage(Number(button.dataset.songPage));
+  }));
   addEventListener('hashchange', () => { renderPage(); window.scrollTo(0, 0); });
   $('year-select').addEventListener('change', () => { hideTooltip(); renderHeatmap(); });
   $('range-select').addEventListener('change', event => {
@@ -730,7 +787,7 @@
     try {
       if (file.size > 2 * 1024 * 1024) throw new Error('预览文件不能超过 2 MB');
       const imported = validateImport(JSON.parse(await file.text()));
-      records = imported.records; tracks = imported.tracks;
+      records = imported.records; tracks = imported.tracks; songPage = 1;
       byDate = new Map(records.map(record => [record.date, record])); selectedDay = null; selectedWeek = null;
       $('song-search').value = '';
       if (range === 'selected') { range = '30'; $('range-select').value = range; }
