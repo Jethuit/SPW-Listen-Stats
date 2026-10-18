@@ -199,9 +199,8 @@
       button.classList.toggle('future', week.future);
       button.classList.toggle('selected', week.start === selectedWeek);
       button.setAttribute('aria-pressed', String(week.start === selectedWeek));
-      const label = `${parseDate(week.start).getFullYear()}年${dateLabel(week.start)} 起的一周`;
-      const coverage = `${week.from} — ${week.until}`;
-      button.setAttribute('aria-label', week.future ? `${label}，未来日期` : `${label}，统计 ${coverage}，听歌 ${duration(week.ms)}`);
+      const coverage = `${week.from.replaceAll('-', '/')} - ${week.until.replaceAll('-', '/')}`;
+      button.setAttribute('aria-label', week.future ? `${week.start} 起的一周，未来日期` : `${coverage}，听歌时长 ${duration(week.ms)}`);
       const filled = peakMs > 0 && week.ms > 0 ? Math.max(1, Math.ceil(week.ms / peakMs * 7)) : 0;
       for (let row = 0; row < 7; row++) {
         const block = document.createElement('span');
@@ -210,10 +209,8 @@
         button.append(block);
       }
       const show = () => {
-        tooltipContent(label, week.ms);
-        const note = document.createElement('div'); note.className = 'tooltip-row';
-        note.textContent = `统计 ${coverage}`;
-        $('tooltip').append(note);
+        if (week.future) return;
+        tooltipContent(coverage, week.ms, true);
         positionTooltip(button.getBoundingClientRect());
       };
       button.addEventListener('mouseenter', show);
@@ -558,8 +555,9 @@
     tooltip.style.top = `${top}px`;
   }
 
-  function tooltipContent(label, ms) {
-    $('tooltip').innerHTML = `<div class="tooltip-title">${label}</div><div class="tooltip-row"><span>听歌时长</span><span>${duration(ms)}</span></div>`;
+  function tooltipContent(label, ms, compactUnits = false) {
+    const time = compactUnits ? duration(ms).replaceAll(' ', '') : duration(ms);
+    $('tooltip').innerHTML = `<div class="tooltip-title">${label}</div><div class="tooltip-row"><span>听歌时长</span><span>${time}</span></div>`;
   }
 
   function showRecordTooltip(key, rect) {
