@@ -443,9 +443,8 @@
 
   function renderSongs() {
     const query = $('song-search').value.trim().normalize('NFKC').toLocaleLowerCase('zh-CN');
-    const sort = $('song-sort').value;
     const list = tracks.filter(track => `${track.title}\n${track.artist}`.normalize('NFKC').toLocaleLowerCase('zh-CN').includes(query));
-    list.sort((a, b) => sort === 'plays' ? b.plays - a.plays || a.title.localeCompare(b.title, 'zh-CN') : a[sort].localeCompare(b[sort], 'zh-CN') || b.plays - a.plays);
+    list.sort((a, b) => b.plays - a.plays || a.title.localeCompare(b.title, 'zh-CN'));
     const fragment = document.createDocumentFragment();
     for (const track of list) {
       const row = document.createElement('tr');
@@ -538,7 +537,6 @@
 
   document.querySelectorAll('[data-chart-type]').forEach(button => button.addEventListener('click', () => setChartType(button.dataset.chartType)));
   $('song-search').addEventListener('input', renderSongs);
-  $('song-sort').addEventListener('change', renderSongs);
   addEventListener('hashchange', () => { renderPage(); window.scrollTo(0, 0); });
   $('year-select').addEventListener('change', () => { hideTooltip(); renderHeatmap(); });
   $('range-select').addEventListener('change', event => {
