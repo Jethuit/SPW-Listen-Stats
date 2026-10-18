@@ -2,7 +2,7 @@
 
 面向 Salt Player for Windows 的听歌统计模组。`preview/` 是已确认的前端基准；正式模组位于 `plugin/`，当前第一版已可构建、安装，并在 SPW 1.19.0 中读取真实听歌记录，显示听歌概览与排行。
 
-GitHub：<https://github.com/Jethuit/SPW-Listen-Stats>。正式实现说明、构建命令、已验证范围和剩余限制见 [正式模组实现说明](docs/NATIVE-IMPLEMENTATION.md)；需求、交接与 API 核查见 [完整需求](docs/REQUIREMENTS.md)、[新聊天交接](docs/HANDOFF.md)、[API 可行性](docs/API-FEASIBILITY.md)。
+GitHub：<https://github.com/Jethuit/SPW-Listen-Stats>。正式实现说明、构建命令、已验证范围和剩余限制见 [正式模组实现说明](docs/NATIVE-IMPLEMENTATION.md)；需求、交接与 API 核查见 [完整需求](docs/REQUIREMENTS.md)、[新聊天交接](docs/HANDOFF.md)、[GPT 交接](docs/GPT-HANDOFF.md)、[API 可行性](docs/API-FEASIBILITY.md)。
 
 ## 正式模组
 

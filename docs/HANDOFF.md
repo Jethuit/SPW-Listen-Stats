@@ -1,5 +1,7 @@
 # 新聊天交接
 
+> 给接手 GPT 的单一入口文档见 [`GPT-HANDOFF.md`](GPT-HANDOFF.md)；本文件保留逐版本修订记录。
+
 ## 最新：0.1.19 排行行底色
 
 - 0.1.18 只改了页面根 Surface，排行 `SongRow` 仍用 `colors.background`（白/深色），所以列表看起来没变。
