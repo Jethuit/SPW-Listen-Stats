@@ -17,7 +17,9 @@
   };
   const systemTheme = matchMedia('(prefers-color-scheme: dark)');
   const savedTheme = safeStorage.get('spw-preview-theme');
-  let themeMode = ['light', 'dark', 'system'].includes(savedTheme) ? savedTheme : 'system';
+  const themeModes = ['system', 'light', 'dark'];
+  const themeLabels = { system: '跟随系统', light: '浅色', dark: '深色' };
+  let themeMode = themeModes.includes(savedTheme) ? savedTheme : 'system';
   const chartTypes = { bar: '柱状图', line: '折线图', curve: '曲线图' };
   const savedChartType = safeStorage.get('spw-preview-chart-type');
   let chartType = Object.hasOwn(chartTypes, savedChartType) ? savedChartType : 'line';
@@ -291,15 +293,18 @@
     const resolvedTheme = themeMode === 'system' ? (systemTheme.matches ? 'dark' : 'light') : themeMode;
     document.documentElement.dataset.theme = resolvedTheme;
     document.documentElement.dataset.themeMode = themeMode;
-    $('theme-select').value = themeMode;
-    $('theme-select').title = themeMode === 'system' ? `跟随系统（当前${resolvedTheme === 'dark' ? '深色' : '浅色'}）` : `${themeMode === 'dark' ? '深色' : '浅色'}主题`;
+    const nextMode = themeModes[(themeModes.indexOf(themeMode) + 1) % themeModes.length];
+    const current = themeMode === 'system' ? `跟随系统（当前${themeLabels[resolvedTheme]}）` : themeLabels[themeMode];
+    $('theme-toggle').dataset.themeMode = themeMode;
+    $('theme-toggle').setAttribute('aria-label', `当前${current}，点击切换为${themeLabels[nextMode]}`);
+    $('theme-toggle').title = `${current} · 点击切换为${themeLabels[nextMode]}`;
     document.querySelectorAll('[data-theme-icon]').forEach(icon => {
       icon.toggleAttribute('hidden', icon.dataset.themeIcon !== themeMode);
     });
   }
 
   function setThemeMode(mode) {
-    if (!['light', 'dark', 'system'].includes(mode)) return;
+    if (!themeModes.includes(mode)) return;
     themeMode = mode;
     safeStorage.set('spw-preview-theme', mode);
     applyTheme();
@@ -307,6 +312,10 @@
 
   function handleSystemThemeChange() {
     if (themeMode === 'system') applyTheme();
+  }
+
+  function cycleTheme() {
+    setThemeMode(themeModes[(themeModes.indexOf(themeMode) + 1) % themeModes.length]);
   }
 
   function setChartType(type) {
@@ -519,7 +528,7 @@
     hideTooltip(); renderChart();
   });
   $('granularity-select').addEventListener('change', () => { hideTooltip(); renderChart(); });
-  $('theme-select').addEventListener('change', event => setThemeMode(event.target.value));
+  $('theme-toggle').addEventListener('click', cycleTheme);
   systemTheme.addEventListener('change', handleSystemThemeChange);
   $('trend-chart').addEventListener('pointermove', showChartPoint);
   $('trend-chart').addEventListener('pointerleave', () => {

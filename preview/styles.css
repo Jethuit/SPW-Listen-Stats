@@ -58,6 +58,8 @@ h2 .material-icon { width: 19px; height: 19px; color: var(--muted); }
 .preview-badge { padding: 3px 8px; border-radius: 5px; background: var(--subtle); color: var(--muted); font-size: 11px; white-space: nowrap; }
 .subtitle { color: var(--muted); font-size: 13px; margin-top: 8px; }
 .header-actions, .section-controls { display: flex; align-items: center; gap: 12px; }
+.icon-button { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 7px; color: var(--muted); }
+.icon-button .material-icon { width: 19px; height: 19px; }
 .action-divider { width: 1px; height: 17px; background: var(--line); margin: 0 1px; }
 .page-nav { display: flex; gap: 26px; border-bottom: 1px solid var(--line); margin-bottom: 30px; }
 .page-nav a { position: relative; display: flex; align-items: center; gap: 7px; padding: 0 1px 13px; color: var(--muted); text-decoration: none; font-size: 13px; }
@@ -66,7 +68,7 @@ h2 .material-icon { width: 19px; height: 19px; color: var(--muted); }
 .page-nav a.active::after { content: ""; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: var(--accent); border-radius: 2px; }
 .text-button { display: flex; align-items: center; gap: 7px; padding: 9px 10px; border-radius: 7px; font-size: 13px; }
 .text-button svg { width: 17px; height: 17px; }
-.text-button:hover { background: var(--hover); }
+.icon-button:hover, .text-button:hover { background: var(--hover); }
 .summary-strip { display: grid; grid-template-columns: 1.45fr 1fr 1fr 1fr; border: 1px solid var(--line); border-radius: 15px; padding: 23px 4px; margin-bottom: 43px; }
 .summary-item { text-align: center; padding: 2px 10px; min-width: 0; }
 .summary-item + .summary-item { border-left: 1px solid var(--line); }
@@ -81,7 +83,6 @@ select option { background: var(--background); color: var(--text); }
 .select-wrap .select-chevron { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--muted); pointer-events: none; }
 .select-wrap .leading-icon { position: absolute; left: 9px; width: 16px; height: 16px; color: var(--muted); pointer-events: none; }
 .select-wrap.has-leading-icon select { padding-left: 31px; }
-.theme-select select { min-width: 111px; }
 .year-select select { min-width: 78px; }
 .heatmap-scroll { overflow-x: auto; padding: 2px 2px 6px; margin: 0 -2px; scrollbar-width: thin; }
 .heatmap-layout { --weeks: 53; display: grid; grid-template-columns: 17px 1fr; grid-template-rows: 19px 1fr; column-gap: 10px; row-gap: 8px; min-width: 660px; }
@@ -190,6 +191,7 @@ dialog input { display: block; width: 100%; border: 1px solid var(--line); color
   .title-line { gap: 8px; flex-wrap: wrap; }
   .subtitle { font-size: 11px; max-width: 180px; line-height: 1.6; }
   .header-actions { gap: 2px; }
+  .icon-button { width: 29px; height: 32px; }
   .action-divider { display: none; }
   .text-button { padding: 8px 6px; font-size: 12px; gap: 4px; }
   .text-button svg { width: 14px; height: 14px; }
@@ -217,11 +219,5 @@ dialog input { display: block; width: 100%; border: 1px solid var(--line); color
   .search-wrap input { width: 100%; }
   .song-table td { font-size: 12px; }
   .page-footer { flex-direction: column; gap: 9px; line-height: 1.7; }
-}
-@media (max-width: 420px) {
-  .page-header { flex-wrap: wrap; }
-  .header-actions { width: 100%; justify-content: flex-end; }
-  .title-line { flex-wrap: nowrap; }
-  .subtitle { max-width: none; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

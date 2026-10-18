@@ -23,7 +23,7 @@
 | `search` | 歌曲搜索 |
 | `dark_mode` | 深色主题模式 |
 | `light_mode` | 浅色主题模式 |
-| `desktop_windows` | 跟随系统主题模式 |
+| `routine` | 跟随系统主题模式 |
 | `expand_more` | 下拉选择箭头 |
 
 图标目录：https://fonts.google.com/icons
