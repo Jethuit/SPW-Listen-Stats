@@ -49,7 +49,13 @@ import com.jethuit.spw.listenstats.util.formatNumber
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private const val PAGE_SIZE = 25
+const val RANKING_PAGE_SIZE = 25
+
+fun rankingTotalPages(count: Int): Int =
+    if (count <= 0) 1 else (count + RANKING_PAGE_SIZE - 1) / RANKING_PAGE_SIZE
+
+fun rankingSafePage(count: Int, page: Int): Int =
+    page.coerceIn(1, rankingTotalPages(count))
 
 @Composable
 fun RankingPage(
@@ -73,10 +79,10 @@ fun RankingPage(
             it.track.title.lowercase().contains(needle) || it.track.artist.lowercase().contains(needle)
         }
     }
-    val totalPages = if (filtered.isEmpty()) 1 else (filtered.size + PAGE_SIZE - 1) / PAGE_SIZE
-    val currentPage = page.coerceIn(1, totalPages)
-    val from = (currentPage - 1) * PAGE_SIZE
-    val to = minOf(from + PAGE_SIZE, filtered.size)
+    val totalPages = rankingTotalPages(filtered.size)
+    val currentPage = rankingSafePage(filtered.size, page)
+    val from = (currentPage - 1) * RANKING_PAGE_SIZE
+    val to = minOf(from + RANKING_PAGE_SIZE, filtered.size)
     val rows = filtered.subList(from, to)
 
     Column(Modifier.fillMaxWidth()) {

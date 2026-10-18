@@ -306,9 +306,8 @@ fun ListenStatsApp(
         }
         val summary = remember(snapshot, today) { StatsCalculations.summary(snapshot, today) }
         val rankCount = remember(snapshot, query) { filteredRankCount(snapshot, query) }
-        val totalPages = if (rankCount == 0) 1 else (rankCount + 49) / 50
-        val safePage = rankPage.coerceIn(1, totalPages)
-        val rowsOnPage = if (rankCount == 0) 0 else min(50, rankCount - (safePage - 1) * 50)
+        val totalPages = rankingTotalPages(rankCount)
+        val safePage = rankingSafePage(rankCount, rankPage)
         LaunchedEffect(totalPages) {
             if (rankPage > totalPages) rankPage = totalPages
         }

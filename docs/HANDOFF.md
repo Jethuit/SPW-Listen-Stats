@@ -1,6 +1,13 @@
 # 新聊天交接
 
-## 最新：0.1.13 底栏/头部/每页数
+## 最新：0.1.14 第三页跳转 bug
+
+- 根因：`RankingPage` 已改为 25 条/页，但 `StatsWindow` 仍用旧公式 `(rankCount + 49) / 50` 计算 `safePage`；点第 3 页时 `rankPage=3` 被夹回 2。
+- 修复：新增 `RANKING_PAGE_SIZE=25`、`rankingTotalPages(count)`、`rankingSafePage(count,page)`，`RankingPage` 和 `StatsWindow` 共用；删除 `rowsOnPage` 旧公式。
+- 回归：`UiRegressionTest` 新增 72 首=3 页、第 3 页不被夹回、越界夹到末页、25 首=1 页。
+- 0.1.13 的底栏、头部按钮、热力图标题等继续保留。
+
+## 0.1.13 底栏/头部/每页数
 
 - 排行底栏去掉说明末尾的“·”和虚线引导线，只保留“听满单曲 50% 计一次”与右侧 `‹ 页码 ›` 按钮组。
 - `TextAction`（导入/导出）和主题 `IconAction` 统一：按钮 34dp、圆角 8dp、图标 19px、图标色 `muted`；文字仍用正文色。
@@ -132,8 +139,8 @@ SaltUI 已用于主题、滚动、文本和概览/错误卡片；热力图、部
 ## 路径
 
 - 正式源码 `plugin/src/main/kotlin/com/jethuit/spw/listenstats/`
-- 构建 `tools/build_plugin.py`，版本 0.1.13
-- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.13.spmod`
+- 构建 `tools/build_plugin.py`，版本 0.1.14
+- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.14.spmod`
 - 数据回归 `tests/DataRegressionTest.kt`、`tests/run-data-tests.py`（data / ui 两个 suite）
 - 结构检查 `tests/spmod-structure.py`
 - 详细设计和限制 `docs/NATIVE-IMPLEMENTATION.md`

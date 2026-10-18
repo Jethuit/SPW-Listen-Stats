@@ -1,8 +1,15 @@
 import com.jethuit.spw.listenstats.ui.UiGeometry
+import com.jethuit.spw.listenstats.ui.rankingSafePage
+import com.jethuit.spw.listenstats.ui.rankingTotalPages
 import com.jethuit.spw.listenstats.data.*
 import java.time.LocalDate
 
 fun main() {
+    check(rankingTotalPages(72) == 3) { "72 tracks must use three 25-row pages" }
+    check(rankingSafePage(72, 3) == 3) { "page three must survive the host clamp" }
+    check(rankingSafePage(72, 4) == 3) { "out-of-range page should clamp to the last page" }
+    check(rankingTotalPages(25) == 1) { "exactly 25 tracks should fit on one page" }
+    println("PASS ranking pagination uses 25 rows and keeps page three")
     for (scale in listOf(1.0, 1.25, 1.5, 2.0)) {
         fun px(value: Int) = (value * scale).toInt()
         val y = UiGeometry.popupAxis(px(550), px(100), px(90), px(1112), px(14))
