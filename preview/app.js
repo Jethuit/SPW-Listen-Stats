@@ -24,6 +24,8 @@
   const savedChartType = safeStorage.get('spw-preview-chart-type');
   let chartType = Object.hasOwn(chartTypes, savedChartType) ? savedChartType : 'line';
   let selectedDay = null;
+  let selectedWeek = null;
+  let heatmapMode = 'day';
   let range = '30';
   let customStart = addDays(TODAY, -29);
   let customEnd = TODAY;
@@ -148,6 +150,86 @@
     return value <= 0 ? 0 : value <= cutoffs[1] ? 1 : value <= cutoffs[2] ? 2 : value <= cutoffs[3] ? 3 : 4;
   }
 
+  function heatmapWeeks(year) {
+    const first = `${year}-01-01`, last = `${year}-12-31`;
+    const monday = addDays(first, -((parseDate(first).getDay() + 6) % 7));
+    const weeks = [];
+    for (let start = monday; start <= last; start = addDays(start, 7)) {
+      const end = addDays(start, 6);
+      const from = start < first ? first : start;
+      const until = [end, last, TODAY].sort()[0];
+      let ms = 0;
+      for (let key = from; key <= until; key = addDays(key, 1)) ms += recordAt(key).ms;
+      weeks.push({ start, end, from, until, ms, future: from > TODAY });
+    }
+    return weeks;
+  }
+
+  function setHeatmapMode(mode) {
+    if (!['day', 'week'].includes(mode)) return;
+    heatmapMode = mode;
+    hideTooltip();
+    renderHeatmap();
+  }
+
+  function renderWeeklyCells(year) {
+    const weeks = heatmapWeeks(year);
+    const peakMs = Math.max(0, ...weeks.map(week => week.ms));
+    const current = weeks.find(week => week.start <= TODAY && week.end >= TODAY);
+    const focusWeek = weeks.find(week => week.start === selectedWeek)?.start || current?.start || weeks.filter(week => !week.future).at(-1)?.start;
+    const fragment = document.createDocumentFragment();
+    for (const week of weeks) {
+      const button = document.createElement('button');
+      button.className = 'week-cell';
+      button.dataset.week = week.start;
+      button.tabIndex = week.start === focusWeek ? 0 : -1;
+      button.disabled = week.future;
+      button.classList.toggle('future', week.future);
+      button.classList.toggle('selected', week.start === selectedWeek);
+      button.setAttribute('aria-pressed', String(week.start === selectedWeek));
+      const label = `${parseDate(week.start).getFullYear()}年${dateLabel(week.start)} 起的一周`;
+      const coverage = `${week.from} — ${week.until}`;
+      button.setAttribute('aria-label', week.future ? `${label}，未来日期` : `${label}，统计 ${coverage}，听歌 ${duration(week.ms)}`);
+      const filled = peakMs > 0 && week.ms > 0 ? Math.max(1, Math.ceil(week.ms / peakMs * 7)) : 0;
+      for (let row = 0; row < 7; row++) {
+        const block = document.createElement('span');
+        block.className = `week-block${row >= 7 - filled ? ' filled' : ''}`;
+        block.setAttribute('aria-hidden', 'true');
+        button.append(block);
+      }
+      const show = () => {
+        tooltipContent(label, week.ms);
+        const note = document.createElement('div'); note.className = 'tooltip-row';
+        note.textContent = `统计 ${coverage}`;
+        $('tooltip').append(note);
+        positionTooltip(button.getBoundingClientRect());
+      };
+      button.addEventListener('mouseenter', show);
+      button.addEventListener('focus', show);
+      button.addEventListener('mouseleave', hideTooltip);
+      button.addEventListener('blur', hideTooltip);
+      button.addEventListener('click', () => {
+        selectedWeek = week.start;
+        customStart = week.from; customEnd = week.until; range = 'custom';
+        $('range-select').value = range;
+        $('granularity-select').value = 'day';
+        hideTooltip(); renderHeatmap(); renderChart();
+        $('heatmap').querySelector(`[data-week="${week.start}"]`)?.focus({ preventScroll: true });
+        hideTooltip();
+      });
+      button.addEventListener('keydown', event => {
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+          event.preventDefault();
+          const next = $('heatmap').querySelector(`[data-week="${addDays(week.start, event.key === 'ArrowLeft' ? -7 : 7)}"]:not(:disabled)`);
+          if (next) { button.tabIndex = -1; next.tabIndex = 0; next.focus(); }
+        }
+        if (event.key === 'Escape') hideTooltip();
+      });
+      fragment.append(button);
+    }
+    $('heatmap').replaceChildren(fragment);
+  }
+
   function renderHeatmap() {
     const year = Number($('year-select').value);
     const first = `${year}-01-01`, last = `${year}-12-31`;
@@ -156,6 +238,17 @@
     const dates = [];
     for (let key = start; key <= end; key = addDays(key, 1)) dates.push(key);
     const weeks = dates.length / 7;
+    const weekly = heatmapMode === 'week';
+    $('heatmap').classList.toggle('is-weekly', weekly);
+    $('heatmap').setAttribute('aria-label', weekly ? '按周显示的年度听歌时长，每列代表周一至周日的一周' : '按日显示的年度听歌热力图');
+    $('weekday-labels').hidden = weekly;
+    $('heatmap-legend').hidden = weekly;
+    $('weekly-scale-note').hidden = !weekly;
+    document.querySelectorAll('[data-heatmap-mode]').forEach(button => {
+      const active = button.dataset.heatmapMode === heatmapMode;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
     document.querySelector('.heatmap-layout').style.setProperty('--weeks', weeks);
     const monthLabels = $('month-labels');
     monthLabels.replaceChildren();
@@ -168,7 +261,7 @@
     }
     const fragment = document.createDocumentFragment();
     const focusDate = selectedDay?.startsWith(String(year)) ? selectedDay : year === Number(TODAY.slice(0, 4)) ? TODAY : last;
-    for (const key of dates) {
+    for (const key of weekly ? [] : dates) {
       const button = document.createElement('button');
       button.className = 'day-cell';
       if (key < first || key > last) {
@@ -199,7 +292,8 @@
       }
       fragment.append(button);
     }
-    $('heatmap').replaceChildren(fragment);
+    if (weekly) renderWeeklyCells(year);
+    else $('heatmap').replaceChildren(fragment);
     const yearRecords = records.filter(record => record.date.startsWith(String(year)));
     const yearMs = yearRecords.reduce((sum, record) => sum + record.ms, 0);
     $('year-caption').textContent = `${year} 年 · ${yearRecords.filter(record => record.ms > 0).length} 个听歌日 · ${duration(yearMs)}`;
@@ -207,6 +301,11 @@
   }
 
   function updateDayDetail() {
+    if (heatmapMode === 'week') {
+      const week = heatmapWeeks(Number($('year-select').value)).find(item => item.start === selectedWeek);
+      $('day-detail').textContent = week ? `${dateLabel(week.from)} — ${dateLabel(week.until)} · 听歌 ${duration(week.ms)}` : '周一至周日为一周；点击某一周，查看该周的每日分布';
+      return;
+    }
     if (!selectedDay) { $('day-detail').textContent = '点击某一天，查看当天的收听分布'; return; }
     const record = recordAt(selectedDay);
     $('day-detail').innerHTML = `<strong>${dateLabel(selectedDay)}</strong> · 听歌 ${duration(record.ms)}`;
@@ -479,7 +578,6 @@
     $('overview-page').hidden = ranking;
     $('ranking-page').hidden = !ranking;
     $('page-title').textContent = '听歌统计';
-    $('page-subtitle').textContent = ranking ? '每首歌曲的累计播放次数' : '累计收听与每日记录';
     document.title = '听歌统计 · SPW';
     document.querySelectorAll('[data-page-link]').forEach(link => {
       const active = link.dataset.pageLink === (ranking ? 'ranking' : 'overview');
@@ -536,6 +634,7 @@
   }
 
   document.querySelectorAll('[data-chart-type]').forEach(button => button.addEventListener('click', () => setChartType(button.dataset.chartType)));
+  document.querySelectorAll('[data-heatmap-mode]').forEach(button => button.addEventListener('click', () => setHeatmapMode(button.dataset.heatmapMode)));
   $('song-search').addEventListener('input', renderSongs);
   addEventListener('hashchange', () => { renderPage(); window.scrollTo(0, 0); });
   $('year-select').addEventListener('change', () => { hideTooltip(); renderHeatmap(); });
@@ -581,7 +680,7 @@
       if (file.size > 2 * 1024 * 1024) throw new Error('预览文件不能超过 2 MB');
       const imported = validateImport(JSON.parse(await file.text()));
       records = imported.records; tracks = imported.tracks;
-      byDate = new Map(records.map(record => [record.date, record])); selectedDay = null;
+      byDate = new Map(records.map(record => [record.date, record])); selectedDay = null; selectedWeek = null;
       $('song-search').value = '';
       if (range === 'selected') { range = '30'; $('range-select').value = range; }
       $('range-select').querySelector('[value="selected"]').hidden = true;
