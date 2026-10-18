@@ -118,7 +118,8 @@ fun OverviewPage(
         SectionHeading(
             icon = IconPaths.ShowChart,
             title = "时长分布",
-            caption = "这段时间听了 ${formatDuration(rangeTotal)}"
+            caption = "这段时间听了 ${formatDuration(rangeTotal)}",
+            controlsGap = 9.dp
         ) {
             SegmentedControl(
                 options = listOf(
@@ -162,11 +163,18 @@ fun OverviewPage(
         TrendChart(
             buckets = buckets,
             chartType = chartType,
-            showAverage = range.days > 1
+            showAverage = range.days > 1,
+            hourly = range.days == 1
         )
 
-        Box(Modifier.height(34.dp))
-        SectionHeading(icon = IconPaths.Lightbulb, title = "听歌小结") {}
+        Box(Modifier.height(61.dp))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AppIcon(IconPaths.Lightbulb, colors.muted, iconSize = 19.dp)
+            Text("听歌小结", style = AppType.sectionTitle.copy(color = colors.text))
+        }
         Box(Modifier.height(16.dp))
         SummaryStrip(3) { itemWidth ->
             InsightStat(
@@ -294,7 +302,7 @@ private fun FavoriteHourStat(
     ) {
         Text(
             hour?.let { formatHourRange(it) } ?: "—",
-            style = AppType.number.copy(fontSize = 22.sp, color = colors.text)
+            style = AppType.number.copy(color = colors.text)
         )
         Text(
             label,
@@ -320,12 +328,13 @@ private fun rangeLabel(
     customEnd: LocalDate?
 ): String {
     return when (preset) {
-        RangePreset.Selected -> selectedDate?.let { formatDay(it) } ?: "所选日期"
+        RangePreset.Selected -> formatDay(selectedDate ?: java.time.LocalDate.now())
         RangePreset.Custom -> {
             if (customStart != null && customEnd != null) {
                 "${formatDay(customStart)}–${formatDay(customEnd)}"
             } else {
-                "自定义日期"
+                val end = java.time.LocalDate.now()
+                "${formatDay(end.minusDays(29))}–${formatDay(end)}"
             }
         }
         else -> preset.label

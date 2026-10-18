@@ -15,14 +15,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
@@ -42,13 +40,17 @@ import kotlin.math.sqrt
 fun TrendChart(
     buckets: List<ChartBucket>,
     chartType: ChartType,
-    showAverage: Boolean
+    showAverage: Boolean,
+    hourly: Boolean = false
 ) {
     val colors = LocalStatsColors.current
     val measurer = rememberTextMeasurer()
     val viewportRevision = LocalViewportRevision.current
     var tooltip by remember(buckets, chartType, viewportRevision) { mutableStateOf<TooltipData?>(null) }
     var hoverIndex by remember(buckets, chartType, viewportRevision) { mutableStateOf<Int?>(null) }
+    val widestLabel = remember(buckets) {
+        buckets.maxOfOrNull { measurer.measure(it.label, AppType.tiny).size.width.toFloat() } ?: 0f
+    }
 
     val values = buckets.map { it.millis }
     val maxMillis = values.maxOrNull() ?: 0L
@@ -66,24 +68,29 @@ fun TrendChart(
             .height(258.dp)
     ) {
         val density = LocalDensity.current
-        val AXIS_LEFT = with(density) { 46.dp.toPx() }
-        val AXIS_RIGHT = with(density) { 10.dp.toPx() }
-        val AXIS_TOP = with(density) { 12.dp.toPx() }
-        val AXIS_BOTTOM = with(density) { 28.dp.toPx() }
+        val AXIS_LEFT = max(
+            with(density) { 52.dp.toPx() },
+            widestLabel / 2f + with(density) { 6.dp.toPx() }
+        )
+        val AXIS_RIGHT = max(
+            with(density) { 10.dp.toPx() },
+            widestLabel / 2f + with(density) { 6.dp.toPx() }
+        )
+        val AXIS_TOP = with(density) { 10.dp.toPx() }
+        val AXIS_BOTTOM = with(density) { 30.dp.toPx() }
         val widthPx = with(density) { maxWidth.toPx() }
         val heightPx = with(density) { 258.dp.toPx() }
         val plotWidth = (widthPx - AXIS_LEFT - AXIS_RIGHT).coerceAtLeast(1f)
         val plotHeight = (heightPx - AXIS_TOP - AXIS_BOTTOM).coerceAtLeast(1f)
-        val edgePadding = with(density) { 24.dp.toPx() }.coerceAtMost(plotWidth / 4)
-        val dataWidth = plotWidth - 2 * edgePadding
-        val slot = if (buckets.isEmpty()) dataWidth else dataWidth / buckets.size
+        val slot = if (buckets.isEmpty()) plotWidth else plotWidth / buckets.size
+        val banded = hourly || chartType == ChartType.Bar
         val tickCount = 4
 
         fun xAt(index: Int): Float {
-            return if (buckets.size <= 1) {
-                AXIS_LEFT + plotWidth / 2f
-            } else {
-                AXIS_LEFT + edgePadding + (index + 0.5f) * slot
+            return when {
+                buckets.size <= 1 -> AXIS_LEFT + plotWidth / 2f
+                banded -> AXIS_LEFT + (index + 0.5f) * slot
+                else -> AXIS_LEFT + index * plotWidth / (buckets.size - 1)
             }
         }
 
@@ -103,8 +110,11 @@ fun TrendChart(
                         tooltip = null; hoverIndex = null
                         return@onPointerEvent
                     }
-                    val index = floor((position.x - AXIS_LEFT - edgePadding) / slot).toInt()
-                        .coerceIn(0, buckets.size - 1)
+                    val index = if (buckets.size <= 1) 0 else if (banded) {
+                        floor((position.x - AXIS_LEFT) / slot).toInt()
+                    } else {
+                        ((position.x - AXIS_LEFT) / plotWidth * (buckets.size - 1) + 0.5f).toInt()
+                    }.coerceIn(0, buckets.size - 1)
                     hoverIndex = index
                     val bucket = buckets[index]
                     tooltip = TooltipData(
@@ -138,7 +148,7 @@ fun TrendChart(
                             strokeWidth = 1f
                         )
                         val label = UiGeometry.tick(tick, yMax / tickCount)
-                        val nearAverage = averageY != null && abs(y - averageY) < with(density) { 13.dp.toPx() }
+                        val nearAverage = averageY != null && abs(y - averageY) < with(density) { 14.dp.toPx() }
                         if (!nearAverage) {
                             val layout = measurer.measure(
                                 label,
@@ -147,7 +157,7 @@ fun TrendChart(
                             drawText(
                                 layout,
                                 topLeft = Offset(
-                                    AXIS_LEFT - 8f - layout.size.width,
+                                    AXIS_LEFT - with(density) { 12.dp.toPx() } - layout.size.width,
                                     y - layout.size.height / 2f
                                 )
                             )
@@ -173,8 +183,14 @@ fun TrendChart(
                         val label = bucket.label
                         val layout = measurer.measure(label, AppType.tiny.copy(color = colors.muted))
                         val center = xAt(index)
-                        if (center - layout.size.width / 2f < AXIS_LEFT - 8f) return@forEachIndexed
+                        if (center - layout.size.width / 2f < 0f) return@forEachIndexed
                         if (center + layout.size.width / 2f > lastLeft - 6f) return@forEachIndexed
+                        drawLine(
+                            color = colors.line,
+                            start = Offset(center, AXIS_TOP + plotHeight),
+                            end = Offset(center, AXIS_TOP + plotHeight + 4f),
+                            strokeWidth = 1f
+                        )
                         drawText(
                             layout,
                             topLeft = Offset(
@@ -183,6 +199,12 @@ fun TrendChart(
                             )
                         )
                     }
+                    drawLine(
+                        color = colors.line,
+                        start = Offset(lastCenter, AXIS_TOP + plotHeight),
+                        end = Offset(lastCenter, AXIS_TOP + plotHeight + 4f),
+                        strokeWidth = 1f
+                    )
                     drawText(
                         lastLayout,
                         topLeft = Offset(lastLeft, AXIS_TOP + plotHeight + 9f)
@@ -191,7 +213,7 @@ fun TrendChart(
                     // Bars or line
                     if (!empty) when (chartType) {
                         ChartType.Bar -> {
-                            val barWidth = (slot * 0.6f).coerceAtLeast(2f)
+                            val barWidth = min(with(density) { 32.dp.toPx() }, slot * 0.65f).coerceAtLeast(2f)
                             buckets.forEachIndexed { index, bucket ->
                                 if (bucket.millis <= 0) return@forEachIndexed
                                 val top = yAt(bucket.millis)
@@ -221,27 +243,18 @@ fun TrendChart(
                             }
                             drawPath(
                                 area,
-                                brush = Brush.verticalGradient(
-                                    listOf(colors.accentSoft, colors.accent.copy(alpha = 0.02f)),
-                                    startY = AXIS_TOP,
-                                    endY = AXIS_TOP + plotHeight
-                                )
+                                color = colors.accentSoft
                             )
                             drawPath(path, color = colors.accent, style = Stroke(width = 2f))
-                            if (buckets.size <= 40) {
-                                points.forEach { point ->
-                                    drawCircle(
-                                        color = colors.background,
-                                        radius = 3.2f,
-                                        center = point
-                                    )
-                                    drawCircle(
-                                        color = colors.accent,
-                                        radius = 2f,
-                                        center = point,
-                                        style = Stroke(width = 1.4f)
-                                    )
-                                }
+                            if (buckets.size == 1) {
+                                val point = points.single()
+                                drawCircle(color = colors.background, radius = 3.2f, center = point)
+                                drawCircle(
+                                    color = colors.accent,
+                                    radius = 2f,
+                                    center = point,
+                                    style = Stroke(width = 1.4f)
+                                )
                             }
                         }
                     }
@@ -250,7 +263,7 @@ fun TrendChart(
                     if (showAverage && averageY != null) {
                         drawLine(
                             color = colors.muted,
-                            start = Offset(AXIS_LEFT, averageY),
+                            start = Offset(AXIS_LEFT - with(density) { 6.dp.toPx() }, averageY),
                             end = Offset(widthPx - AXIS_RIGHT, averageY),
                             strokeWidth = 1.2f,
                             pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
@@ -260,12 +273,15 @@ fun TrendChart(
                         val label = UiGeometry.tick(average, yMax / tickCount)
                         val layout = measurer.measure(
                             label,
-                            AppType.tiny.copy(color = colors.accent)
+                            AppType.tiny.copy(
+                                color = colors.accent,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                            )
                         )
                         drawText(
                             layout,
                             topLeft = Offset(
-                                AXIS_LEFT - 8f - layout.size.width,
+                                AXIS_LEFT - with(density) { 12.dp.toPx() } - layout.size.width,
                                 averageY - layout.size.height / 2f
                             )
                         )

@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.jethuit.spw.listenstats.data.HeatmapGrid
 import com.jethuit.spw.listenstats.data.StatsCalculations
 import com.jethuit.spw.listenstats.data.StatsData
@@ -185,7 +186,10 @@ fun YearHeatmap(
                     val weekdays = listOf("一", "三", "五", "日")
                     weekdays.forEachIndexed { index, label ->
                         val row = index * 2
-                        val layout = measurer.measure(label, AppType.tiny.copy(color = colors.muted))
+                        val layout = measurer.measure(
+                            label,
+                            AppType.tiny.copy(fontSize = 10.sp, color = colors.muted)
+                        )
                         drawText(
                             layout,
                             topLeft = Offset(0f, cellY(row) + (cell - layout.size.height) / 2f)
@@ -213,13 +217,22 @@ fun YearHeatmap(
                                 )
                                 val isSelected = date == selectedDate
                                 val isHovered = hoverWeek == week && hoverRow == row
-                                if (isSelected || isHovered) {
+                                if (isHovered) {
+                                    drawRoundRect(
+                                        color = colors.accent,
+                                        topLeft = Offset(x - 3f, y - 3f),
+                                        size = Size(cell + 6f, cell + 6f),
+                                        cornerRadius = CornerRadius(min(9f, cell / 2f + 3f)),
+                                        style = Stroke(width = 2.5f)
+                                    )
+                                }
+                                if (isSelected) {
                                     drawRoundRect(
                                         color = colors.accent,
                                         topLeft = Offset(x - 2f, y - 2f),
                                         size = Size(cell + 4f, cell + 4f),
                                         cornerRadius = CornerRadius(min(8f, cell / 2f + 2f)),
-                                        style = Stroke(width = if (isSelected) 1.2f else 1f)
+                                        style = Stroke(width = 1f)
                                     )
                                 }
                             }
@@ -253,16 +266,16 @@ fun YearHeatmap(
                                     topLeft = Offset(x - 2f, gridTop - 2f),
                                     size = Size(cell + 4f, gridHeight + 4f),
                                     cornerRadius = CornerRadius(min(8f, cell / 2f + 2f)),
-                                    style = Stroke(width = 1.2f)
+                                    style = Stroke(width = 1f)
                                 )
                             }
                             if (hoverWeek == week) {
                                 drawRoundRect(
                                     color = colors.accent.copy(alpha = 0.5f),
-                                    topLeft = Offset(x - 1f, gridTop - 1f),
-                                    size = Size(cell + 2f, gridHeight + 2f),
+                                    topLeft = Offset(x - 2f, gridTop - 2f),
+                                    size = Size(cell + 4f, gridHeight + 4f),
                                     cornerRadius = CornerRadius(min(8f, cell / 2f + 2f)),
-                                    style = Stroke(width = 1f)
+                                    style = Stroke(width = 1.5f)
                                 )
                             }
                         }

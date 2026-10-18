@@ -1,6 +1,6 @@
 # 正式模组实现说明
 
-更新时间：2026-10-18。当前源码版本 0.1.3；视觉基准仍为 `preview/`。0.1.2 针对用户截图修复提示坐标、刻度、日周切换、DPI 和页面高度，详见 [UI 修订](UI-FIXES.md)；0.1.3 补了异常退出后的会话恢复、source-id 自愈和回归脚本修复。下方保留 0.1.1 数据实现说明；旧版运行截图不能证明新版已经在宿主中验收。
+更新时间：2026-10-18。当前源码版本 0.1.4；视觉基准仍为 `preview/`。0.1.2 修复提示坐标、刻度、日周切换、DPI 和页面高度；0.1.3 补异常退出后的会话恢复、source-id 自愈和回归脚本修复；0.1.4 按预览 CSS 对齐页面边距、排行搜索、表格列宽、分页、图表坐标与图例细节。下方保留 0.1.1 数据实现说明；旧版运行截图不能证明新版已经在宿主中验收。
 
 ![0.1.0 历史运行截图](screenshots/overview-light.png)
 
@@ -11,9 +11,21 @@ python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Sa
 python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.3.spmod`。在 SPW 创意工坊“本地导入”，启用并授权 `library-read` 和 `class-transform`。使用宿主 1.19.0 的 fat jar 作编译类路径；JDK 25 / Kotlin 2.4.20 / sqlite-jdbc 与宿主包缓存在 `build/tools/`，均不提交。
+产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.4.spmod`。在 SPW 创意工坊“本地导入”，启用并授权 `library-read` 和 `class-transform`。使用宿主 1.19.0 的 fat jar 作编译类路径；JDK 25 / Kotlin 2.4.20 / sqlite-jdbc 与宿主包缓存在 `build/tools/`，均不提交。
 
-主界面入口仍是 Hook 浮层，内容仍为 Compose / Material3 + Swing 无边框窗口，不是原生 ScreenRoute。Hook 类名绑定 SPW 1.19.0；失败时可用插件配置页打开。窗口不能拖动或缩放。这些是先前实现留下的限制，本轮没有更改视觉设计。
+主界面入口仍是 Hook 浮层，内容仍为 Compose / Material3 + Swing 无边框窗口，不是原生 ScreenRoute。Hook 类名绑定 SPW 1.19.0；失败时可用插件配置页打开。窗口不能拖动或缩放；0.1.4 的关闭按钮移到窗口右上角，页面 header 与预览一样只保留主题/导入/导出。
+
+## 0.1.4 布局对齐
+
+按 `preview/styles.css` 和 `preview/app.js` 逐项修正，详见 [UI 修订](UI-FIXES.md)：
+
+- 页面顶部 padding：≥1450dp 为 68dp，>900 为 56dp，>600 为 34dp，其余 26dp；section heading 恢复 42dp 最小高度，控制间距默认 12dp，时长分布 9dp。
+- 排行搜索改为 190×34 外框、10dp 内边距、15dp 图标、7dp 间距、148dp 输入区；表格列宽为排名 48dp + 歌曲 44% + 专辑 30% + 次数剩余；表头上下 10dp，次数右对齐；分页按钮 30dp 高、最小 30dp 宽。
+- 折线/曲线图使用预览坐标：左右边距由标签宽度决定（左至少 52dp、右至少 10dp），线/曲线首尾贴绘图区；柱状和小时保持 banded 中心；移除逐点圆点，区域填充改为纯 accentSoft，补横轴 4dp 刻度，平均线标签加粗。
+- 听歌小结补 27dp 顶部间距；常听时段数字恢复 26sp；热力图星期标签 10sp、选中框 1px、悬停环更接近预览；导航仅文字/图标变色，不再有灰色 hover 块。
+- 选的日期/自定义范围写回 Prefs，重开窗口显示具体日期，不再只显示“所选日期”。
+
+**0.1.4 的 UI 尚未在宿主中重新截图核对。** 搜索框、图表坐标和关闭按钮位置需要真实渲染验收；构建与离线回归通过不等于宿主视觉通过。
 
 ## 0.1.1 数据修复
 
@@ -67,4 +79,4 @@ python tests/spmod-structure.py
 
 本轮构建和回归结果见 `HANDOFF.md`。0.1.2 统计页已在独立 `APPDATA` 中实际启动并点击核对：浅/深主题、概览/排行页签、日/周热力图、日期格选择、图表类型和滚动均有可见效果；搜索、分页、导入导出以及真实播放/暂停/拖动/切歌和宿主落库匹配仍需在正常 SPW 环境中验收。历史截图与此前代理的模拟测试不替代此项。
 
-本机验证实际使用 `py -3.12` 替代 `python`（后者为 WindowsApps 空别名）：30 个 Kotlin 文件编译、13 组数据回归、4 组 UI 几何回归和 106 项包结构检查均通过。没有在真实播放中验证 0.1.3；文档和视觉效果留待用户核对。
+本机验证实际使用 `py -3.12` 替代 `python`（后者为 WindowsApps 空别名）：30 个 Kotlin 文件编译、13 组数据回归、4 组 UI 几何回归和 106 项包结构检查均通过。0.1.4 没有在宿主中渲染验收；文档和视觉效果留待用户核对。

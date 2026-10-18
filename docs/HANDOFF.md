@@ -1,6 +1,22 @@
 # 新聊天交接
 
-## 最新：0.1.3 稳定性修复
+## 最新：0.1.4 按 preview 布局对齐
+
+用户指出当前 UI 仍偏离示例，要求严格按 `preview/` 的布局实现。已按 CSS 逐项修一轮：
+
+- 页面上边距按预览媒体查询：≥1450 为 68dp，>900 为 56dp，>600 为 34dp，其余 26dp。
+- 排行搜索改为自定义 190×34 外框：10dp 内边距、15dp 图标、7dp 间距、148dp 输入区；不再使用 M3 `leadingIcon` 槽。实现受宿主混淆限制，使用 `TextFieldState` + `OutlinedTextField` 的 `contentPadding`，仍需真实渲染核对占位符和输入。
+- 表格列宽改为预览的 48dp 排名 + 44% 歌曲 + 30% 专辑 + 剩余播放次数；表头上下 10dp、次数表头右对齐。
+- 分页按钮高度 30dp、最小宽度 30dp；表头 section 最小高度 42dp；控制间距默认 12dp，时长分布为 9dp。
+- 导航恢复预览的仅文字/图标悬停变色，不再出现灰色 Surface hover 块。
+- 折线/曲线图改为预览的坐标：左 `max(52,label/2+6)`、右 `max(10,label/2+6)`、上 10、下 30；线/曲线首尾贴绘图区，柱状/小时仍用 banded 中心；移除逐点圆点，区域填充改为纯 `accentSoft`，补 4px 横轴刻度、平均线标签加粗。
+- 排行榜/概览标题文字、主题图标、导入导出字号按预览调整；关闭按钮移到窗口右上角，页面 header 与预览一样只到“导出”。
+- 听歌小结补 27dp 顶部 padding；常听时段数字恢复 26sp；热力图星期标签 10sp、选中框 1px、悬停更接近预览。
+- 选的日期/自定义范围写回 Prefs，重开窗口不再只显示“所选日期”而丢失具体日期。
+
+**0.1.4 的 UI 尚未在宿主中重新截图核对；上一轮实际渲染的是 0.1.2。** 本轮只做了构建、13 组数据回归、4 组几何回归、106 项包结构检查。搜索框是风险最高的改动，请用户在真实 SPW 中优先看它。
+
+## 0.1.3 稳定性修复
 
 在 0.1.2 基础上做了三项接手修复：
 
@@ -18,7 +34,7 @@
 
 0.1.2 已完成一轮检查：30 个 Kotlin 文件编译通过、4 组 UI 几何回归通过、包结构检查通过。包大小 14,661,972 字节。未重复扩大已通过的数据测试范围。
 
-更新时间：2026-10-18。当前 0.1.3 为接手后的稳定性修订；0.1.1 为数据正确性修订。旧版 0.1.0 曾由先前代理构建并在 SPW 1.19.0 测试环境中渲染；本轮不把交接文字或旧截图当作新版宿主验收证据。
+更新时间：2026-10-18。当前 0.1.4 为按 preview 的布局对齐；0.1.3 为接手后的稳定性修订；0.1.1 为数据正确性修订。旧版 0.1.0 曾由先前代理构建并在 SPW 1.19.0 测试环境中渲染；本轮不把交接文字或旧截图当作新版宿主验收证据。
 
 ## 用户确认
 
@@ -38,15 +54,19 @@
 ## 路径
 
 - 正式源码 `plugin/src/main/kotlin/com/jethuit/spw/listenstats/`
-- 构建 `tools/build_plugin.py`，版本 0.1.3
-- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.3.spmod`
+- 构建 `tools/build_plugin.py`，版本 0.1.4
+- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.4.spmod`
 - 数据回归 `tests/DataRegressionTest.kt`、`tests/run-data-tests.py`（data / ui 两个 suite）
 - 结构检查 `tests/spmod-structure.py`
 - 详细设计和限制 `docs/NATIVE-IMPLEMENTATION.md`
 
 ## 集中验证
 
-本轮集中检查已通过：30 个 Kotlin 文件编译成功；13 组数据回归通过；4 组 UI 几何回归通过；`.spmod` 结构检查通过（106 项，仅 library-read / class-transform 权限）；`git diff --check` 通过。包大小约 14.66 MB。本轮未在真实播放中验收；0.1.2 的统计页渲染/点击已在独立配置中截图核对，见上方 0.1.3 小节。
+本轮集中检查已通过：30 个 Kotlin 文件编译成功；13 组数据回归通过；4 组 UI 几何回归通过；`.spmod` 结构检查通过（106 项，仅 library-read / class-transform 权限）。包大小约 14.67 MB。0.1.4 未在宿主中渲染，0.1.2 的统计页渲染/点击已在独立配置中截图核对；新版 UI 需用户核对。
+
+## 启动崩溃报告
+
+我们在沙箱测试启动时见过宿主弹出“崩溃报告”，堆栈是宿主 `PlaybackService` 写 `java.util.prefs` 时 `WindowsPreferences.openKey` 对 `HKCU\Software\JavaSoft\Prefs\com\xuncorp\voxzen` 返回 Access denied；**插件代码不在这个堆栈里**。这是测试启动器（受限 DSH 沙箱）导致的宿主环境问题，不是插件主动写注册表。正常 Steam 启动是否也会出现尚未确认；如果用户在本机正常启动也遇到，请先禁用插件复测，并把崩溃报告/时间发给新代理。不要为绕过它去申请更高权限或改宿主注册表。
 
 本机 `python` 命中 WindowsApps 空别名，实际使用 `py -3.12` 完成检查；其他机器可用正常的 Python 3 命令。运行方式：
 

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -108,7 +109,7 @@ fun TextAction(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppIcon(path, tint, iconSize = 17.dp)
-                Text(label, style = AppType.bodySmall.copy(color = tint))
+                Text(label, style = AppType.action.copy(color = tint))
             }
         }
     }
@@ -228,6 +229,7 @@ fun SectionHeading(
     icon: String,
     title: String,
     caption: String? = null,
+    controlsGap: Dp = 12.dp,
     controls: @Composable () -> Unit
 ) {
     val colors = LocalStatsColors.current
@@ -251,18 +253,24 @@ fun SectionHeading(
     }
     val actions: @Composable () -> Unit = {
         FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(9.dp),
+            horizontalArrangement = Arrangement.spacedBy(controlsGap),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             controls()
         }
     }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        if (maxWidth < 900.dp) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { heading(); actions() }
+        if (maxWidth < 600.dp) {
+            Column(
+                Modifier.heightIn(min = 42.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) { heading(); actions() }
         } else {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically) { heading(); actions() }
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 42.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) { heading(); actions() }
         }
     }
 }

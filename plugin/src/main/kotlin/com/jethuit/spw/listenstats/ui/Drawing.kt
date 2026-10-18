@@ -43,7 +43,7 @@ fun Modifier.drawOver(block: DrawScope.() -> Unit): Modifier = then(DrawBlock(tr
 object AppType {
     val pageTitle = TextStyle(
         fontSize = 27.sp,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight(620),
         letterSpacing = (-0.6).sp,
         lineHeight = 36.sp
     )
@@ -54,11 +54,12 @@ object AppType {
         lineHeight = 22.sp
     )
     val body = TextStyle(fontSize = 13.sp, lineHeight = 20.sp)
+    val action = TextStyle(fontSize = 13.sp, lineHeight = 18.sp)
     val bodySmall = TextStyle(fontSize = 12.sp, lineHeight = 18.sp)
     val tiny = TextStyle(fontSize = 11.sp, lineHeight = 16.sp)
     val number = TextStyle(
         fontSize = 26.sp,
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight(550),
         letterSpacing = (-0.65).sp,
         lineHeight = 36.sp
     )

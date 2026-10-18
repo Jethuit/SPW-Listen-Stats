@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,10 +15,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,7 +32,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -51,6 +60,12 @@ fun RankingPage(
 ) {
     val colors = LocalStatsColors.current
     val all = remember(data) { data.sortedTracks() }
+    val searchState = remember { TextFieldState(query) }
+    val searchText = searchState.text.toString()
+    var searchFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(searchText) {
+        if (searchText != query) onQueryChange(searchText)
+    }
     val filtered = remember(all, query) {
         val needle = query.trim().lowercase()
         if (needle.isEmpty()) all else all.filter {
@@ -68,22 +83,51 @@ fun RankingPage(
             icon = IconPaths.QueueMusic,
             title = "歌曲播放次数"
         ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier.width(190.dp),
-                singleLine = true,
-                textStyle = AppType.bodySmall,
-                placeholder = {
-                    Text(
-                        "搜索歌曲或歌手",
-                        style = AppType.bodySmall.copy(color = colors.muted)
-                    )
-                },
-                leadingIcon = {
+            Surface(
+                modifier = Modifier.width(190.dp).height(34.dp),
+                shape = AppShape(7.dp),
+                color = colors.background,
+                border = BorderStroke(
+                    if (searchFocused) 2.dp else 1.dp,
+                    SolidColor(if (searchFocused) colors.accent else colors.line)
+                )
+            ) {
+                Row(
+                    Modifier.fillMaxSize().padding(horizontal = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     AppIcon(IconPaths.Search, colors.muted, iconSize = 15.dp)
+                    OutlinedTextField(
+                        state = searchState,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(34.dp)
+                            .onFocusChanged { searchFocused = it.isFocused },
+                        lineLimits = TextFieldLineLimits.SingleLine,
+                        shape = AppShape(0.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = colors.text,
+                            unfocusedTextColor = colors.text,
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            cursorColor = colors.accent,
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            focusedPlaceholderColor = colors.muted,
+                            unfocusedPlaceholderColor = colors.muted
+                        ),
+                        textStyle = AppType.bodySmall,
+                        placeholder = {
+                            Text(
+                                "搜索歌曲或歌手",
+                                style = AppType.bodySmall.copy(color = colors.muted)
+                            )
+                        }
+                    )
                 }
-            )
+            }
         }
         Box(Modifier.height(15.dp))
         Row(
@@ -136,7 +180,7 @@ private fun SongTableHeader() {
     val colors = LocalStatsColors.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val widths = tableWidths(maxWidth)
-        Row(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
             Text(
                 "排名",
                 modifier = Modifier.width(widths.rank),
@@ -156,7 +200,8 @@ private fun SongTableHeader() {
             Text(
                 "播放次数",
                 modifier = Modifier.width(widths.count),
-                style = AppType.tableHead.copy(color = colors.muted)
+                style = AppType.tableHead.copy(color = colors.muted),
+                textAlign = androidx.compose.ui.text.style.TextAlign.End
             )
         }
         Box(
@@ -288,10 +333,9 @@ private data class TableWidths(
 
 private fun tableWidths(maxWidth: Dp): TableWidths {
     val rank = 48.dp
-    val count = 96.dp
-    val remaining = (maxWidth - rank - count).coerceAtLeast(0.dp)
-    val song = remaining * 0.56f
-    val album = remaining - song
+    val song = maxWidth * 0.44f
+    val album = maxWidth * 0.30f
+    val count = (maxWidth - rank - song - album).coerceAtLeast(0.dp)
     return TableWidths(rank, song, album, count)
 }
 
@@ -332,17 +376,23 @@ private fun PageButton(
         active -> colors.accent
         else -> colors.text
     }
-    Surface(
-        onClick = { if (enabled) onClick() },
-        shape = AppShape(6.dp),
-        color = if (active) colors.accentSoft else colors.background,
-        border = BorderStroke(1.dp, SolidColor(if (active) colors.accent else colors.line))
-    ) {
-        Text(
-            text,
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-            style = AppType.bodySmall.copy(color = color)
-        )
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+        Surface(
+            onClick = { if (enabled) onClick() },
+            shape = AppShape(6.dp),
+            color = if (active) colors.accentSoft else colors.background,
+            border = BorderStroke(1.dp, SolidColor(if (active) colors.accent else colors.line))
+        ) {
+            Box(
+                Modifier.height(30.dp).padding(horizontal = 9.dp).widthIn(min = 30.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text,
+                    style = AppType.bodySmall.copy(color = color)
+                )
+            }
+        }
     }
 }
 

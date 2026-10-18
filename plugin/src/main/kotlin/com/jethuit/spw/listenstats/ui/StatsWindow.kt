@@ -249,6 +249,20 @@ fun ListenStatsApp(
         chartType = ChartType.fromStorage(Prefs.getString("chartType", ChartType.Line.storage))
         userGranularity = Granularity.fromStorage(Prefs.getString("granularity", Granularity.Day.storage))
         rangePreset = RangePreset.fromStorage(Prefs.getString("range", RangePreset.Last30.storage))
+        selectedDate = Prefs.getString("selectedDate", "")
+            .takeIf { it.isNotBlank() }
+            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        customStart = Prefs.getString("customStart", "")
+            .takeIf { it.isNotBlank() }
+            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        customEnd = Prefs.getString("customEnd", "")
+            .takeIf { it.isNotBlank() }
+            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        if (rangePreset == RangePreset.Selected && selectedDate == null) selectedDate = today
+        if (rangePreset == RangePreset.Custom && (customStart == null || customEnd == null)) {
+            customStart = today.minusDays(29)
+            customEnd = today
+        }
         while (true) {
             val loaded = withContext(Dispatchers.IO) { StatsStore.load() }
             data = loaded
@@ -289,6 +303,12 @@ fun ListenStatsApp(
                 maxWidth > 600.dp -> maxWidth - 64.dp
                 else -> (maxWidth - 36.dp).coerceAtLeast(280.dp)
             }
+            val pageTop = when {
+                maxWidth >= 1450.dp -> 68.dp
+                maxWidth > 900.dp -> 56.dp
+                maxWidth > 600.dp -> 34.dp
+                else -> 26.dp
+            }
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                         Column(
                             Modifier
@@ -298,7 +318,7 @@ fun ListenStatsApp(
                                     // Swing dimensions are logical pixels; Compose size is device pixels.
                                     onContentHeight(page, (size.height / density.density).toInt())
                                 }
-                                .padding(top = 56.dp, bottom = 24.dp)
+                                .padding(top = pageTop, bottom = 24.dp)
                         ) {
                             PageHeader(
                                 themeMode = themeMode,
@@ -313,8 +333,7 @@ fun ListenStatsApp(
                                         reloadTick++
                                     }
                                 },
-                                onExport = { BackupService.export(snapshot) },
-                                onClose = onClose
+                                onExport = { BackupService.export(snapshot) }
                             )
                             PageNav(page) { newPage ->
                                 page = newPage
@@ -346,6 +365,7 @@ fun ListenStatsApp(
                                         selectedDate = date
                                         rangePreset = RangePreset.Selected
                                         Prefs.putString("range", rangePreset.storage)
+                                        Prefs.putString("selectedDate", date.toString())
                                     },
                                     onWeekSelected = { start, end ->
                                         selectedDate = start
@@ -353,6 +373,9 @@ fun ListenStatsApp(
                                         customEnd = end
                                         rangePreset = RangePreset.Custom
                                         Prefs.putString("range", rangePreset.storage)
+                                        Prefs.putString("selectedDate", start.toString())
+                                        Prefs.putString("customStart", start.toString())
+                                        Prefs.putString("customEnd", end.toString())
                                     },
                                     onRangePreset = { preset ->
                                         if (preset == RangePreset.Selected && selectedDate == null) {
@@ -360,6 +383,7 @@ fun ListenStatsApp(
                                         }
                                         rangePreset = preset
                                         Prefs.putString("range", preset.storage)
+                                        selectedDate?.let { Prefs.putString("selectedDate", it.toString()) }
                                     },
                                     onCustomRange = {
                                         chooseDateRange(customStart, customEnd)?.let { (start, end) ->
@@ -367,6 +391,8 @@ fun ListenStatsApp(
                                             customEnd = end
                                             rangePreset = RangePreset.Custom
                                             Prefs.putString("range", rangePreset.storage)
+                                            Prefs.putString("customStart", start.toString())
+                                            Prefs.putString("customEnd", end.toString())
                                         }
                                     },
                                     onChartType = {
@@ -389,6 +415,15 @@ fun ListenStatsApp(
                             PageFooter(snapshot)
                         }
                     }
+                    // Window-only affordance: the undecorated dialog has no title bar.
+                    // Keep it outside the preview page column so the header still ends at 导出.
+                    IconAction(
+                        IconPaths.Close,
+                        "关闭",
+                        colors.muted,
+                        onClose,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(top = 20.dp, end = 20.dp)
+                    )
                 }
             }
         }
@@ -399,8 +434,7 @@ private fun PageHeader(
     themeMode: ThemeMode,
     onTheme: () -> Unit,
     onImport: () -> Unit,
-    onExport: () -> Unit,
-    onClose: () -> Unit
+    onExport: () -> Unit
 ) {
     val colors = LocalStatsColors.current
     val themeIcon = when (themeMode) {
@@ -426,8 +460,6 @@ private fun PageHeader(
             VerticalRule(colors.line, 17.dp)
             TextAction(IconPaths.Download, "导入", colors.text, onImport)
             TextAction(IconPaths.Upload, "导出", colors.text, onExport)
-            Box(Modifier.width(4.dp))
-            IconAction(IconPaths.Close, "关闭", colors.muted, onClose)
         }
     }
     Box(Modifier.height(30.dp))
@@ -453,7 +485,13 @@ private fun PageNav(page: StatsPage, onPage: (StatsPage) -> Unit) {
 @Composable
 private fun NavTab(icon: String, label: String, active: Boolean, onClick: () -> Unit) {
     val colors = LocalStatsColors.current
-    Surface(onClick = onClick, color = Color.Transparent) {
+    var hovered by remember { mutableStateOf(false) }
+    Box(
+        Modifier
+            .onPointerEvent(PointerEventType.Enter) { hovered = true }
+            .onPointerEvent(PointerEventType.Exit) { hovered = false }
+            .onPointerEvent(PointerEventType.Press) { onClick() }
+    ) {
         Column(
             Modifier.drawWith {
                 if (active) {
@@ -470,11 +508,11 @@ private fun NavTab(icon: String, label: String, active: Boolean, onClick: () -> 
                 horizontalArrangement = Arrangement.spacedBy(7.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AppIcon(icon, if (active) colors.text else colors.muted, iconSize = 17.dp)
+                AppIcon(icon, if (active || hovered) colors.text else colors.muted, iconSize = 17.dp)
                 Text(
                     label,
                     style = AppType.tab.copy(
-                        color = if (active) colors.text else colors.muted,
+                        color = if (active || hovered) colors.text else colors.muted,
                         fontWeight = if (active) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Normal
                     )
                 )
