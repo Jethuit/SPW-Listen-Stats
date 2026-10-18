@@ -21,8 +21,9 @@
 | `download` | 导入 |
 | `upload` | 导出 |
 | `search` | 歌曲搜索 |
-| `dark_mode` | 切换到深色主题 |
-| `light_mode` | 切换到浅色主题 |
+| `dark_mode` | 深色主题模式 |
+| `light_mode` | 浅色主题模式 |
+| `desktop_windows` | 跟随系统主题模式 |
 | `expand_more` | 下拉选择箭头 |
 
 图标目录：https://fonts.google.com/icons

@@ -15,7 +15,9 @@
     get(key) { try { return localStorage.getItem(key); } catch { return null; } },
     set(key, value) { try { localStorage.setItem(key, value); } catch { /* Local files may disable storage. */ } }
   };
-  let theme = safeStorage.get('spw-preview-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const systemTheme = matchMedia('(prefers-color-scheme: dark)');
+  const savedTheme = safeStorage.get('spw-preview-theme');
+  let themeMode = ['light', 'dark', 'system'].includes(savedTheme) ? savedTheme : 'system';
   const chartTypes = { bar: '柱状图', line: '折线图', curve: '曲线图' };
   const savedChartType = safeStorage.get('spw-preview-chart-type');
   let chartType = Object.hasOwn(chartTypes, savedChartType) ? savedChartType : 'line';
@@ -286,10 +288,25 @@
   }
 
   function applyTheme() {
-    document.documentElement.dataset.theme = theme;
-    const action = `切换到${theme === 'dark' ? '浅色' : '深色'}主题`;
-    $('theme-toggle').setAttribute('aria-label', action);
-    $('theme-toggle').title = action;
+    const resolvedTheme = themeMode === 'system' ? (systemTheme.matches ? 'dark' : 'light') : themeMode;
+    document.documentElement.dataset.theme = resolvedTheme;
+    document.documentElement.dataset.themeMode = themeMode;
+    $('theme-select').value = themeMode;
+    $('theme-select').title = themeMode === 'system' ? `跟随系统（当前${resolvedTheme === 'dark' ? '深色' : '浅色'}）` : `${themeMode === 'dark' ? '深色' : '浅色'}主题`;
+    document.querySelectorAll('[data-theme-icon]').forEach(icon => {
+      icon.toggleAttribute('hidden', icon.dataset.themeIcon !== themeMode);
+    });
+  }
+
+  function setThemeMode(mode) {
+    if (!['light', 'dark', 'system'].includes(mode)) return;
+    themeMode = mode;
+    safeStorage.set('spw-preview-theme', mode);
+    applyTheme();
+  }
+
+  function handleSystemThemeChange() {
+    if (themeMode === 'system') applyTheme();
   }
 
   function setChartType(type) {
@@ -502,11 +519,8 @@
     hideTooltip(); renderChart();
   });
   $('granularity-select').addEventListener('change', () => { hideTooltip(); renderChart(); });
-  $('theme-toggle').addEventListener('click', () => {
-    theme = theme === 'dark' ? 'light' : 'dark';
-    applyTheme();
-    safeStorage.set('spw-preview-theme', theme);
-  });
+  $('theme-select').addEventListener('change', event => setThemeMode(event.target.value));
+  systemTheme.addEventListener('change', handleSystemThemeChange);
   $('trend-chart').addEventListener('pointermove', showChartPoint);
   $('trend-chart').addEventListener('pointerleave', () => {
     hideTooltip(); $('chart-hover')?.setAttribute('visibility', 'hidden');
