@@ -157,7 +157,7 @@ th { color: var(--text); }
 .song-table th:first-child { width: 48px; }
 .song-table th:nth-child(2) { width: 44%; }
 .song-table th:nth-child(3) { width: 30%; }
-.song-table .song-rank { color: var(--muted); padding-right: 12px; font-variant-numeric: tabular-nums; }
+.song-table .song-rank { color: var(--muted); padding-left: 0; padding-right: 0; text-align: center; font-variant-numeric: tabular-nums; }
 .song-table tbody tr:hover { background: var(--subtle); }
 .song-entry { display: flex; align-items: center; gap: 12px; padding-right: 16px; }
 .album-cover { display: block; flex-shrink: 0; width: 44px; height: 44px; object-fit: cover; border-radius: 6px; background: var(--subtle); border: 1px solid var(--line); }
