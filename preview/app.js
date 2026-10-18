@@ -85,6 +85,19 @@
     { id: 'demo-11', title: '下一个路口', artist: '木叶', album: '散步集', plays: 16 },
     { id: 'demo-12', title: '微光', artist: '木叶', album: '散步集', plays: 7 }
   ];
+  // Local artwork belongs to the fictional demo albums, not to track IDs.
+  const demoCovers = new Map([
+    ['林间电台', '日落以后', 'after-sunset'],
+    ['远山乐队', '沿途', 'along-the-way'],
+    ['夏予', '城市慢拍', 'city-rain'],
+    ['白昼航线', '夜行', 'night-drive'],
+    ['海岸线', '潮汐之间', 'tides'],
+    ['白昼航线', '日间漫步', 'daylight'],
+    ['海岸线', '海边现场', 'seaside-live'],
+    ['木叶', '散步集', 'woodland']
+  ].map(([artist, album, file]) => [JSON.stringify([artist, album]), `assets/covers/${file}.svg`]));
+  const defaultCover = 'assets/covers/default.svg';
+  const albumCoverFor = track => demoCovers.get(JSON.stringify([track.artist, track.album])) || defaultCover;
   let byDate = new Map(records.map(record => [record.date, record]));
   const emptyRecord = date => ({ date, ms: 0, hourlyMs: Array(24).fill(0) });
   const recordAt = date => byDate.get(date) || emptyRecord(date);
@@ -438,9 +451,16 @@
       const row = document.createElement('tr');
       row.dataset.trackId = track.id;
       const song = document.createElement('td');
+      const entry = document.createElement('div'); entry.className = 'song-entry';
+      const cover = document.createElement('img');
+      cover.className = 'album-cover'; cover.src = albumCoverFor(track);
+      cover.alt = `${track.album || '未知专辑'}的专辑封面`;
+      cover.width = 44; cover.height = 44; cover.loading = 'lazy'; cover.decoding = 'async';
+      cover.addEventListener('error', () => { cover.src = defaultCover; }, { once: true });
+      const metadata = document.createElement('div'); metadata.className = 'song-metadata';
       const title = document.createElement('span'); title.className = 'song-title'; title.textContent = track.title;
       const artist = document.createElement('span'); artist.className = 'song-artist'; artist.textContent = track.artist || '未知歌手';
-      song.append(title, artist);
+      metadata.append(title, artist); entry.append(cover, metadata); song.append(entry);
       const album = document.createElement('td'); album.className = 'song-album'; album.textContent = track.album || '未知专辑';
       const count = document.createElement('td'); count.className = 'play-count'; count.append(document.createTextNode(number.format(track.plays)));
       const unit = document.createElement('span'); unit.textContent = '次'; count.append(unit);
@@ -459,9 +479,9 @@
     const ranking = location.hash === '#ranking';
     $('overview-page').hidden = ranking;
     $('ranking-page').hidden = !ranking;
-    $('page-title').textContent = ranking ? '听歌排行' : '听歌统计';
+    $('page-title').textContent = '听歌统计';
     $('page-subtitle').textContent = ranking ? '每首歌曲的累计播放次数' : '累计收听与每日记录';
-    document.title = `${ranking ? '听歌排行' : '听歌统计'} · SPW`;
+    document.title = '听歌统计 · SPW';
     document.querySelectorAll('[data-page-link]').forEach(link => {
       const active = link.dataset.pageLink === (ranking ? 'ranking' : 'overview');
       link.classList.toggle('active', active);

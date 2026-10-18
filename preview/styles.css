@@ -147,6 +147,9 @@ th { color: var(--text); }
 .song-table th:first-child { width: 48%; }
 .song-table th:nth-child(2) { width: 32%; }
 .song-table tbody tr:hover { background: var(--subtle); }
+.song-entry { display: flex; align-items: center; gap: 12px; padding-right: 16px; }
+.album-cover { display: block; flex-shrink: 0; width: 44px; height: 44px; object-fit: cover; border-radius: 6px; background: var(--subtle); border: 1px solid var(--line); }
+.song-metadata { min-width: 0; overflow-wrap: anywhere; }
 .song-title { display: block; font-weight: 500; }
 .song-artist { display: block; color: var(--muted); font-size: 11px; margin-top: 5px; }
 .song-album { color: var(--muted); padding-right: 16px !important; }
@@ -218,6 +221,8 @@ dialog input { display: block; width: 100%; border: 1px solid var(--line); color
   .search-wrap { flex: 1; min-width: 0; }
   .search-wrap input { width: 100%; }
   .song-table td { font-size: 12px; }
+  .song-entry { gap: 9px; padding-right: 12px; }
+  .album-cover { width: 40px; height: 40px; }
   .page-footer { flex-direction: column; gap: 9px; line-height: 1.7; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
