@@ -253,7 +253,6 @@
     const weekly = heatmapMode === 'week';
     $('heatmap').classList.toggle('is-weekly', weekly);
     $('heatmap').setAttribute('aria-label', weekly ? '按周显示的年度听歌时长，每列代表周一至周日的一周' : '按日显示的年度听歌热力图');
-    $('heatmap-legend').hidden = false;
     document.querySelectorAll('[data-heatmap-mode]').forEach(button => {
       const active = button.dataset.heatmapMode === heatmapMode;
       button.classList.toggle('active', active);
