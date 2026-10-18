@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>听歌统计 · SPW</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <div class="heading-group">
+        <div class="title-line"><h1>听歌统计</h1><span class="preview-badge">示例预览</span></div>
+        <p class="subtitle">累计收听与每日记录</p>
+      </div>
+      <div class="header-actions">
+        <button class="icon-button" id="theme-toggle" aria-label="切换明暗主题" title="切换明暗主题">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.6 13.1A8.7 8.7 0 0 1 10.9 3.4 8.7 8.7 0 1 0 20.6 13.1Z"/></svg>
+        </button>
+        <span class="action-divider"></span>
+        <button class="text-button" id="import-button"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M10 2v10m-4-4 4 4 4-4M3 13v4h14v-4"/></svg>导入</button>
+        <button class="text-button" id="export-button"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M10 13V3M6 7l4-4 4 4M3 13v4h14v-4"/></svg>导出</button>
+        <input id="import-file" type="file" accept=".json,application/json" hidden>
+      </div>
+    </header>
+
+    <section class="summary-strip" aria-label="累计听歌概览">
+      <div class="summary-item"><div class="summary-number" id="total-time">—</div><div class="summary-label">累计听歌时长</div></div>
+      <div class="summary-item"><div class="summary-number" id="total-plays">—</div><div class="summary-label">有效播放 <button class="info-button" aria-label="有效播放：同一次播放实际听满歌曲时长的50%计一次，暂停和跳过的进度不计时" title="同一次播放实际听满歌曲时长的 50% 计一次；暂停和跳过的进度不计时。">ⓘ</button></div></div>
+      <div class="summary-item"><div class="summary-number" id="active-days">—</div><div class="summary-label">听歌天数</div></div>
+      <div class="summary-item"><div class="summary-number" id="longest-streak">—</div><div class="summary-label">最长连续</div></div>
+      <div class="summary-item"><div class="summary-number" id="current-streak">—</div><div class="summary-label">当前连续</div></div>
+    </section>
+
+    <section class="activity-section" aria-labelledby="activity-title">
+      <div class="section-heading">
+        <div><h2 id="activity-title">听歌足迹</h2><p class="section-caption" id="year-caption"></p></div>
+        <div class="section-controls">
+          <div class="segmented-control" role="group" aria-label="热力图和趋势图的统计指标">
+            <button data-metric="time" class="active" aria-pressed="true">听歌时长</button>
+            <button data-metric="plays" aria-pressed="false">播放次数</button>
+          </div>
+          <label class="select-wrap year-select"><span class="sr-only">热力图年份</span><select id="year-select"></select><span class="select-chevron">⌄</span></label>
+        </div>
+      </div>
+      <div class="heatmap-scroll">
+        <div class="heatmap-layout">
+          <div class="month-labels" id="month-labels" aria-hidden="true"></div>
+          <div class="weekday-labels" aria-hidden="true"><span>一</span><span></span><span>三</span><span></span><span>五</span><span></span><span>日</span></div>
+          <div class="heatmap" id="heatmap" role="group" aria-label="按日显示的年度听歌热力图"></div>
+        </div>
+      </div>
+      <div class="heatmap-footer">
+        <div id="day-detail" class="day-detail" aria-live="polite"></div>
+        <div class="heatmap-legend"><span>少</span><i data-level="0"></i><i data-level="1"></i><i data-level="2"></i><i data-level="3"></i><i data-level="4"></i><span>多</span></div>
+      </div>
+    </section>
+
+    <section class="trend-section" aria-labelledby="trend-title">
+      <div class="section-heading">
+        <div><h2 id="trend-title">听歌趋势</h2><p class="section-caption" id="trend-caption"></p></div>
+        <div class="section-controls">
+          <label class="select-wrap"><span class="sr-only">趋势图日期范围</span><select id="range-select"><option value="7">近 7 天</option><option value="30" selected>近 30 天</option><option value="month">本月</option><option value="today">今天</option><option value="selected" hidden>所选日期</option><option value="custom">自定义日期</option></select><span class="select-chevron">⌄</span></label>
+          <label class="select-wrap"><span class="sr-only">趋势图统计粒度</span><select id="granularity-select"><option value="day">按日</option><option value="week">按周</option><option value="hour">按小时</option></select><span class="select-chevron">⌄</span></label>
+        </div>
+      </div>
+      <div class="chart-wrapper" id="chart-wrapper">
+        <div class="chart-unit" id="chart-unit"></div>
+        <svg id="trend-chart" viewBox="0 0 1000 258" preserveAspectRatio="none" role="img" aria-label="听歌时长趋势图"></svg>
+        <div class="chart-empty" id="chart-empty" hidden>这段时间还没有听歌记录</div>
+      </div>
+      <div class="chart-footnote"><span id="range-caption"></span><span>悬停查看详情</span></div>
+      <details class="chart-accessible"><summary>查看图表数据</summary><div class="data-table-scroll"><table><thead><tr><th>日期 / 时段</th><th>听歌时长</th><th>有效播放</th></tr></thead><tbody id="chart-table"></tbody></table></div></details>
+    </section>
+
+    <section class="insights-section" aria-labelledby="insights-title">
+      <h2 id="insights-title">听歌小结</h2>
+      <div class="insight-row"><span>听得最多的一天</span><span id="peak-day">—</span></div>
+      <div class="insight-row"><span>每个听歌日平均收听</span><span id="daily-average">—</span></div>
+      <div class="insight-row"><span>最常听歌的时段</span><span id="favorite-hours">—</span></div>
+    </section>
+
+    <footer class="page-footer"><span><i class="status-dot"></i>示例数据 · 尚未连接 SPW 播放器</span><span>仅记录实际收听，听满 50% 计一次</span></footer>
+  </main>
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <dialog id="date-dialog">
+    <form id="date-form"><h2>选择日期范围</h2><p class="dialog-caption">调整趋势图的统计范围</p><label>开始日期<input id="date-start" type="date" required></label><label>结束日期<input id="date-end" type="date" required></label><p id="date-error" class="form-error" aria-live="polite"></p><div class="dialog-actions"><button type="button" class="secondary-button" id="date-cancel">取消</button><button type="submit" class="primary-button">应用</button></div></form>
+  </dialog>
+</body>
+</html>

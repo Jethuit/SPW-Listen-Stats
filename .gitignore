@@ -1,0 +1,8 @@
+.references/
+.tools/
+.gradle/
+**/build/
+node_modules/
+.idea/
+*.log
+.DS_Store
