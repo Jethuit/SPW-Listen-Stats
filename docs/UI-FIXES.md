@@ -1,5 +1,20 @@
 # UI 修订
 
+## 0.1.16 近似背景样式
+
+| 宿主样式 | 插件页面底色 |
+| --- | --- |
+| 椒盐经典 / None | 原主题白/深色 |
+| 亚克力 / WindowsAcrylic | 原背景与冷灰蓝混合 55% |
+| 云母 / WindowsMica | 原背景与暖中性色混合 55% |
+| 云母 Alt / WindowsMicaAlt | 原背景与冷灰蓝混合 55% |
+
+- 自动读取 `AppConfig.spwWindowStyle`，不增加插件样式选择器。
+- 页面保持不透明；不会透出宿主底层歌曲页，也不伪造 DWM 模糊。
+- 主题保留跟随 SPW / 浅色 / 深色。
+
+检查：构建、13 组数据回归、4 组 UI 回归、107 项包结构检查通过；未在宿主中截图，样式色调需用户核对。
+
 ## 0.1.15 主题跟随 SPW
 
 - 主题循环第一档改为“跟随 SPW”，读取宿主 `AppConfig.lightDarkTheme`；宿主 Light/Dark 直接采用，FollowSystem 回退系统。

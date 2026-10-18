@@ -1,6 +1,6 @@
 # 正式模组实现说明
 
-更新时间：2026-10-18。当前源码版本 0.1.15；视觉基准仍为 `preview/`。0.1.5 将统计页内嵌到宿主内容区，移除独立窗口/浮动入口，并打包 SaltUI 3.0.0-beta02（宿主 Salt UI 3.0.0-SNAPSHOT / CMP 1.12.1）。0.1.15 让主题跟随宿主 SPW，而不是直接跟随系统。
+更新时间：2026-10-18。当前源码版本 0.1.16；视觉基准仍为 `preview/`。0.1.5 将统计页内嵌到宿主内容区，移除独立窗口/浮动入口，并打包 SaltUI 3.0.0-beta02（宿主 Salt UI 3.0.0-SNAPSHOT / CMP 1.12.1）。0.1.16 自动读取宿主窗口样式并应用近似底色，主题跟随 SPW。
 
 ![0.1.0 历史运行截图](screenshots/overview-light.png)
 
@@ -11,9 +11,16 @@ python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Sa
 python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.15.spmod`。在 SPW 创意工坊“本地导入”，启用并授权 `library-read` 和 `class-transform`。使用宿主 1.19.0 的 fat jar 作编译类路径；JDK 25 / Kotlin 2.4.20 / sqlite-jdbc / SaltUI 3.0.0-beta02 与宿主包缓存在 `build/tools/`，均不提交。
+产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.16.spmod`。在 SPW 创意工坊“本地导入”，启用并授权 `library-read` 和 `class-transform`。使用宿主 1.19.0 的 fat jar 作编译类路径；JDK 25 / Kotlin 2.4.20 / sqlite-jdbc / SaltUI 3.0.0-beta02 与宿主包缓存在 `build/tools/`，均不提交。
 
 入口只在模块管理页插件配置的“打开听歌统计”。页面通过 `AppNavigation` 的 `afterComposable` hook 注入宿主内容区，不创建 `JDialog` 或 `Popup`；宿主侧栏和底部播放栏保留。当前关闭/返回按钮位于内容区左上角，样式待确认。
+
+## 0.1.16 近似背景样式
+
+- `HostAppearanceReader` 读取 `AppConfig.spwWindowStyle` 和 `AppConfig.lightDarkTheme`；所有读取都捕获异常并回退空值。
+- `StatsTheme` 每秒轮询；`WindowsAcrylic`/`WindowsMica`/`WindowsMicaAlt` 把主题背景与固定色调做 55% 混合；`None` 保持原色。
+- 页面根始终不透明，不尝试 DWM 透明；Acrylic/Mica 只是近似色，不是 Windows 原生模糊。
+- 主题三档保留：跟随 SPW / 浅色 / 深色；跟随 SPW 时宿主 Light/Dark 直接采用，FollowSystem 回退系统。
 
 ## 0.1.15 主题跟随 SPW
 

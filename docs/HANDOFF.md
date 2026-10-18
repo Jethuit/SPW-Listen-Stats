@@ -1,6 +1,13 @@
 # 新聊天交接
 
-## 最新：0.1.15 主题跟随 SPW
+## 最新：0.1.16 近似背景样式
+
+- 新增 `HostAppearanceReader`，读取宿主 `AppConfig.spwWindowStyle` 与 `lightDarkTheme`；失败时返回空值安全回退。
+- `StatsTheme` 按 `WindowsAcrylic` / `WindowsMica` / `WindowsMicaAlt` 对 `StatsColors.background` 做 55% 色调混合；`None`/椒盐经典保持原色。**没有透明/DWM 模糊**，避免透出宿主底层歌曲页。
+- 用户确认：保留“跟随 SPW / 浅色 / 深色”三档；背景自动跟随宿主，不增加插件样式选择器。
+- 读宿主字段仍属于内部 API，绑定 SPW 1.19.0；运行时是否成功、色调是否可接受需要用户在宿主中验证。
+
+## 0.1.15 主题跟随 SPW
 
 - 主题循环第一档从“跟随系统”改为“跟随 SPW”：`StatsTheme` 每秒读取宿主 `com.xuncorp.voxzen.util.AppConfig.lightDarkTheme`；Light/Dark 直接采用，FollowSystem 回退本机系统主题。
 - 宿主内部 API 失败时捕获并回退系统，不让插件崩溃；日志/可见性尚未在宿主中验证。
@@ -146,8 +153,8 @@ SaltUI 已用于主题、滚动、文本和概览/错误卡片；热力图、部
 ## 路径
 
 - 正式源码 `plugin/src/main/kotlin/com/jethuit/spw/listenstats/`
-- 构建 `tools/build_plugin.py`，版本 0.1.15
-- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.15.spmod`
+- 构建 `tools/build_plugin.py`，版本 0.1.16
+- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.16.spmod`
 - 数据回归 `tests/DataRegressionTest.kt`、`tests/run-data-tests.py`（data / ui 两个 suite）
 - 结构检查 `tests/spmod-structure.py`
 - 详细设计和限制 `docs/NATIVE-IMPLEMENTATION.md`

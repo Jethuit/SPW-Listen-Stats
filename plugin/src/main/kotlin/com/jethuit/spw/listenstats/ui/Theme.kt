@@ -12,7 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import com.xuncorp.voxzen.util.AppConfig
+import androidx.compose.ui.graphics.lerp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -98,21 +98,27 @@ val LocalStatsColors = staticCompositionLocalOf { LightStatsColors }
 
 @Composable
 fun StatsTheme(mode: ThemeMode, content: @Composable () -> Unit) {
-    var followedDark by remember { mutableStateOf(false) }
-    LaunchedEffect(mode) {
-        if (mode == ThemeMode.System) {
-            while (true) {
-                followedDark = withContext(Dispatchers.IO) { readFollowedDarkTheme() }
-                delay(1_000)
+    var hostAppearance by remember { mutableStateOf(HostAppearance()) }
+    var systemDark by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            val appearance = withContext(Dispatchers.IO) { HostAppearanceReader.read() }
+            hostAppearance = appearance
+            if (appearance.dark == null) {
+                systemDark = withContext(Dispatchers.IO) { readSystemDarkTheme() }
             }
+            delay(1_000)
         }
     }
     val dark = when (mode) {
-        ThemeMode.System -> followedDark
+        ThemeMode.System -> hostAppearance.dark ?: systemDark
         ThemeMode.Light -> false
         ThemeMode.Dark -> true
     }
-    val colors = if (dark) DarkStatsColors else LightStatsColors
+    val baseColors = if (dark) DarkStatsColors else LightStatsColors
+    val colors = baseColors.copy(
+        background = styledBackground(hostAppearance.windowStyle, dark, baseColors.background)
+    )
     val scheme = if (dark) {
         darkColorScheme(
             primary = colors.accent,
@@ -145,20 +151,14 @@ fun StatsTheme(mode: ThemeMode, content: @Composable () -> Unit) {
     }
 }
 
-private fun readFollowedDarkTheme(): Boolean {
-    return readHostDarkTheme() ?: readSystemDarkTheme()
-}
-
-private fun readHostDarkTheme(): Boolean? {
-    return try {
-        when (AppConfig.lightDarkTheme.name) {
-            "Light" -> false
-            "Dark" -> true
-            else -> null
-        }
-    } catch (failure: Throwable) {
-        null
+private fun styledBackground(style: String?, dark: Boolean, base: Color): Color {
+    val tint = when (style) {
+        "WindowsAcrylic" -> if (dark) Color(0xFF2A3038) else Color(0xFFF1F5FA)
+        "WindowsMica" -> if (dark) Color(0xFF24211E) else Color(0xFFF8F4EE)
+        "WindowsMicaAlt" -> if (dark) Color(0xFF1B222A) else Color(0xFFEDF3F9)
+        else -> return base
     }
+    return lerp(base, tint, 0.55f)
 }
 
 private fun readSystemDarkTheme(): Boolean {
