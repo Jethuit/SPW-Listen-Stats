@@ -96,7 +96,7 @@ select option { background: var(--background); color: var(--text); }
 .day-cell:hover:not(:disabled), .day-cell:focus-visible { box-shadow: 0 0 0 2px var(--background), 0 0 0 3px var(--accent); z-index: 1; }
 .day-cell.selected::after { content: ""; position: absolute; inset: -2px; border: 1px solid var(--accent); border-radius: 5px; }
 .day-cell.future { opacity: .35; }
-.day-cell.padding { visibility: hidden; }
+.day-cell.padding, .week-block.padding { visibility: hidden; }
 .heatmap.is-weekly { grid-template-rows: 1fr; }
 .week-cell { display: grid; grid-template-rows: repeat(7, 1fr); gap: 4px; padding: 0; min-width: 0; border-radius: 3px; }
 .week-block { display: block; width: 100%; aspect-ratio: 1; border-radius: 3px; pointer-events: none; }

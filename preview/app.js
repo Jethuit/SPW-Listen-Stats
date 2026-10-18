@@ -163,12 +163,20 @@
     return value <= 0 ? 0 : value <= cutoffs[1] ? 1 : value <= cutoffs[2] ? 2 : value <= cutoffs[3] ? 3 : 4;
   }
 
-  function heatmapWeeks(year) {
+  function heatmapCalendar(year) {
     const first = `${year}-01-01`, last = `${year}-12-31`;
-    const monday = addDays(first, -((parseDate(first).getDay() + 6) % 7));
+    const start = addDays(first, -((parseDate(first).getDay() + 6) % 7));
+    const end = addDays(last, 6 - ((parseDate(last).getDay() + 6) % 7));
+    const dates = [];
+    for (let key = start; key <= end; key = addDays(key, 1)) dates.push(key);
+    return { first, last, dates, weekCount: dates.length / 7 };
+  }
+
+  function heatmapWeeks(year) {
+    const { first, last, dates } = heatmapCalendar(year);
     const weeks = [];
-    for (let start = monday; start <= last; start = addDays(start, 7)) {
-      const end = addDays(start, 6);
+    for (let index = 0; index < dates.length; index += 7) {
+      const start = dates[index], end = dates[index + 6];
       const from = start < first ? first : start;
       const until = [end, last, TODAY].sort()[0];
       let ms = 0;
@@ -186,6 +194,7 @@
   }
 
   function renderWeeklyCells(year) {
+    const { first, last } = heatmapCalendar(year);
     const weeks = heatmapWeeks(year);
     const peakMs = Math.max(0, ...weeks.map(week => week.ms));
     const current = weeks.find(week => week.start <= TODAY && week.end >= TODAY);
@@ -203,12 +212,19 @@
       const coverage = `${week.from.replaceAll('-', '/')} - ${week.until.replaceAll('-', '/')}`;
       const label = `${fullDateLabel(week.start)}起的一周`;
       button.setAttribute('aria-label', week.future ? `${label}，未来日期` : `${label}，统计范围 ${coverage}，听歌时长 ${duration(week.ms)}`);
-      const filled = peakMs > 0 && week.ms > 0 ? Math.max(1, Math.ceil(week.ms / peakMs * 7)) : 0;
+      const lastInYear = week.end < last ? week.end : last;
+      const daysInYear = Math.round((parseDate(lastInYear) - parseDate(week.from)) / 86_400_000) + 1;
+      const filled = peakMs > 0 && week.ms > 0 ? Math.min(daysInYear, Math.max(1, Math.ceil(week.ms / peakMs * 7))) : 0;
+      const filledFrom = filled ? addDays(lastInYear, 1 - filled) : null;
       const colorLevel = peakMs > 0 && week.ms > 0 ? Math.min(4, Math.ceil(week.ms / peakMs * 4)) : 0;
       for (let row = 0; row < 7; row++) {
         const block = document.createElement('span');
-        block.className = `week-block${row >= 7 - filled ? ' filled' : ''}`;
-        block.dataset.level = row >= 7 - filled ? colorLevel : 0;
+        const key = addDays(week.start, row);
+        const padding = key < first || key > last;
+        const isFilled = !padding && filledFrom !== null && key >= filledFrom;
+        block.className = `week-block${padding ? ' padding' : ''}${isFilled ? ' filled' : ''}`;
+        block.dataset.level = isFilled ? colorLevel : 0;
+        if (!padding) block.dataset.date = key;
         block.setAttribute('aria-hidden', 'true');
         button.append(block);
       }
@@ -244,12 +260,7 @@
 
   function renderHeatmap() {
     const year = Number($('year-select').value);
-    const first = `${year}-01-01`, last = `${year}-12-31`;
-    const start = addDays(first, -((parseDate(first).getDay() + 6) % 7));
-    const end = addDays(last, 6 - ((parseDate(last).getDay() + 6) % 7));
-    const dates = [];
-    for (let key = start; key <= end; key = addDays(key, 1)) dates.push(key);
-    const weeks = dates.length / 7;
+    const { first, last, dates, weekCount: weeks } = heatmapCalendar(year);
     const weekly = heatmapMode === 'week';
     $('heatmap').classList.toggle('is-weekly', weekly);
     $('heatmap').setAttribute('aria-label', weekly ? '按周显示的年度听歌时长，每列代表周一至周日的一周' : '按日显示的年度听歌热力图');
