@@ -165,7 +165,7 @@ th { color: var(--text); }
 .song-pagination button:disabled { opacity: .4; }
 .song-pagination > span { color: var(--muted); padding: 0 3px; }
 .song-pagination-bottom { margin-top: 14px; }
-.insights-section { margin-top: 34px; padding-top: 27px; border-top: 1px solid var(--line); }
+.insights-section { margin-top: 34px; padding-top: 27px; }
 .insights-section h2 { margin-bottom: 16px; }
 .summary-strip.insights-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 0; }
 .insight-item h3 { margin: 5px 0 0; font-weight: 400; }
