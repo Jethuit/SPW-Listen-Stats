@@ -64,7 +64,7 @@ fun YearHeatmap(
         val density = LocalDensity.current
         val availableWidth = with(density) { maxWidth.toPx() } - WEEKDAY_LABEL_WIDTH - LABEL_COLUMN_GAP
         val cell = ((availableWidth - CELL_GAP * (grid.weeks - 1)) / grid.weeks)
-            .coerceIn(3f, 18f)
+            .coerceIn(3f, 24f)
         val gridWidth = cell * grid.weeks + CELL_GAP * (grid.weeks - 1)
         val gridHeight = cell * 7 + CELL_GAP * 6
         val totalHeight = MONTH_LABEL_HEIGHT + MONTH_LABEL_GAP + gridHeight + ROW_GAP

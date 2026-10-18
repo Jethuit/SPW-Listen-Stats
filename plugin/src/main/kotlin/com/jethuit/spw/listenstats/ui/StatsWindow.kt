@@ -266,7 +266,7 @@ fun ListenStatsApp(
             if (rankPage > totalPages) rankPage = totalPages
         }
         val contentHeight = if (page == StatsPage.Overview) {
-            if (snapshot.error != null || snapshot.listens.isEmpty()) 1340.dp else 1260.dp
+            if (snapshot.error != null || snapshot.listens.isEmpty()) 1380.dp else 1300.dp
         } else {
             600.dp + 71.dp * rowsOnPage + if (snapshot.error != null) 80.dp else 0.dp
         }
@@ -330,6 +330,7 @@ fun ListenStatsApp(
                                         Prefs.putString("range", rangePreset.storage)
                                     },
                                     onWeekSelected = { start, end ->
+                                        selectedDate = start
                                         customStart = start
                                         customEnd = end
                                         rangePreset = RangePreset.Custom
