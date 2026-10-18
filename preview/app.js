@@ -10,6 +10,7 @@
   const dateKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   const addDays = (key, count) => { const d = parseDate(key); d.setDate(d.getDate() + count); return dateKey(d); };
   const dateLabel = key => `${parseDate(key).getMonth() + 1}月${parseDate(key).getDate()}日`;
+  const fullDateLabel = key => `${key.slice(0, 4)}年${dateLabel(key)}`;
   const shortDate = key => `${parseDate(key).getMonth() + 1}/${parseDate(key).getDate()}`;
   const safeStorage = {
     get(key) { try { return localStorage.getItem(key); } catch { return null; } },
@@ -200,7 +201,8 @@
       button.classList.toggle('selected', week.start === selectedWeek);
       button.setAttribute('aria-pressed', String(week.start === selectedWeek));
       const coverage = `${week.from.replaceAll('-', '/')} - ${week.until.replaceAll('-', '/')}`;
-      button.setAttribute('aria-label', week.future ? `${week.start} 起的一周，未来日期` : `${coverage}，听歌时长 ${duration(week.ms)}`);
+      const label = `${fullDateLabel(week.start)}起的一周`;
+      button.setAttribute('aria-label', week.future ? `${label}，未来日期` : `${label}，统计范围 ${coverage}，听歌时长 ${duration(week.ms)}`);
       const filled = peakMs > 0 && week.ms > 0 ? Math.max(1, Math.ceil(week.ms / peakMs * 7)) : 0;
       for (let row = 0; row < 7; row++) {
         const block = document.createElement('span');
@@ -210,7 +212,7 @@
       }
       const show = () => {
         if (week.future) return;
-        tooltipContent(coverage, week.ms);
+        tooltipContent(label, week.ms);
         positionTooltip(button.getBoundingClientRect());
       };
       button.addEventListener('mouseenter', show);
@@ -562,8 +564,7 @@
 
   function showRecordTooltip(key, rect) {
     const record = recordAt(key);
-    const weekday = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][parseDate(key).getDay()];
-    tooltipContent(`${dateLabel(key)} ${weekday}`, record.ms);
+    tooltipContent(fullDateLabel(key), record.ms);
     positionTooltip(rect);
   }
 

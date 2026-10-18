@@ -184,11 +184,11 @@ th { color: var(--text); }
 .insight-item h3 { margin: 5px 0 0; font-weight: 400; }
 .page-footer { display: flex; justify-content: space-between; gap: 16px; color: var(--muted); font-size: 11px; margin-top: 36px; padding-top: 18px; border-top: 1px solid var(--line); }
 .status-dot { width: 5px; height: 5px; display: inline-block; background: var(--muted); border-radius: 50%; margin-right: 7px; vertical-align: 2px; }
-.tooltip { position: fixed; z-index: 10; background: var(--tooltip-bg); color: var(--tooltip-text); padding: 14px 16px; border-radius: 10px; pointer-events: none; width: max-content; min-width: min(232px, calc(100vw - 20px)); max-width: min(360px, calc(100vw - 20px)); box-shadow: var(--shadow); font-size: 12px; text-align: left; }
+.tooltip { position: fixed; z-index: 10; background: var(--tooltip-bg); color: var(--tooltip-text); padding: 14px 16px; border-radius: 10px; pointer-events: none; width: max-content; min-width: min(180px, calc(100vw - 20px)); max-width: min(360px, calc(100vw - 20px)); box-shadow: var(--shadow); font-size: 12px; text-align: left; }
 .tooltip-title { font-size: 13px; font-weight: 600; line-height: 1.5; margin-bottom: 12px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-.tooltip-row { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; column-gap: 24px; line-height: 1.5; }
+.tooltip-row { display: flex; justify-content: flex-start; align-items: baseline; gap: 8px; line-height: 1.5; }
 .tooltip-label { opacity: .7; text-align: left; }
-.tooltip-value { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tooltip-value { text-align: left; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .toast { position: fixed; z-index: 30; left: 50%; bottom: 28px; transform: translateX(-50%); max-width: calc(100vw - 32px); padding: 12px 20px; background: var(--tooltip-bg); color: var(--tooltip-text); box-shadow: var(--shadow); border-radius: 10px; font-size: 13px; }
 dialog { width: min(390px, calc(100% - 32px)); padding: 26px; color: var(--text); background: var(--background); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
 dialog::backdrop { background: rgba(0,0,0,.25); }
