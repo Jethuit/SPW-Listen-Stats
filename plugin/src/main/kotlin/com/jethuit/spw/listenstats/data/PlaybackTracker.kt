@@ -8,7 +8,12 @@ import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
 
 /** Callback timestamps, not async lookup completion times. Pauses never fill the gaps. */
-class PlaybackAccumulator(private val persist: (LiveSession) -> Unit) {
+class PlaybackAccumulator(
+    private val persist: (LiveSession) -> Unit,
+    private val resume: (TrackMeta) -> LiveSession?
+) {
+    constructor(persist: (LiveSession) -> Unit) : this(persist, { null })
+
     private var current: LiveSession? = null
     private var playing = false
     private var position = -1L
@@ -39,6 +44,15 @@ class PlaybackAccumulator(private val persist: (LiveSession) -> Unit) {
             nextPosition < position
         if (session?.trackId != track.id || loop) {
             finish()
+            val resumed = if (!loop) resume(track) else null
+            if (resumed != null) {
+                current = resumed
+                if (track.durationMs > 0) resumed.trackDurationMs = track.durationMs
+                position = nextPosition
+                nano = nowNano
+                wall = nowWall
+                return
+            }
             session = LiveSession(UUID.randomUUID().toString(), track.id,
                 nowWall - nextPosition.coerceAtLeast(0), 0,
                 track.title, track.artist, track.album, track.albumArtist, track.durationMs, false,
@@ -90,7 +104,7 @@ object PlaybackTracker {
         generation++
         if (executor.isShutdown) executor = newExecutor()
         LiveStore.load()
-        accumulator = PlaybackAccumulator(::persistSession)
+        accumulator = PlaybackAccumulator(::persistSession) { track -> LiveStore.findOpen(track.id) }
         lastSaveNano = System.nanoTime()
         active = true
     }

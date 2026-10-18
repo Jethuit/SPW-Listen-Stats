@@ -1,15 +1,24 @@
 # 新聊天交接
 
-## 最新：0.1.2 UI 修订
+## 最新：0.1.3 稳定性修复
 
-用户提供真实 UI 截图，已针对提示框坐标、重复刻度、日周切换缓存、跨年空槽、按钮尺寸、日期标签、DPI 与滚动高度修订。详见 [UI-FIXES.md](UI-FIXES.md)。最新包为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.2.spmod`，此前 0.1.1 数据修订说明保留在下方。
+在 0.1.2 基础上做了三项接手修复：
 
-本轮没有启动或安装 SPW；UI 效果需要用户核对，几何检查不能代替真实渲染验收。
+- `PlaybackAccumulator` 在插件异常退出后重新观察到同一首歌时，恢复未完成会话，不再为重启前后的片段各计一次；正常 stop/finalize 的会话不会恢复。`live-sessions.json` 现在保留 v2 的 `finalized` 标记，`LiveStore.findOpen` 只恢复 6 小时内未完成的会话。
+- `DataFiles.sourceId()` 遇到损坏的 `source-id.txt` 会重新生成，不再让每个 `ListeningEvent` 构造失败。
+- `tests/run-data-tests.py` 修复了之前的临时输出目录/权限问题；新增重启恢复、load 后 open 状态、损坏 source-id 三组回归。
+
+集中检查：构建通过，`tests/run-data-tests.py data` 13 组通过，`tests/run-data-tests.py ui` 4 组通过，`tests/spmod-structure.py` 通过。最新包为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.3.spmod`。
+
+另外，本轮在独立 `APPDATA` 中实际启动了 0.1.2 统计页并截图核对：浅/深主题、概览/排行页签、日/周热力图、热力图日期选择、图表类型切换、页面滚动都能操作；这些是可见宿主渲染证据，但仍不是完整的鼠标回归，也没有验证真实播放、搜索、分页、导入导出。
+
+## 0.1.2 UI 修订
+
+用户提供真实 UI 截图，已针对提示框坐标、重复刻度、日周切换缓存、跨年空槽、按钮尺寸、日期标签、DPI 与滚动高度修订。详见 [UI-FIXES.md](UI-FIXES.md)。0.1.2 包为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.2.spmod`，此前 0.1.1 数据修订说明保留在下方。
 
 0.1.2 已完成一轮检查：30 个 Kotlin 文件编译通过、4 组 UI 几何回归通过、包结构检查通过。包大小 14,661,972 字节。未重复扩大已通过的数据测试范围。
 
-
-更新时间：2026-10-18。当前 0.1.1 为接手后的数据正确性修订。旧版 0.1.0 曾由先前代理构建并在 SPW 1.19.0 测试环境中渲染；本轮不把交接文字或旧截图当作新版宿主验收证据。
+更新时间：2026-10-18。当前 0.1.3 为接手后的稳定性修订；0.1.1 为数据正确性修订。旧版 0.1.0 曾由先前代理构建并在 SPW 1.19.0 测试环境中渲染；本轮不把交接文字或旧截图当作新版宿主验收证据。
 
 ## 用户确认
 
@@ -29,25 +38,26 @@
 ## 路径
 
 - 正式源码 `plugin/src/main/kotlin/com/jethuit/spw/listenstats/`
-- 构建 `tools/build_plugin.py`，版本 0.1.1
-- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.1.spmod`
-- 数据回归 `tests/DataRegressionTest.kt`、`tests/run-data-tests.py`
+- 构建 `tools/build_plugin.py`，版本 0.1.3
+- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.3.spmod`
+- 数据回归 `tests/DataRegressionTest.kt`、`tests/run-data-tests.py`（data / ui 两个 suite）
 - 结构检查 `tests/spmod-structure.py`
 - 详细设计和限制 `docs/NATIVE-IMPLEMENTATION.md`
 
 ## 集中验证
 
-本轮集中检查已通过：29 个 Kotlin 文件编译成功；10 组数据回归通过；`.spmod` 结构检查通过（106 项，仅 library-read / class-transform 权限）；`git diff --check` 通过。包大小 14,656,830 字节。本轮没有启动或安装到 SPW。
+本轮集中检查已通过：30 个 Kotlin 文件编译成功；13 组数据回归通过；4 组 UI 几何回归通过；`.spmod` 结构检查通过（106 项，仅 library-read / class-transform 权限）；`git diff --check` 通过。包大小约 14.66 MB。本轮未在真实播放中验收；0.1.2 的统计页渲染/点击已在独立配置中截图核对，见上方 0.1.3 小节。
 
 本机 `python` 命中 WindowsApps 空别名，实际使用 `py -3.12` 完成检查；其他机器可用正常的 Python 3 命令。运行方式：
 
 ```powershell
 py -3.12 tools/build_plugin.py
-py -3.12 tests/run-data-tests.py
+py -3.12 tests/run-data-tests.py data
+py -3.12 tests/run-data-tests.py ui
 py -3.12 tests/spmod-structure.py
 ```
 
-测试用临时数据只在 `build/tests/data-regression-*/`，不接触用户曲库、不启动 SPW。原来的 `build/tests/PlaybackTrackerTest.kt` 是旧代理的临时测试，不适用于当前单调时钟实现。
+测试用临时数据只在 `build/tests/`，不接触用户曲库、不启动 SPW。原来的 `build/tests/PlaybackTrackerTest.kt` 是旧代理的临时测试，不适用于当前单调时钟实现。
 
 ## 明确未完成
 

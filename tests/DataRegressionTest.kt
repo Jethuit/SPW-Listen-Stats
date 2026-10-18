@@ -11,6 +11,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.UUID
 
 private val track = TrackMeta("track", "同名歌曲", "歌手", "专辑", "", 10_000)
 private val day = LocalDate.of(2026, 10, 18)
@@ -172,6 +173,50 @@ fun main(args: Array<String>) {
         PlaybackTracker.shutdown()
         check(LiveStore.snapshot().isEmpty())
         PlaybackTracker.onPositionUpdated(1_000) // no rejected-executor exception after stop
+    }
+    test("restart resumes an unfinished session instead of double-counting") {
+        isolate(root, "resume")
+        val sessions = linkedMapOf<String, LiveSession>()
+        var wall = epoch
+        var nano = 0L
+        val first = PlaybackAccumulator({ sessions[it.id] = it.copyForStore() })
+        first.playing(true)
+        for (position in 0L..6_000L step 1_000L) {
+            first.sample(track, position, wall, nano)
+            wall += 1_000; nano += 1_000_000_000
+        }
+        check(sessions.size == 1) { "first run should persist one open session" }
+        val second = PlaybackAccumulator({ sessions[it.id] = it.copyForStore() }) { id ->
+            sessions.values.firstOrNull { it.trackId == id.id && !it.finalized }
+        }
+        second.playing(true)
+        for (position in 7_000L..10_000L step 1_000L) {
+            second.sample(track, position, wall, nano)
+            wall += 1_000; nano += 1_000_000_000
+        }
+        second.finish()
+        check(sessions.size == 1) { "resume must reuse the open session" }
+        val data = ListeningEvents.aggregate(StatsData.empty(), sessions.values.map { it.event() })
+        check(data.dailyMillis.values.sum() == 9_000L) { "resumed duration ${data.dailyMillis}" }
+        check(data.playCount("track") == 1)
+    }
+    test("unfinished live sessions survive load but finalized ones do not resume") {
+        isolate(root, "resume-load")
+        val open = LiveSession("open", "track", epoch, 5_000, track.title, track.artist,
+            track.album, "", track.durationMs, false, mutableListOf(ListeningSpan(epoch, 5_000)))
+        LiveStore.upsert(open); LiveStore.save(); LiveStore.load()
+        check(LiveStore.findOpen("track") != null)
+        LiveStore.upsert(open.copy(finalized = true)); LiveStore.save(); LiveStore.load()
+        check(LiveStore.findOpen("track") == null)
+    }
+    test("corrupt source id regenerates instead of failing every event") {
+        isolate(root, "source-id")
+        val file = DataFiles.directory().resolve("source-id.txt")
+        Files.createDirectories(file.parent)
+        Files.writeString(file, "not-a-uuid")
+        val id = DataFiles.sourceId()
+        check(UUID.fromString(id).toString() == id)
+        check(Files.readString(file).trim() == id)
     }
     println("$cases data regression cases passed")
 }

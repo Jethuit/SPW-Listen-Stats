@@ -56,9 +56,11 @@ object LiveStore {
                 require(num("duration") >= 0 && spans.all { it.durationMs > 0 })
                 if (version == 2) require(spans.sumOf { it.durationMs } == num("duration"))
                 if (version == 1 && num("duration") > 0) spans.add(ListeningSpan(num("startTime"), num("duration")))
+                val finalized = if (version == 1) true
+                    else item["finalized"]?.jsonPrimitive?.booleanOrNull ?: true
                 loaded[str("id")] = LiveSession(str("id"), str("trackId"), num("startTime"), num("duration"),
                     str("title"), str("artist"), str("album"), str("albumArtist"), num("trackDuration"),
-                    true, spans, version == 1 || item["approximate"]?.jsonPrimitive?.booleanOrNull == true,
+                    finalized, spans, version == 1 || item["approximate"]?.jsonPrimitive?.booleanOrNull == true,
                     item["hostId"]?.jsonPrimitive?.contentOrNull)
             }
             sessions.putAll(loaded)
@@ -102,6 +104,19 @@ object LiveStore {
         val oldHostId = sessions[session.id]?.hostId
         sessions[session.id] = session.copyForStore().also { if (it.hostId == null) it.hostId = oldHostId }
     }
+
+    /**
+     * A session left unfinished by a crash can be resumed when the same track is
+     * observed again. Graceful stops finalize sessions and are never resumed.
+     */
+    @Synchronized fun findOpen(trackId: String): LiveSession? {
+        val cutoff = System.currentTimeMillis() - 6 * 60 * 60 * 1000L
+        return sessions.values
+            .filter { it.trackId == trackId && !it.finalized && it.startTimeMs >= cutoff }
+            .maxByOrNull { it.startTimeMs }
+            ?.copyForDisplay()
+    }
+
     @Synchronized fun snapshot() = sessions.values.map { it.copyForDisplay() }
 
     @Synchronized fun merge(host: StatsData): StatsData {

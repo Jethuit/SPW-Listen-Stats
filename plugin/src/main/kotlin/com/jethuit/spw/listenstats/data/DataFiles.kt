@@ -18,7 +18,10 @@ object DataFiles {
     /** Installation identity scopes host database IDs; never equate tracks just by their title. */
     @Synchronized fun sourceId(): String {
         val path = directory().resolve("source-id.txt")
-        if (Files.exists(path)) return UUID.fromString(Files.readString(path).trim()).toString()
+        if (Files.exists(path)) {
+            val parsed = runCatching { UUID.fromString(Files.readString(path).trim()) }.getOrNull()
+            if (parsed != null) return parsed.toString()
+        }
         val id = UUID.randomUUID().toString()
         writeAtomic(path, id)
         return id
