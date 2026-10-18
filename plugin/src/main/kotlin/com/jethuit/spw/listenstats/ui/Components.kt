@@ -77,10 +77,11 @@ fun IconAction(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     buttonSize: Dp = 34.dp,
-    iconSize: Dp = 19.dp
+    iconSize: Dp = 19.dp,
+    tooltip: String? = label
 ) {
     val colors = LocalStatsColors.current
-    HoverColor(Color.Transparent, colors.hover, label) { background ->
+    HoverColor(Color.Transparent, colors.hover, tooltip) { background ->
         Surface(
             onClick = onClick,
             modifier = modifier.size(buttonSize).semantics { contentDescription = label },
@@ -192,7 +193,7 @@ fun SelectBox(
         Surface(
             onClick = { expanded = true },
             shape = AppShape(7.dp),
-            color = colors.background,
+            color = colors.subtle,
             border = BorderStroke(1.dp, SolidColor(colors.line))
         ) {
             Row(

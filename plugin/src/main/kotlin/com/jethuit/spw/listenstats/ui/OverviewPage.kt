@@ -158,7 +158,10 @@ fun OverviewPage(
             }
         }
         Box(Modifier.height(23.dp))
-        Text("听歌时长（$unitName）", style = AppType.tiny.copy(color = colors.muted))
+        Text(
+            if (unitName == "小时") "时长/h" else "时长/min",
+            style = AppType.tiny.copy(color = colors.muted)
+        )
         Box(Modifier.height(7.dp))
         TrendChart(
             buckets = buckets,

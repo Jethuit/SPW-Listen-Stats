@@ -343,7 +343,7 @@ fun ListenStatsApp(
                                     // Swing dimensions are logical pixels; Compose size is device pixels.
                                     onContentHeight(page, (size.height / density.density).toInt())
                                 }
-                                .padding(top = pageTop, bottom = 24.dp)
+                                .padding(top = pageTop, bottom = if (embedded) 96.dp else 24.dp)
                         ) {
                             PageHeader(
                                 themeMode = themeMode,
@@ -387,20 +387,40 @@ fun ListenStatsApp(
                                     chartType = chartType,
                                     userGranularity = userGranularity,
                                     onDaySelected = { date ->
-                                        selectedDate = date
-                                        rangePreset = RangePreset.Selected
-                                        Prefs.putString("range", rangePreset.storage)
-                                        Prefs.putString("selectedDate", date.toString())
+                                        if (selectedDate == date && rangePreset == RangePreset.Selected) {
+                                            selectedDate = null
+                                            rangePreset = RangePreset.Last30
+                                            Prefs.putString("range", rangePreset.storage)
+                                            Prefs.putString("selectedDate", "")
+                                        } else {
+                                            selectedDate = date
+                                            rangePreset = RangePreset.Selected
+                                            Prefs.putString("range", rangePreset.storage)
+                                            Prefs.putString("selectedDate", date.toString())
+                                        }
                                     },
                                     onWeekSelected = { start, end ->
-                                        selectedDate = start
-                                        customStart = start
-                                        customEnd = end
-                                        rangePreset = RangePreset.Custom
-                                        Prefs.putString("range", rangePreset.storage)
-                                        Prefs.putString("selectedDate", start.toString())
-                                        Prefs.putString("customStart", start.toString())
-                                        Prefs.putString("customEnd", end.toString())
+                                        if (rangePreset == RangePreset.Custom &&
+                                            customStart == start && customEnd == end
+                                        ) {
+                                            selectedDate = null
+                                            customStart = null
+                                            customEnd = null
+                                            rangePreset = RangePreset.Last30
+                                            Prefs.putString("range", rangePreset.storage)
+                                            Prefs.putString("selectedDate", "")
+                                            Prefs.putString("customStart", "")
+                                            Prefs.putString("customEnd", "")
+                                        } else {
+                                            selectedDate = start
+                                            customStart = start
+                                            customEnd = end
+                                            rangePreset = RangePreset.Custom
+                                            Prefs.putString("range", rangePreset.storage)
+                                            Prefs.putString("selectedDate", start.toString())
+                                            Prefs.putString("customStart", start.toString())
+                                            Prefs.putString("customEnd", end.toString())
+                                        }
                                     },
                                     onRangePreset = { preset ->
                                         if (preset == RangePreset.Selected && selectedDate == null) {
@@ -447,7 +467,8 @@ fun ListenStatsApp(
                         "返回宿主",
                         colors.muted,
                         onClose,
-                        modifier = Modifier.align(Alignment.TopStart).padding(top = 20.dp, start = 20.dp)
+                        modifier = Modifier.align(Alignment.TopStart).padding(top = 20.dp, start = 20.dp),
+                        tooltip = null
                     )
                 }
             }

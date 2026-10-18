@@ -1,6 +1,18 @@
 # 新聊天交接
 
-## 最新：0.1.5 宿主内嵌页 + SaltUI
+## 最新：0.1.6 截图细节修复
+
+用户对 0.1.5 内嵌页提出了 5 个明确问题，已修：
+
+- `SelectBox` 背景改为 `colors.subtle`，与左侧图表类型/日周分组一致（对应图一日期框、图二年份框）。
+- 点击已选热力图日会清除选择并回到近 30 天；点击已选周同样取消自定义周选择。选择日期/自定义范围仍写回 Prefs。
+- 时长分布纵轴文案改为“时长/h”或“时长/min”；单日 24 小时横轴固定每 4 小时一个标签（00/04/08/12/16/20/23）。
+- 内嵌模式页面底部 padding 从 24dp 增加到 96dp，避免最底部内容被宿主播放栏挡住。
+- 返回按钮改为带横杆的箭头路径；`IconAction` 增加 `tooltip` 参数，返回按钮传 `null`，不再显示“返回宿主”黑块。
+
+0.1.6 只做了构建、13 组数据回归、4 组几何回归、107 项包结构检查；以上 5 项需要用户在正常宿主中逐项确认。SaltUI 目前仍是主题/滚动/Text/Card，按钮/分段控件/热力图/固定 dp 响应式仍待迁移。
+
+## 0.1.5 宿主内嵌页 + SaltUI
 
 用户明确否定了 0.1.4 的独立窗口/浮动 pill：
 
@@ -68,8 +80,8 @@ SaltUI 已用于主题、滚动、文本和概览/错误卡片；热力图、部
 ## 路径
 
 - 正式源码 `plugin/src/main/kotlin/com/jethuit/spw/listenstats/`
-- 构建 `tools/build_plugin.py`，版本 0.1.5
-- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.5.spmod`
+- 构建 `tools/build_plugin.py`，版本 0.1.6
+- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.6.spmod`
 - 数据回归 `tests/DataRegressionTest.kt`、`tests/run-data-tests.py`（data / ui 两个 suite）
 - 结构检查 `tests/spmod-structure.py`
 - 详细设计和限制 `docs/NATIVE-IMPLEMENTATION.md`

@@ -166,7 +166,8 @@ fun TrendChart(
 
                     // X-axis labels
                     val maxLabels = max(2, (plotWidth / with(density) { 64.dp.toPx() }).toInt())
-                    val step = max(1, ceil(buckets.size.toDouble() / maxLabels).toInt())
+                    val step = if (hourly && buckets.size == 24) 4
+                        else max(1, ceil(buckets.size.toDouble() / maxLabels).toInt())
                     val lastBucket = buckets.last()
                     val lastLayout = measurer.measure(
                         lastBucket.label,
