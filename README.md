@@ -1,6 +1,8 @@
-# SPW 听歌统计
+# SPW-Listen Stats
 
 面向 Salt Player for Windows 的听歌统计模组。目前提供第一版前端交互预览，尚未连接播放器。
+
+GitHub：<https://github.com/Jethuit/SPW-Listen-Stats>。正式开发从 [新聊天交接](docs/HANDOFF.md)、[完整需求](docs/REQUIREMENTS.md) 和 [API 可行性](docs/API-FEASIBILITY.md) 开始；当前预览是已确认的界面基准。
 
 ## 查看预览
 
@@ -51,7 +53,12 @@ preview/       无依赖的 HTML / CSS / JavaScript 交互预览
   assets/icons/ Google Material Symbols 本地图标、来源说明与许可证
   assets/covers/ 示例专辑封面和缺失封面占位图
 tests/         无依赖的图表坐标回归检查
+docs/          正式需求、开发交接、API 与环境核查
 .references/   上游参考源码，仅在本地保留，不提交 Git
 ```
 
 这个阶段用于确认布局和交互。HTML 是设计原型；正式模组计划使用 Kotlin / Compose 和原生 Salt UI，具体主页嵌入方式还需要在 SPW 1.19.0 中验证。
+
+## 许可证
+
+项目原创代码与文档采用 [MIT License](LICENSE)。Google Material Symbols 图标保留其 [Apache-2.0 许可证](preview/assets/icons/LICENSE) 及来源说明；上游播放器、API 和其他依赖的权利声明分别保留。
