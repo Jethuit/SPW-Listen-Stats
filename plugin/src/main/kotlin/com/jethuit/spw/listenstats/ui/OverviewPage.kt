@@ -38,6 +38,10 @@ fun OverviewPage(
     data: StatsData,
     summary: StatsSummary,
     today: LocalDate,
+    year: Int,
+    weekly: Boolean,
+    onYearSelected: (Int) -> Unit,
+    onWeeklySelected: (Boolean) -> Unit,
     selectedDate: LocalDate?,
     rangePreset: RangePreset,
     customStart: LocalDate?,
@@ -52,8 +56,6 @@ fun OverviewPage(
     onGranularity: (Granularity) -> Unit
 ) {
     val colors = LocalStatsColors.current
-    var year by remember { mutableStateOf(today.year) }
-    var weekly by remember { mutableStateOf(false) }
     val years = remember(data, today) { StatsCalculations.years(data, today) }
     val yearTotal = remember(data, year) {
         data.dailyMillis.filterKeys { it.year == year }.values.sum()
@@ -91,12 +93,12 @@ fun OverviewPage(
                     SegmentOption("week", "每周")
                 ),
                 selected = if (weekly) "week" else "day",
-                onSelected = { weekly = it == "week" }
+                onSelected = { onWeeklySelected(it == "week") }
             )
             SelectBox(
                 label = "${year}年",
                 options = years.map { it.toString() to "${it}年" },
-                onSelected = { year = it.toIntOrNull() ?: year },
+                onSelected = { onYearSelected(it.toIntOrNull() ?: year) },
                 minWidth = 78.dp
             )
         }
@@ -318,10 +320,10 @@ private fun rangeLabel(
     customEnd: LocalDate?
 ): String {
     return when (preset) {
-        RangePreset.Selected -> selectedDate?.let { formatMonthDay(it) } ?: "所选日期"
+        RangePreset.Selected -> selectedDate?.let { formatDay(it) } ?: "所选日期"
         RangePreset.Custom -> {
             if (customStart != null && customEnd != null) {
-                "${formatMonthDay(customStart)}–${formatMonthDay(customEnd)}"
+                "${formatDay(customStart)}–${formatDay(customEnd)}"
             } else {
                 "自定义日期"
             }

@@ -172,14 +172,14 @@ object StatsCalculations {
         }
     }
 
-    fun weeklyCells(data: StatsData, grid: HeatmapGrid): List<WeeklyCell> {
+    fun weeklyCells(data: StatsData, grid: HeatmapGrid, today: LocalDate = LocalDate.now()): List<WeeklyCell> {
         val totals = LongArray(grid.weeks)
         for (week in 0 until grid.weeks) {
             val start = grid.gridStart.plusDays(week * 7L)
             var total = 0L
             for (offset in 0L until 7L) {
                 val date = start.plusDays(offset)
-                if (date.year != grid.year) continue
+                if (date.year != grid.year || date.isAfter(today)) continue
                 total += data.millisOn(date)
             }
             totals[week] = total
@@ -242,7 +242,7 @@ object StatsCalculations {
                 (0 until 24).map { hour ->
                     ChartBucket(
                         label = String.format(java.util.Locale.CHINA, "%02d:00", hour),
-                        longLabel = "${formatDay(date)} ${String.format(java.util.Locale.CHINA, "%02d:00–%02d:00", hour, (hour + 1) % 24)}",
+                        longLabel = "${formatDay(date)} ${String.format(java.util.Locale.CHINA, "%02d:00–%02d:00", hour, hour + 1)}",
                         millis = hours[hour],
                         start = date,
                         end = date,

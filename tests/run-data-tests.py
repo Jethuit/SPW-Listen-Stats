@@ -7,8 +7,12 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import sys
 
 ROOT = Path(__file__).resolve().parent.parent
+suite = sys.argv[1] if len(sys.argv) > 1 else 'data'
+assert suite in ('data', 'ui'), 'suite must be data or ui'
+test_name = 'UiRegressionTest' if suite == 'ui' else 'DataRegressionTest'
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)
@@ -24,9 +28,9 @@ classpath = os.pathsep.join(map(str, [kotlin / 'lib/kotlin-stdlib.jar', classes,
 java = str(jdk / 'bin/java.exe')
 subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
                 '-no-stdlib', '-classpath', classpath, '-jvm-target', '25', '-d', str(scratch / 'classes'),
-                str(ROOT / 'tests/DataRegressionTest.kt')], check=True)
+                str(ROOT / 'tests' / (test_name + '.kt'))], check=True)
 environment = os.environ.copy()
 environment['APPDATA'] = str(scratch / 'appdata')
 environment['LOCALAPPDATA'] = str(scratch / 'localappdata')
 subprocess.run([java, '-Duser.timezone=UTC', '-cp', str(scratch / 'classes') + os.pathsep + classpath,
-                'DataRegressionTestKt', str(scratch / 'state')], check=True, env=environment)
+                test_name + 'Kt', str(scratch / 'state')], check=True, env=environment)

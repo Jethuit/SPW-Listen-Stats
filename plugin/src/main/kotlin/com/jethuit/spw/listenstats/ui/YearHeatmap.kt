@@ -33,13 +33,6 @@ import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 
-private const val WEEKDAY_LABEL_WIDTH = 17f
-private const val LABEL_COLUMN_GAP = 10f
-private const val MONTH_LABEL_HEIGHT = 19f
-private const val ROW_GAP = 8f
-private const val CELL_GAP = 4f
-private const val MONTH_LABEL_GAP = 8f
-
 @Composable
 fun YearHeatmap(
     data: StatsData,
@@ -53,18 +46,26 @@ fun YearHeatmap(
     val colors = LocalStatsColors.current
     val measurer = rememberTextMeasurer()
     val grid = remember(year) { StatsCalculations.heatmapGrid(year) }
-    val weeks = remember(data, grid, today) {
-        if (weekly) StatsCalculations.weeklyCells(data, grid) else emptyList()
+    val weeks = remember(data, grid, today, weekly) {
+        if (weekly) StatsCalculations.weeklyCells(data, grid, today) else emptyList()
     }
-    var tooltip by remember { mutableStateOf<TooltipData?>(null) }
-    var hoverWeek by remember { mutableStateOf<Int?>(null) }
-    var hoverRow by remember { mutableStateOf<Int?>(null) }
+    val viewportRevision = LocalViewportRevision.current
+    var tooltip by remember(year, weekly, viewportRevision, data) { mutableStateOf<TooltipData?>(null) }
+    var hoverWeek by remember(year, weekly, viewportRevision) { mutableStateOf<Int?>(null) }
+    var hoverRow by remember(year, weekly, viewportRevision) { mutableStateOf<Int?>(null) }
 
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val density = LocalDensity.current
+        val WEEKDAY_LABEL_WIDTH = with(density) { 17.dp.toPx() }
+        val LABEL_COLUMN_GAP = with(density) { 10.dp.toPx() }
+        val MONTH_LABEL_HEIGHT = with(density) { 19.dp.toPx() }
+        val MONTH_LABEL_GAP = with(density) { 8.dp.toPx() }
+        val ROW_GAP = with(density) { 8.dp.toPx() }
+        val CELL_GAP = with(density) { 4.dp.toPx() }
+        val radiusPx = with(density) { 6.dp.toPx() }
         val availableWidth = with(density) { maxWidth.toPx() } - WEEKDAY_LABEL_WIDTH - LABEL_COLUMN_GAP
         val cell = ((availableWidth - CELL_GAP * (grid.weeks - 1)) / grid.weeks)
-            .coerceIn(3f, 24f)
+            .coerceAtLeast(1f)
         val gridWidth = cell * grid.weeks + CELL_GAP * (grid.weeks - 1)
         val gridHeight = cell * 7 + CELL_GAP * 6
         val totalHeight = MONTH_LABEL_HEIGHT + MONTH_LABEL_GAP + gridHeight + ROW_GAP
@@ -76,14 +77,14 @@ fun YearHeatmap(
             val local = x - startX
             if (local < 0f) return null
             val week = floor(local / (cell + CELL_GAP)).toInt()
-            return week.takeIf { it in 0 until grid.weeks }
+            return week.takeIf { it in 0 until grid.weeks && local % (cell + CELL_GAP) <= cell }
         }
 
         fun rowIndex(y: Float): Int? {
             val local = y - gridTop
             if (local < 0f) return null
             val row = floor(local / (cell + CELL_GAP)).toInt()
-            return row.takeIf { it in 0..6 }
+            return row.takeIf { it in 0..6 && local % (cell + CELL_GAP) <= cell }
         }
 
         fun cellX(week: Int): Float = startX + week * (cell + CELL_GAP)
@@ -125,7 +126,7 @@ fun YearHeatmap(
                     if (weekly) {
                         val weekCell = week?.let { weeklyCellAt(it) }
                         hoverRow = null
-                        if (weekCell == null) {
+                        if (weekCell == null || row == null || grid.gridStart.plusDays(week!! * 7L + row).year != year) {
                             tooltip = null
                         } else {
                             showTooltipForWeek(weekCell, position.x, position.y)
@@ -151,11 +152,12 @@ fun YearHeatmap(
                 .onPointerEvent(PointerEventType.Press) { event ->
                     val position = event.changes.firstOrNull()?.position ?: return@onPointerEvent
                     val week = weekIndex(position.x) ?: return@onPointerEvent
+                    val row = rowIndex(position.y) ?: return@onPointerEvent
+                    if (grid.gridStart.plusDays(week * 7L + row).year != year) return@onPointerEvent
                     if (weekly) {
                         val weekCell = weeklyCellAt(week) ?: return@onPointerEvent
-                        onWeekSelected(weekCell.start, weekCell.end)
+                        if (!weekCell.start.isAfter(today)) onWeekSelected(weekCell.start, minOf(weekCell.end, today))
                     } else {
-                        val row = rowIndex(position.y) ?: return@onPointerEvent
                         val date = grid.gridStart.plusDays((week * 7 + row).toLong())
                         if (date.year == year && !date.isAfter(today)) {
                             onDaySelected(date)
@@ -201,7 +203,7 @@ fun YearHeatmap(
                                 val millis = data.millisOn(date)
                                 val level = StatsCalculations.dayLevel(millis, today, date)
                                 val alpha = if (date.isAfter(today)) 0.35f else 1f
-                                val radius = CornerRadius(min(6f, cell / 2f))
+                                val radius = CornerRadius(min(radiusPx, cell / 2f))
                                 drawRoundRect(
                                     color = colors.cells[level],
                                     topLeft = Offset(x, y),
@@ -226,12 +228,13 @@ fun YearHeatmap(
                         for (week in 0 until grid.weeks) {
                             val weekCell = weeks[week]
                             val x = cellX(week)
-                            val selected = weekCell.millis > 0 &&
-                                selectedDate != null &&
+                            val selected = selectedDate != null &&
                                 selectedDate in weekCell.start..weekCell.end
+                            val validRows = (0..6).filter { grid.gridStart.plusDays(week * 7L + it).year == year }
                             for (row in 0..6) {
+                                if (row !in validRows) continue
                                 val y = cellY(row)
-                                val blockIndexFromBottom = 6 - row
+                                val blockIndexFromBottom = validRows.last() - row
                                 val filled = weekCell.filledBlocks
                                 val active = blockIndexFromBottom < filled
                                 val color = if (active) colors.cells[weekCell.level] else colors.cells[0]
@@ -240,7 +243,7 @@ fun YearHeatmap(
                                     color = color,
                                     topLeft = Offset(x, y),
                                     size = Size(cell, cell),
-                                    cornerRadius = CornerRadius(min(6f, cell / 2f)),
+                                    cornerRadius = CornerRadius(min(radiusPx, cell / 2f)),
                                     alpha = alpha
                                 )
                             }

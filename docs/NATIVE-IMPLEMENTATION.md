@@ -1,6 +1,6 @@
 # 正式模组实现说明
 
-更新时间：2026-10-18。当前源码版本 0.1.1；视觉基准仍为 `preview/`。本轮接手核对的是代码与本地构建，旧版运行截图不能证明新版已经在宿主中验收。
+更新时间：2026-10-18。当前源码版本 0.1.2；视觉基准仍为 `preview/`。0.1.2 针对用户截图修复提示坐标、刻度、日周切换、DPI 和页面高度，详见 [UI 修订](UI-FIXES.md)。下方保留 0.1.1 数据实现说明；旧版运行截图不能证明新版已经在宿主中验收。
 
 ![0.1.0 历史运行截图](screenshots/overview-light.png)
 
@@ -11,7 +11,7 @@ python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Sa
 python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.1.spmod`。在 SPW 创意工坊“本地导入”，启用并授权 `library-read` 和 `class-transform`。使用宿主 1.19.0 的 fat jar 作编译类路径；JDK 25 / Kotlin 2.4.20 / sqlite-jdbc 与宿主包缓存在 `build/tools/`，均不提交。
+产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.2.spmod`。在 SPW 创意工坊“本地导入”，启用并授权 `library-read` 和 `class-transform`。使用宿主 1.19.0 的 fat jar 作编译类路径；JDK 25 / Kotlin 2.4.20 / sqlite-jdbc 与宿主包缓存在 `build/tools/`，均不提交。
 
 主界面入口仍是 Hook 浮层，内容仍为 Compose / Material3 + Swing 无边框窗口，不是原生 ScreenRoute。Hook 类名绑定 SPW 1.19.0；失败时可用插件配置页打开。窗口不能拖动或缩放。这些是先前实现留下的限制，本轮没有更改视觉设计。
 

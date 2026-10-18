@@ -1,6 +1,6 @@
 # SPW Listen Stats 正式模组
 
-Kotlin / Compose 模组源码，视觉基准为根目录 `preview/`。当前 0.1.1 是数据正确性修订版，仍需真实宿主验收。
+Kotlin / Compose 模组源码，视觉基准为根目录 `preview/`。当前 0.1.2 包含数据正确性修订和 [UI 修订](../docs/UI-FIXES.md)，仍需真实宿主验收。
 
 ## 构建
 
@@ -9,7 +9,7 @@ python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Sa
 python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-产物：`build/libs/plugin-com.jethuit.spw.listenstats-0.1.1.spmod`；解包目录 `build/install/spw-listen-stats/`。工具链缓存在 `build/tools/`，不提交 Git。
+产物：`build/libs/plugin-com.jethuit.spw.listenstats-0.1.2.spmod`；解包目录 `build/install/spw-listen-stats/`。工具链缓存在 `build/tools/`，不提交 Git。
 
 在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。Hook 失败时可在配置页打开统计。页面是宿主浮层入口加独立无边框窗口，仍绑定 SPW 1.19.0。
 

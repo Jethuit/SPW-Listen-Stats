@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -18,6 +19,11 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,19 +47,23 @@ data class SegmentOption(
     val tooltip: String? = null
 )
 
+val LocalViewportRevision = staticCompositionLocalOf { 0 }
+
 @Composable
 fun HoverColor(
     normal: Color,
     hover: Color,
+    tooltip: String? = null,
     content: @Composable (Color) -> Unit
 ) {
-    var hovered by remember { mutableStateOf(false) }
+    var hovered by remember(LocalViewportRevision.current) { mutableStateOf(false) }
     Box(
         Modifier
             .onPointerEvent(PointerEventType.Enter) { hovered = true }
             .onPointerEvent(PointerEventType.Exit) { hovered = false }
     ) {
         content(if (hovered) hover else normal)
+        if (hovered && tooltip != null) StatsTooltip(TooltipData(tooltip, "", "", 0f, 24f))
     }
 }
 
@@ -68,10 +78,10 @@ fun IconAction(
     iconSize: Dp = 19.dp
 ) {
     val colors = LocalStatsColors.current
-    HoverColor(Color.Transparent, colors.hover) { background ->
+    HoverColor(Color.Transparent, colors.hover, label) { background ->
         Surface(
             onClick = onClick,
-            modifier = modifier.size(buttonSize),
+            modifier = modifier.size(buttonSize).semantics { contentDescription = label },
             shape = AppShape(7.dp),
             color = background
         ) {
@@ -112,6 +122,7 @@ fun SegmentedControl(
     iconOnly: Boolean = false
 ) {
     val colors = LocalStatsColors.current
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
     Surface(color = colors.subtle, shape = AppShape(8.dp)) {
         Row(
             Modifier.padding(3.dp),
@@ -122,10 +133,12 @@ fun SegmentedControl(
                 val active = option.key == selected
                 HoverColor(
                     if (active) colors.background else Color.Transparent,
-                    if (active) colors.background else colors.hover
+                    if (active) colors.background else colors.hover,
+                    option.tooltip
                 ) { background ->
                     Surface(
                         onClick = { onSelected(option.key) },
+                        modifier = Modifier.semantics { contentDescription = option.tooltip ?: option.label.orEmpty() },
                         shape = AppShape(5.dp),
                         color = background,
                         border = if (active) BorderStroke(1.dp, SolidColor(colors.line)) else null
@@ -159,6 +172,8 @@ fun SegmentedControl(
             }
         }
     }
+}
+
 }
 
 @Composable
@@ -216,12 +231,8 @@ fun SectionHeading(
     controls: @Composable () -> Unit
 ) {
     val colors = LocalStatsColors.current
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.fillMaxWidth(0.55f)) {
+    val heading: @Composable () -> Unit = {
+        Column {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -237,11 +248,21 @@ fun SectionHeading(
                 )
             }
         }
-        Row(
+    }
+    val actions: @Composable () -> Unit = {
+        FlowRow(
             horizontalArrangement = Arrangement.spacedBy(9.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             controls()
+        }
+    }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (maxWidth < 900.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { heading(); actions() }
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) { heading(); actions() }
         }
     }
 }
@@ -254,7 +275,7 @@ fun SummaryStrip(
 ) {
     val colors = LocalStatsColors.current
     BoxWithConstraints(modifier.fillMaxWidth()) {
-        val itemWidth = maxWidth / columnCount
+        val itemWidth = (maxWidth - 8.dp) / columnCount
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = AppShape(15.dp),
@@ -299,8 +320,9 @@ data class TooltipData(
     val y: Float
 )
 
-private class FixedPositionProvider(
-    private val position: IntOffset
+internal class FixedPositionProvider(
+    private val position: IntOffset,
+    private val gap: Int
 ) : PopupPositionProvider {
     override fun calculatePosition(
         anchorBounds: androidx.compose.ui.unit.IntRect,
@@ -308,11 +330,9 @@ private class FixedPositionProvider(
         layoutDirection: androidx.compose.ui.unit.LayoutDirection,
         popupContentSize: androidx.compose.ui.unit.IntSize
     ): IntOffset {
-        val maxX = (windowSize.width - popupContentSize.width - 8).coerceAtLeast(8)
-        val maxY = (windowSize.height - popupContentSize.height - 8).coerceAtLeast(8)
         return IntOffset(
-            position.x.coerceIn(8, maxX),
-            position.y.coerceIn(8, maxY)
+            UiGeometry.popupAxis(anchorBounds.left, position.x, popupContentSize.width, windowSize.width, gap),
+            UiGeometry.popupAxis(anchorBounds.top, position.y, popupContentSize.height, windowSize.height, gap)
         )
     }
 }
@@ -322,13 +342,8 @@ fun StatsTooltip(data: TooltipData?) {
     if (data == null) return
     val colors = LocalStatsColors.current
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val position = with(density) {
-        IntOffset(
-            data.x.toInt() + 14.dp.roundToPx(),
-            data.y.toInt() + 14.dp.roundToPx()
-        )
-    }
-    Popup(popupPositionProvider = FixedPositionProvider(position)) {
+    val position = IntOffset(data.x.toInt(), data.y.toInt())
+    Popup(popupPositionProvider = FixedPositionProvider(position, with(density) { 14.dp.roundToPx() })) {
         Surface(
             shape = AppShape(10.dp),
             color = colors.tooltipBackground,
@@ -339,6 +354,7 @@ fun StatsTooltip(data: TooltipData?) {
                     data.title,
                     style = AppType.bodySmall.copy(color = colors.tooltipText)
                 )
+                if (data.label.isNotEmpty()) {
                 Box(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
@@ -349,6 +365,7 @@ fun StatsTooltip(data: TooltipData?) {
                         data.value,
                         style = AppType.bodySmall.copy(color = colors.tooltipText)
                     )
+                }
                 }
             }
         }

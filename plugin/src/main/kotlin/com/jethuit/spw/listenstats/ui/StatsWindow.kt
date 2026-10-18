@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -107,6 +110,8 @@ object StatsWindow {
         scrollPane.verticalScrollBar.unitIncrement = 48
         var contentHeightPx = frame.height
         var lastPage: StatsPage? = null
+        var viewportRevision by mutableStateOf(0)
+        scrollPane.viewport.addChangeListener { viewportRevision++ }
         fun applyContentSize() {
             val viewportWidth = scrollPane.viewport.width.coerceAtLeast(1)
             val viewportHeight = scrollPane.viewport.height.coerceAtLeast(1)
@@ -118,6 +123,7 @@ object StatsWindow {
             scrollPane.revalidate()
         }
         panel.setContent {
+            CompositionLocalProvider(LocalViewportRevision provides viewportRevision) {
             ListenStatsApp(
                 onClose = { frame.dispose() },
                 onScrollTop = { SwingUtilities.invokeLater { scrollPane.verticalScrollBar.value = 0 } },
@@ -130,6 +136,7 @@ object StatsWindow {
                     SwingUtilities.invokeLater { applyContentSize() }
                 }
             )
+            }
         }
         scrollPane.viewport.addComponentListener(object : java.awt.event.ComponentAdapter() {
             override fun componentResized(e: java.awt.event.ComponentEvent?) {
@@ -226,6 +233,8 @@ fun ListenStatsApp(
     var userGranularity by remember { mutableStateOf(Granularity.Day) }
     var rangePreset by remember { mutableStateOf(RangePreset.Last30) }
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
+    var heatmapYear by remember { mutableStateOf(today.year) }
+    var heatmapWeekly by remember { mutableStateOf(false) }
     var customStart by remember { mutableStateOf<LocalDate?>(null) }
     var customEnd by remember { mutableStateOf<LocalDate?>(null) }
     var query by remember { mutableStateOf("") }
@@ -271,12 +280,6 @@ fun ListenStatsApp(
         LaunchedEffect(totalPages) {
             if (rankPage > totalPages) rankPage = totalPages
         }
-        val contentHeight = if (page == StatsPage.Overview) {
-            if (snapshot.error != null || snapshot.dailyMillis.values.none { it > 0 }) 1380.dp else 1300.dp
-        } else {
-            600.dp + 71.dp * rowsOnPage + if (snapshot.error != null) 80.dp else 0.dp
-        }
-
         Surface(Modifier.fillMaxSize(), color = colors.background) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val density = LocalDensity.current
@@ -286,13 +289,15 @@ fun ListenStatsApp(
                 maxWidth > 600.dp -> maxWidth - 64.dp
                 else -> (maxWidth - 36.dp).coerceAtLeast(280.dp)
             }
-            LaunchedEffect(page, contentHeight) {
-                onContentHeight(page, with(density) { contentHeight.toPx().toInt() })
-            }
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                         Column(
                             Modifier
                                 .width(pageWidth)
+                                .wrapContentHeight(unbounded = true)
+                                .onSizeChanged { size ->
+                                    // Swing dimensions are logical pixels; Compose size is device pixels.
+                                    onContentHeight(page, (size.height / density.density).toInt())
+                                }
                                 .padding(top = 56.dp, bottom = 24.dp)
                         ) {
                             PageHeader(
@@ -313,6 +318,7 @@ fun ListenStatsApp(
                             )
                             PageNav(page) { newPage ->
                                 page = newPage
+                                onScrollTop()
                             }
                             if (snapshot.error != null) {
                                 ErrorBanner(snapshot.error)
@@ -326,6 +332,10 @@ fun ListenStatsApp(
                                     data = snapshot,
                                     summary = summary,
                                     today = today,
+                                    year = heatmapYear,
+                                    weekly = heatmapWeekly,
+                                    onYearSelected = { heatmapYear = it },
+                                    onWeeklySelected = { heatmapWeekly = it },
                                     selectedDate = selectedDate,
                                     rangePreset = rangePreset,
                                     customStart = customStart,
@@ -408,7 +418,11 @@ private fun PageHeader(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconAction(themeIcon, "切换主题", colors.muted, onTheme)
+            IconAction(themeIcon, when (themeMode) {
+                ThemeMode.System -> "跟随系统 · 点击切换浅色"
+                ThemeMode.Light -> "浅色 · 点击切换深色"
+                ThemeMode.Dark -> "深色 · 点击跟随系统"
+            }, colors.muted, onTheme)
             VerticalRule(colors.line, 17.dp)
             TextAction(IconPaths.Download, "导入", colors.text, onImport)
             TextAction(IconPaths.Upload, "导出", colors.text, onExport)

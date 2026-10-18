@@ -38,11 +38,6 @@ import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sqrt
 
-private const val AXIS_LEFT = 46f
-private const val AXIS_RIGHT = 10f
-private const val AXIS_TOP = 12f
-private const val AXIS_BOTTOM = 28f
-
 @Composable
 fun TrendChart(
     buckets: List<ChartBucket>,
@@ -51,9 +46,9 @@ fun TrendChart(
 ) {
     val colors = LocalStatsColors.current
     val measurer = rememberTextMeasurer()
-    var tooltip by remember { mutableStateOf<TooltipData?>(null) }
-    var hoverIndex by remember { mutableStateOf<Int?>(null) }
-    var hoverX by remember { mutableStateOf(0f) }
+    val viewportRevision = LocalViewportRevision.current
+    var tooltip by remember(buckets, chartType, viewportRevision) { mutableStateOf<TooltipData?>(null) }
+    var hoverIndex by remember(buckets, chartType, viewportRevision) { mutableStateOf<Int?>(null) }
 
     val values = buckets.map { it.millis }
     val maxMillis = values.maxOrNull() ?: 0L
@@ -71,18 +66,24 @@ fun TrendChart(
             .height(258.dp)
     ) {
         val density = LocalDensity.current
+        val AXIS_LEFT = with(density) { 46.dp.toPx() }
+        val AXIS_RIGHT = with(density) { 10.dp.toPx() }
+        val AXIS_TOP = with(density) { 12.dp.toPx() }
+        val AXIS_BOTTOM = with(density) { 28.dp.toPx() }
         val widthPx = with(density) { maxWidth.toPx() }
         val heightPx = with(density) { 258.dp.toPx() }
         val plotWidth = (widthPx - AXIS_LEFT - AXIS_RIGHT).coerceAtLeast(1f)
         val plotHeight = (heightPx - AXIS_TOP - AXIS_BOTTOM).coerceAtLeast(1f)
-        val slot = if (buckets.isEmpty()) plotWidth else plotWidth / buckets.size
+        val edgePadding = with(density) { 24.dp.toPx() }.coerceAtMost(plotWidth / 4)
+        val dataWidth = plotWidth - 2 * edgePadding
+        val slot = if (buckets.isEmpty()) dataWidth else dataWidth / buckets.size
         val tickCount = 4
 
         fun xAt(index: Int): Float {
             return if (buckets.size <= 1) {
                 AXIS_LEFT + plotWidth / 2f
             } else {
-                AXIS_LEFT + (index + 0.5f) * slot
+                AXIS_LEFT + edgePadding + (index + 0.5f) * slot
             }
         }
 
@@ -97,11 +98,14 @@ fun TrendChart(
                 .height(258.dp)
                 .onPointerEvent(PointerEventType.Move) { event ->
                     val position = event.changes.firstOrNull()?.position ?: return@onPointerEvent
-                    if (buckets.isEmpty() || empty) return@onPointerEvent
-                    val index = floor((position.x - AXIS_LEFT) / slot).toInt()
+                    if (buckets.isEmpty() || empty || position.x !in AXIS_LEFT..(widthPx - AXIS_RIGHT) ||
+                        position.y !in AXIS_TOP..(AXIS_TOP + plotHeight)) {
+                        tooltip = null; hoverIndex = null
+                        return@onPointerEvent
+                    }
+                    val index = floor((position.x - AXIS_LEFT - edgePadding) / slot).toInt()
                         .coerceIn(0, buckets.size - 1)
                     hoverIndex = index
-                    hoverX = position.x
                     val bucket = buckets[index]
                     tooltip = TooltipData(
                         title = bucket.longLabel,
@@ -118,7 +122,7 @@ fun TrendChart(
                 .drawWith {
                     if (buckets.isEmpty()) return@drawWith
                     val tickValues = (0..tickCount).map { yMax * it / tickCount }
-                    val averageY = if (showAverage) {
+                    val averageY = if (showAverage && !empty) {
                         AXIS_TOP + plotHeight - ((average / yMax).coerceIn(0.0, 1.0) * plotHeight).toFloat()
                     } else {
                         null
@@ -133,8 +137,8 @@ fun TrendChart(
                             end = Offset(widthPx - AXIS_RIGHT, y),
                             strokeWidth = 1f
                         )
-                        val label = formatTick(tick, useHours)
-                        val nearAverage = averageY != null && abs(y - averageY) < 11f
+                        val label = UiGeometry.tick(tick, yMax / tickCount)
+                        val nearAverage = averageY != null && abs(y - averageY) < with(density) { 13.dp.toPx() }
                         if (!nearAverage) {
                             val layout = measurer.measure(
                                 label,
@@ -151,7 +155,7 @@ fun TrendChart(
                     }
 
                     // X-axis labels
-                    val maxLabels = max(2, (plotWidth / 64f).toInt())
+                    val maxLabels = max(2, (plotWidth / with(density) { 64.dp.toPx() }).toInt())
                     val step = max(1, ceil(buckets.size.toDouble() / maxLabels).toInt())
                     val lastBucket = buckets.last()
                     val lastLayout = measurer.measure(
@@ -159,9 +163,7 @@ fun TrendChart(
                         AppType.tiny.copy(color = colors.muted)
                     )
                     val lastCenter = xAt(buckets.lastIndex)
-                    val lastLeft = (lastCenter - lastLayout.size.width / 2f)
-                        .coerceAtMost(widthPx - AXIS_RIGHT - lastLayout.size.width)
-                        .coerceAtLeast(AXIS_LEFT)
+                    val lastLeft = lastCenter - lastLayout.size.width / 2f
                     buckets.forEachIndexed { index, bucket ->
                         val isFirst = index == 0
                         val isLast = index == buckets.lastIndex
@@ -187,7 +189,7 @@ fun TrendChart(
                     )
 
                     // Bars or line
-                    when (chartType) {
+                    if (!empty) when (chartType) {
                         ChartType.Bar -> {
                             val barWidth = (slot * 0.6f).coerceAtLeast(2f)
                             buckets.forEachIndexed { index, bucket ->
@@ -255,7 +257,7 @@ fun TrendChart(
                                 floatArrayOf(6f, 5f)
                             )
                         )
-                        val label = formatTick(average, useHours)
+                        val label = UiGeometry.tick(average, yMax / tickCount)
                         val layout = measurer.measure(
                             label,
                             AppType.tiny.copy(color = colors.accent)
@@ -312,7 +314,7 @@ fun TrendChart(
 }
 
 private fun niceMax(value: Double): Double {
-    if (value <= 0.0) return 1.0
+    if (value <= 0.0) return 4.0
     val padded = value * 1.12
     val exponent = floor(log10(padded))
     val power = 10.0.pow(exponent)
@@ -324,18 +326,6 @@ private fun niceMax(value: Double): Double {
         else -> 10.0
     }
     return nice * power
-}
-
-private fun formatTick(value: Double, useHours: Boolean): String {
-    return if (useHours) {
-        if (value >= 10.0 || value == 0.0) {
-            String.format(java.util.Locale.CHINA, "%.0f", value)
-        } else {
-            String.format(java.util.Locale.CHINA, "%.1f", value)
-        }
-    } else {
-        String.format(java.util.Locale.CHINA, "%.0f", value)
-    }
 }
 
 private fun linePath(points: List<Offset>): Path {
