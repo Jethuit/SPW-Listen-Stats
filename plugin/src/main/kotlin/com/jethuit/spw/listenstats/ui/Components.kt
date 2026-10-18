@@ -254,7 +254,8 @@ fun SectionHeading(
     val actions: @Composable () -> Unit = {
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(controlsGap),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            itemVerticalAlignment = Alignment.CenterVertically
         ) {
             controls()
         }
