@@ -17,6 +17,9 @@ python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Pl
 
 已知限制：入口是宿主主界面浮层 + 借助宿主主窗口尺寸的无边框页面，不是宿主原生导航页；统计通常在该次播放被宿主写入 `Listen` 后更新；Hook 目标类名绑定 1.19.0；未做宿主级鼠标交互自动化。详细说明见 [docs/NATIVE-IMPLEMENTATION.md](docs/NATIVE-IMPLEMENTATION.md)。
 
+![正式模组听歌概览](docs/screenshots/overview-light.png)
+
+
 ## 查看预览
 
 直接用浏览器打开 `preview/index.html`。不需要安装 JDK、安装依赖或联网加载资源。
