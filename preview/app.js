@@ -254,9 +254,7 @@
     const weekly = heatmapMode === 'week';
     $('heatmap').classList.toggle('is-weekly', weekly);
     $('heatmap').setAttribute('aria-label', weekly ? '按周显示的年度听歌时长，每列代表周一至周日的一周' : '按日显示的年度听歌热力图');
-    $('weekday-labels').hidden = weekly;
     $('heatmap-legend').hidden = false;
-    $('weekly-scale-note').hidden = !weekly;
     document.querySelectorAll('[data-heatmap-mode]').forEach(button => {
       const active = button.dataset.heatmapMode === heatmapMode;
       button.classList.toggle('active', active);
@@ -310,18 +308,6 @@
     const yearRecords = records.filter(record => record.date.startsWith(String(year)));
     const yearMs = yearRecords.reduce((sum, record) => sum + record.ms, 0);
     $('year-caption').textContent = `${year} 年 · ${yearRecords.filter(record => record.ms > 0).length} 个听歌日 · ${duration(yearMs)}`;
-    updateDayDetail();
-  }
-
-  function updateDayDetail() {
-    if (heatmapMode === 'week') {
-      const week = heatmapWeeks(Number($('year-select').value)).find(item => item.start === selectedWeek);
-      $('day-detail').textContent = week ? `${dateLabel(week.from)} — ${dateLabel(week.until)} · 听歌 ${duration(week.ms)}` : '周一至周日为一周；点击某一周，查看该周的每日分布';
-      return;
-    }
-    if (!selectedDay) { $('day-detail').textContent = '点击某一天，查看当天的收听分布'; return; }
-    const record = recordAt(selectedDay);
-    $('day-detail').innerHTML = `<strong>${dateLabel(selectedDay)}</strong> · 听歌 ${duration(record.ms)}`;
   }
 
   function selectDay(key) {

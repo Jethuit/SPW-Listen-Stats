@@ -15,7 +15,8 @@
 | --- | --- |
 | `dashboard` | 听歌概览导航 |
 | `leaderboard` | 听歌排行导航 |
-| `calendar_month` | 听歌足迹、日期范围选择与对话框 |
+| `calendar_month` | 听歌足迹、每天视图按钮、日期范围选择与对话框 |
+| `calendar_view_week` | 每周视图按钮 |
 | `lightbulb` | 听歌小结标题 |
 | `queue_music` | 歌曲播放次数标题 |
 | `download` | 导入 |
