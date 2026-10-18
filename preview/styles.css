@@ -68,7 +68,7 @@ h2 .material-icon { width: 19px; height: 19px; color: var(--muted); }
 .text-button { display: flex; align-items: center; gap: 7px; padding: 9px 10px; border-radius: 7px; font-size: 13px; }
 .text-button svg { width: 17px; height: 17px; }
 .icon-button:hover, .text-button:hover { background: var(--hover); }
-.summary-strip { display: grid; grid-template-columns: 1.45fr 1fr 1fr 1fr; border: 1px solid var(--line); border-radius: 15px; padding: 23px 4px; margin-bottom: 43px; }
+.summary-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 15px; padding: 23px 4px; margin-bottom: 43px; }
 .summary-item { text-align: center; padding: 2px 10px; min-width: 0; }
 .summary-item + .summary-item { border-left: 1px solid var(--line); }
 .summary-number { font-size: 26px; line-height: 1.4; font-weight: 550; letter-spacing: -.65px; font-variant-numeric: tabular-nums; white-space: nowrap; }
