@@ -4,7 +4,7 @@
 
 在 0.1.2 基础上做了三项接手修复：
 
-- `PlaybackAccumulator` 在插件异常退出后重新观察到同一首歌时，恢复未完成会话，不再为重启前后的片段各计一次；正常 stop/finalize 的会话不会恢复。`live-sessions.json` 现在保留 v2 的 `finalized` 标记，`LiveStore.findOpen` 只恢复 6 小时内未完成的会话。
+- `PlaybackAccumulator` 在插件异常退出后重新观察到同一首歌时，恢复 6 小时内未完成会话，不再为重启前后的片段各计一次；正常 stop/finalize 的会话不会恢复。该恢复不能区分“崩溃后继续同一遍”和“崩溃后重新开始同一首歌”，极端情况下可能合并两遍，需用户真实播放验证。
 - `DataFiles.sourceId()` 遇到损坏的 `source-id.txt` 会重新生成，不再让每个 `ListeningEvent` 构造失败。
 - `tests/run-data-tests.py` 修复了之前的临时输出目录/权限问题；新增重启恢复、load 后 open 状态、损坏 source-id 三组回归。
 

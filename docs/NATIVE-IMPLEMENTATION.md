@@ -27,7 +27,7 @@ python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Pl
 
 ## 0.1.3 稳定性修复
 
-- `live-sessions.json` 保留 v2 的 `finalized` 标记。`PlaybackAccumulator` 在异常退出后重新观察到同一曲目时恢复 6 小时内未完成的会话，继续追加实际片段，而不是新建第二个会话；正常 stop/finalize 的会话不会恢复。
+- `live-sessions.json` 保留 v2 的 `finalized` 标记。`PlaybackAccumulator` 在异常退出后重新观察到同一曲目时恢复 6 小时内未完成的会话，继续追加实际片段，而不是新建第二个会话；正常 stop/finalize 的会话不会恢复。该恢复无法区分“崩溃后继续同一遍”和“崩溃后重新开始同一首歌”，极端情况下可能把两遍合并为一条；没有宿主会话 ID 时无法完全消除这个启发式。
 - `DataFiles.sourceId()` 遇到损坏的 `source-id.txt` 会重新生成，避免所有 `ListeningEvent` 因 UUID 解析失败而无法构造。
 - `tests/run-data-tests.py` 修正了临时目录权限/输出目录问题，`data` 与 `ui` 两个 suite 均可从仓库直接运行。
 
