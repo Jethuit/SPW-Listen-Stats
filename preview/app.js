@@ -153,7 +153,7 @@
   function setupYears() {
     const previous = $('year-select').value;
     const years = [...new Set([TODAY.slice(0, 4), ...records.map(record => record.date.slice(0, 4))])].sort().reverse();
-    $('year-select').replaceChildren(...years.map(year => new Option(year, year)));
+    $('year-select').replaceChildren(...years.map(year => new Option(`${year}年`, year)));
     $('year-select').value = years.includes(previous) ? previous : years[0];
   }
 
