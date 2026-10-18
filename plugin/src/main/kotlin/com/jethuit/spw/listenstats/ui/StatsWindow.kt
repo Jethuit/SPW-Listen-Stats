@@ -457,7 +457,7 @@ fun ListenStatsApp(
                                     onPageChange = { rankPage = it; scrollTop() }
                                 )
                             }
-                            PageFooter(snapshot)
+                            if (page == StatsPage.Overview) PageFooter(snapshot)
                         }
                     }
                     // Host-composed page: no title bar, so keep the close affordance

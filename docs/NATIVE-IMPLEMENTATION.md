@@ -1,6 +1,6 @@
 # 正式模组实现说明
 
-更新时间：2026-10-18。当前源码版本 0.1.11；视觉基准仍为 `preview/`。0.1.5 将统计页内嵌到宿主内容区，移除独立窗口/浮动入口，并打包 SaltUI 3.0.0-beta02（宿主 Salt UI 3.0.0-SNAPSHOT / CMP 1.12.1）。0.1.11 放大排行标题并统一控件外框圆角。
+更新时间：2026-10-18。当前源码版本 0.1.12；视觉基准仍为 `preview/`。0.1.5 将统计页内嵌到宿主内容区，移除独立窗口/浮动入口，并打包 SaltUI 3.0.0-beta02（宿主 Salt UI 3.0.0-SNAPSHOT / CMP 1.12.1）。0.1.12 重做排行底栏、去搜索描边并修复图注截断。
 
 ![0.1.0 历史运行截图](screenshots/overview-light.png)
 
@@ -11,9 +11,16 @@ python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Sa
 python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.11.spmod`。在 SPW 创意工坊“本地导入”，启用并授权 `library-read` 和 `class-transform`。使用宿主 1.19.0 的 fat jar 作编译类路径；JDK 25 / Kotlin 2.4.20 / sqlite-jdbc / SaltUI 3.0.0-beta02 与宿主包缓存在 `build/tools/`，均不提交。
+产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.12.spmod`。在 SPW 创意工坊“本地导入”，启用并授权 `library-read` 和 `class-transform`。使用宿主 1.19.0 的 fat jar 作编译类路径；JDK 25 / Kotlin 2.4.20 / sqlite-jdbc / SaltUI 3.0.0-beta02 与宿主包缓存在 `build/tools/`，均不提交。
 
 入口只在模块管理页插件配置的“打开听歌统计”。页面通过 `AppNavigation` 的 `afterComposable` hook 注入宿主内容区，不创建 `JDialog` 或 `Popup`；宿主侧栏和底部播放栏保留。当前关闭/返回按钮位于内容区左上角，样式待确认。
+
+## 0.1.12 排行底栏与图注
+
+- 排行页底部单行：说明文字 + 虚线 leader + `‹ 页码 ›` 按钮组；`PageFooter` 仅在概览页显示。
+- 分页组 `subtle` 背景 8dp，内部按钮 5dp、28dp 高，无描边；上一页/下一页用 `‹`/`›`。
+- 搜索框无描边、`subtle` 背景、8dp 圆角；`TextAction`/`IconAction` 统一 8dp。
+- `SectionHeading` 桌面分支用 `heightIn(min=headingHeight)`，允许图注自然撑高，不再被 42dp 裁切。
 
 ## 0.1.11 标题字号与圆角
 

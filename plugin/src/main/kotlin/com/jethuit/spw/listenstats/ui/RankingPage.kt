@@ -33,9 +33,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.text.style.TextOverflow
@@ -88,12 +90,8 @@ fun RankingPage(
         ) {
             Surface(
                 modifier = Modifier.width(190.dp).height(34.dp),
-                shape = AppShape(7.dp),
-                color = colors.background,
-                border = BorderStroke(
-                    if (searchFocused) 2.dp else 1.dp,
-                    SolidColor(if (searchFocused) colors.accent else colors.line)
-                )
+                shape = AppShape(8.dp),
+                color = colors.subtle
             ) {
                 Row(
                     Modifier.fillMaxSize().padding(horizontal = 10.dp),
@@ -157,16 +155,39 @@ fun RankingPage(
             }
         }
         if (totalPages > 1) {
-            Box(Modifier.height(14.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Box(Modifier.height(16.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "听满单曲 50% 计一次 ·",
+                    style = AppType.tiny.copy(color = colors.muted)
+                )
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(1.dp)
+                        .padding(horizontal = 12.dp)
+                        .drawBehind {
+                            drawLine(
+                                color = colors.line,
+                                start = Offset(0f, size.height / 2f),
+                                end = Offset(size.width, size.height / 2f),
+                                strokeWidth = 1.dp.toPx(),
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 4f))
+                            )
+                        }
+                )
                 Pagination(currentPage, totalPages, onPageChange)
             }
+        } else if (rows.isNotEmpty()) {
+            Box(Modifier.height(16.dp))
+            Text(
+                "听满单曲 50% 计一次 ·",
+                style = AppType.tiny.copy(color = colors.muted)
+            )
         }
-        Box(Modifier.height(12.dp))
-        Text(
-            "每首歌独立累计 · 实际听满歌曲时长的 50% 计一次 · 不受概览页年份与日期筛选影响",
-            style = AppType.tiny.copy(color = colors.muted)
-        )
     }
 }
 
@@ -347,20 +368,29 @@ private fun Pagination(
     onPage: (Int) -> Unit
 ) {
     val colors = LocalStatsColors.current
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-        PageButton("上一页", false, current > 1) { onPage(current - 1) }
-        pageItems(current, total).forEach { item ->
-            if (item == null) {
-                Text(
-                    "…",
-                    modifier = Modifier.padding(horizontal = 3.dp),
-                    style = AppType.tiny.copy(color = colors.muted)
-                )
-            } else {
-                PageButton("$item", item == current, true) { onPage(item) }
+    Surface(
+        shape = AppShape(8.dp),
+        color = colors.subtle
+    ) {
+        Row(
+            Modifier.height(34.dp).padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PageButton("‹", false, current > 1) { onPage(current - 1) }
+            pageItems(current, total).forEach { item ->
+                if (item == null) {
+                    Text(
+                        "…",
+                        modifier = Modifier.padding(horizontal = 3.dp),
+                        style = AppType.tiny.copy(color = colors.muted)
+                    )
+                } else {
+                    PageButton("$item", item == current, true) { onPage(item) }
+                }
             }
+            PageButton("›", false, current < total) { onPage(current + 1) }
         }
-        PageButton("下一页", false, current < total) { onPage(current + 1) }
     }
 }
 
@@ -380,12 +410,11 @@ private fun PageButton(
     CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
         Surface(
             onClick = { if (enabled) onClick() },
-            shape = AppShape(6.dp),
-            color = if (active) colors.accentSoft else colors.background,
-            border = BorderStroke(1.dp, SolidColor(if (active) colors.accent else colors.line))
+            shape = AppShape(5.dp),
+            color = if (active) colors.background else Color.Transparent
         ) {
             Box(
-                Modifier.height(30.dp).padding(horizontal = 9.dp).widthIn(min = 30.dp),
+                Modifier.height(28.dp).padding(horizontal = 7.dp).widthIn(min = 28.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(

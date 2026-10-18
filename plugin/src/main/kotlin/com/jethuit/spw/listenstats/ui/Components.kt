@@ -89,7 +89,7 @@ fun IconAction(
         Surface(
             onClick = onClick,
             modifier = modifier.size(buttonSize).semantics { contentDescription = label },
-            shape = AppShape(7.dp),
+            shape = AppShape(8.dp),
             color = background
         ) {
             Box(Modifier.size(buttonSize), contentAlignment = Alignment.Center) {
@@ -108,7 +108,7 @@ fun TextAction(
 ) {
     val colors = LocalStatsColors.current
     HoverColor(Color.Transparent, colors.hover) { background ->
-        Surface(onClick = onClick, shape = AppShape(7.dp), color = background) {
+        Surface(onClick = onClick, shape = AppShape(8.dp), color = background) {
             Row(
                 Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
                 horizontalArrangement = Arrangement.spacedBy(7.dp),
@@ -281,13 +281,10 @@ fun SectionHeading(
             ) { heading(); actions() }
         } else {
             Row(
-                Modifier.fillMaxWidth().height(headingHeight),
+                Modifier.fillMaxWidth().heightIn(min = headingHeight),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(Modifier.height(headingHeight), contentAlignment = Alignment.CenterStart) { heading() }
-                Box(Modifier.height(headingHeight), contentAlignment = Alignment.CenterEnd) { actions() }
-            }
+            ) { heading(); actions() }
         }
     }
 }

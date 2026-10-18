@@ -1,6 +1,16 @@
 # 新聊天交接
 
-## 最新：0.1.11 标题字号与圆角
+## 最新：0.1.12 排行底栏与图注
+
+- 排行底部改为单行：左侧“听满单曲 50% 计一次 ·”，中间虚线 leader，右侧 `‹ 1 2 ›` 分组按钮；删除排行页原来的独立分页行、重复说明和 `PageFooter` 状态行（`PageFooter` 只保留概览页）。
+- 分页按钮放进 `subtle` 圆角组，外组 8dp、内部 5dp，无描边；上一页/下一页用 `‹`/`›`，页码仍最多 7 个并用省略号。
+- 排行搜索框去掉描边和聚焦边框，背景改 `subtle`、8dp 圆角；`TextAction`/`IconAction` 也统一 8dp。
+- `SectionHeading` 桌面分支从固定高度改为 `heightIn(min=headingHeight)`，图二/图三的灰色说明不再被 42dp 固定高度裁掉。
+- 0.1.11 的 18sp 排行标题、8dp 控件圆角继续保留。
+
+0.1.12 只做构建/离线回归，未在宿主中截图；底栏布局、图注和搜索框需用户核对。
+
+## 0.1.11 标题字号与圆角
 
 - 排行页“歌曲播放次数”通过 `SectionHeading(titleStyle=...)` 从 16sp 放大到 18sp，行高 24sp；标题行仍 34dp。
 - `SegmentedControl` 外框和 `SelectBox` 统一为 **8dp** 圆角；分段内部 active 按钮仍 5dp（嵌套状态）。
@@ -113,8 +123,8 @@ SaltUI 已用于主题、滚动、文本和概览/错误卡片；热力图、部
 ## 路径
 
 - 正式源码 `plugin/src/main/kotlin/com/jethuit/spw/listenstats/`
-- 构建 `tools/build_plugin.py`，版本 0.1.11
-- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.11.spmod`
+- 构建 `tools/build_plugin.py`，版本 0.1.12
+- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.12.spmod`
 - 数据回归 `tests/DataRegressionTest.kt`、`tests/run-data-tests.py`（data / ui 两个 suite）
 - 结构检查 `tests/spmod-structure.py`
 - 详细设计和限制 `docs/NATIVE-IMPLEMENTATION.md`
