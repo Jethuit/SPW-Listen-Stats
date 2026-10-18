@@ -8,6 +8,23 @@
 - 折线图：`show_chart.svg`，来源 https://raw.githubusercontent.com/google/material-design-icons/master/symbols/web/show_chart/materialsymbolsoutlined/show_chart_24px.svg
 - 曲线图：`multiline_chart.svg`，来源 https://raw.githubusercontent.com/google/material-design-icons/master/symbols/web/multiline_chart/materialsymbolsoutlined/multiline_chart_24px.svg
 
+其他图标沿用相同的官方来源路径：
+`https://raw.githubusercontent.com/google/material-design-icons/master/symbols/web/<名称>/materialsymbolsoutlined/<名称>_24px.svg`
+
+| 名称 | 使用位置 |
+| --- | --- |
+| `dashboard` | 听歌概览导航 |
+| `leaderboard` | 听歌排行导航 |
+| `calendar_month` | 听歌足迹、日期范围选择与对话框 |
+| `lightbulb` | 听歌小结标题 |
+| `queue_music` | 歌曲播放次数标题 |
+| `download` | 导入 |
+| `upload` | 导出 |
+| `search` | 歌曲搜索 |
+| `dark_mode` | 切换到深色主题 |
+| `light_mode` | 切换到浅色主题 |
+| `expand_more` | 下拉选择箭头 |
+
 图标目录：https://fonts.google.com/icons
 
 上游仓库：https://github.com/google/material-design-icons

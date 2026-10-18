@@ -285,6 +285,13 @@
     });
   }
 
+  function applyTheme() {
+    document.documentElement.dataset.theme = theme;
+    const action = `切换到${theme === 'dark' ? '浅色' : '深色'}主题`;
+    $('theme-toggle').setAttribute('aria-label', action);
+    $('theme-toggle').title = action;
+  }
+
   function setChartType(type) {
     if (!Object.hasOwn(chartTypes, type)) return;
     chartType = type;
@@ -497,9 +504,8 @@
   $('granularity-select').addEventListener('change', () => { hideTooltip(); renderChart(); });
   $('theme-toggle').addEventListener('click', () => {
     theme = theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = theme;
+    applyTheme();
     safeStorage.set('spw-preview-theme', theme);
-    $('theme-toggle').setAttribute('aria-label', `切换到${theme === 'dark' ? '浅色' : '深色'}主题`);
   });
   $('trend-chart').addEventListener('pointermove', showChartPoint);
   $('trend-chart').addEventListener('pointerleave', () => {
@@ -544,7 +550,7 @@
     finally { event.target.value = ''; }
   });
 
-  document.documentElement.dataset.theme = theme;
+  applyTheme();
   syncChartTypeButtons();
   setupYears(); renderSummary(); renderHeatmap(); renderSongs(); renderPage();
   new ResizeObserver(() => { hideTooltip(); renderChart(); }).observe($('chart-wrapper'));
