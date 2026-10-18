@@ -1,6 +1,12 @@
 # 新聊天交接
 
-## 最新：0.1.18 重新取顶部颜色
+## 最新：0.1.19 排行行底色
+
+- 0.1.18 只改了页面根 Surface，排行 `SongRow` 仍用 `colors.background`（白/深色），所以列表看起来没变。
+- 0.1.19 把 `SongRow` 常态背景改为 `colors.pageBackground`（#F8F8F8 / #232323），悬停仍 `subtle`；表头透明，跟随页面。
+- 封面占位、分页按钮等控件背景未改；概览卡片仍白色。
+
+## 0.1.18 重新取顶部颜色
 
 - 用户指出 0.1.17 取错：取了页面内容区（#F3F3F3 / #1E1E20），应取截图**最顶部**色。
 - 重新采样：浅色 y=0–50 为 **#F8F8F8**；深色 y=0–35 为 **#232323**。
@@ -168,8 +174,8 @@ SaltUI 已用于主题、滚动、文本和概览/错误卡片；热力图、部
 ## 路径
 
 - 正式源码 `plugin/src/main/kotlin/com/jethuit/spw/listenstats/`
-- 构建 `tools/build_plugin.py`，版本 0.1.18
-- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.18.spmod`
+- 构建 `tools/build_plugin.py`，版本 0.1.19
+- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.19.spmod`
 - 数据回归 `tests/DataRegressionTest.kt`、`tests/run-data-tests.py`（data / ui 两个 suite）
 - 结构检查 `tests/spmod-structure.py`
 - 详细设计和限制 `docs/NATIVE-IMPLEMENTATION.md`

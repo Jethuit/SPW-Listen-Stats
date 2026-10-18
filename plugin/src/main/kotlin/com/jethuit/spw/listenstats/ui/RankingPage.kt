@@ -229,7 +229,7 @@ private fun SongRow(rank: TrackRank, position: Int, coverRevision: Long) {
     val colors = LocalStatsColors.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val widths = tableWidths(maxWidth)
-        HoverColor(colors.background, colors.subtle) { background ->
+        HoverColor(colors.pageBackground, colors.subtle) { background ->
             Column {
                 Row(
                     Modifier
