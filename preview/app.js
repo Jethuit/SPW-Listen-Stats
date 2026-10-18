@@ -15,7 +15,6 @@
     get(key) { try { return localStorage.getItem(key); } catch { return null; } },
     set(key, value) { try { localStorage.setItem(key, value); } catch { /* Local files may disable storage. */ } }
   };
-  let metric = safeStorage.get('spw-preview-metric') === 'plays' ? 'plays' : 'time';
   let theme = safeStorage.get('spw-preview-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   let selectedDay = null;
   let range = '30';
@@ -52,21 +51,35 @@
       if (!active) continue;
       const minutes = Math.round(12 + Math.pow(rng(), 1.4) * 175 + (month === 3 || month === 4 ? 35 : 0));
       const ms = minutes * 60_000;
-      const plays = Math.max(1, Math.round(minutes / (2.8 + rng() * 2.8)));
       const weights = Array.from({ length: 24 }, (_, h) => {
         const morning = Math.exp(-((h - 8) ** 2) / 3) * 0.45;
         const midday = Math.exp(-((h - 13) ** 2) / 5) * 0.28;
         const evening = Math.exp(-((h - 21) ** 2) / 5);
         return (morning + midday + evening + 0.004) * (0.35 + rng());
       });
-      records.push({ date: key, ms, plays, hourlyMs: distribute(ms, weights), hourlyPlays: distribute(plays, weights) });
+      records.push({ date: key, ms, hourlyMs: distribute(ms, weights) });
     }
     return records;
   }
 
   let records = makeDemoRecords();
+  // Fictional song metadata for the preview. Counts belong to individual track IDs.
+  let tracks = [
+    { id: 'demo-01', title: '晚风来信', artist: '林间电台', album: '日落以后', plays: 156 },
+    { id: 'demo-02', title: '蓝色车站', artist: '远山乐队', album: '沿途', plays: 132 },
+    { id: 'demo-03', title: '雨停之前', artist: '夏予', album: '城市慢拍', plays: 117 },
+    { id: 'demo-04', title: '凌晨两点', artist: '白昼航线', album: '夜行', plays: 93 },
+    { id: 'demo-05', title: '玻璃海', artist: '海岸线', album: '潮汐之间', plays: 88 },
+    { id: 'demo-06', title: '走过四季', artist: '林间电台', album: '日落以后', plays: 75 },
+    { id: 'demo-07', title: '把灯留着', artist: '夏予', album: '城市慢拍', plays: 64 },
+    { id: 'demo-08', title: '慢慢靠近', artist: '远山乐队', album: '沿途', plays: 51 },
+    { id: 'demo-09', title: '日光倾斜', artist: '白昼航线', album: '日间漫步', plays: 43 },
+    { id: 'demo-10', title: '晚风来信', artist: '海岸线', album: '海边现场', plays: 28 },
+    { id: 'demo-11', title: '下一个路口', artist: '木叶', album: '散步集', plays: 16 },
+    { id: 'demo-12', title: '微光', artist: '木叶', album: '散步集', plays: 7 }
+  ];
   let byDate = new Map(records.map(record => [record.date, record]));
-  const emptyRecord = date => ({ date, ms: 0, plays: 0, hourlyMs: Array(24).fill(0), hourlyPlays: Array(24).fill(0) });
+  const emptyRecord = date => ({ date, ms: 0, hourlyMs: Array(24).fill(0) });
   const recordAt = date => byDate.get(date) || emptyRecord(date);
 
   function duration(ms, compact = false) {
@@ -80,7 +93,6 @@
     const totalMs = records.reduce((sum, record) => sum + record.ms, 0);
     const hours = Math.floor(totalMs / 3_600_000);
     $('total-time').innerHTML = hours ? `${number.format(hours)}<small>小时</small>${Math.floor(totalMs / 60_000) % 60}<small>分</small>` : `${Math.floor(totalMs / 60_000)}<small>分钟</small>`;
-    $('total-plays').innerHTML = `${number.format(records.reduce((sum, record) => sum + record.plays, 0))}<small>次</small>`;
     const active = records.filter(record => record.ms > 0).map(record => record.date).sort();
     $('active-days').innerHTML = `${number.format(active.length)}<small>天</small>`;
     let longest = 0, streak = 0, previous;
@@ -111,8 +123,8 @@
   }
 
   function levelFor(record) {
-    const value = metric === 'time' ? record.ms / 60_000 : record.plays;
-    const cutoffs = metric === 'time' ? [0, 30, 75, 135] : [0, 8, 20, 36];
+    const value = record.ms / 60_000;
+    const cutoffs = [0, 30, 75, 135];
     return value <= 0 ? 0 : value <= cutoffs[1] ? 1 : value <= cutoffs[2] ? 2 : value <= cutoffs[3] ? 3 : 4;
   }
 
@@ -147,7 +159,7 @@
         button.tabIndex = key === focusDate ? 0 : -1;
         if (key > TODAY) { button.disabled = true; button.classList.add('future'); }
         const record = recordAt(key);
-        button.setAttribute('aria-label', `${key}，听歌 ${duration(record.ms)}，有效播放 ${record.plays} 次${key > TODAY ? '，未来日期' : ''}`);
+        button.setAttribute('aria-label', `${key}，听歌 ${duration(record.ms)}${key > TODAY ? '，未来日期' : ''}`);
         button.setAttribute('aria-pressed', String(key === selectedDay));
         if (key === selectedDay) button.classList.add('selected');
         button.addEventListener('mouseenter', () => showRecordTooltip(key, button.getBoundingClientRect()));
@@ -170,15 +182,14 @@
     $('heatmap').replaceChildren(fragment);
     const yearRecords = records.filter(record => record.date.startsWith(String(year)));
     const yearMs = yearRecords.reduce((sum, record) => sum + record.ms, 0);
-    const yearPlays = yearRecords.reduce((sum, record) => sum + record.plays, 0);
-    $('year-caption').textContent = `${year} 年 · ${yearRecords.filter(record => record.ms > 0).length} 个听歌日 · ${metric === 'time' ? duration(yearMs) : `${number.format(yearPlays)} 次有效播放`}`;
+    $('year-caption').textContent = `${year} 年 · ${yearRecords.filter(record => record.ms > 0).length} 个听歌日 · ${duration(yearMs)}`;
     updateDayDetail();
   }
 
   function updateDayDetail() {
     if (!selectedDay) { $('day-detail').textContent = '点击某一天，查看当天的收听分布'; return; }
     const record = recordAt(selectedDay);
-    $('day-detail').innerHTML = `<strong>${dateLabel(selectedDay)}</strong> · 听歌 ${duration(record.ms)} · 有效播放 ${record.plays} 次`;
+    $('day-detail').innerHTML = `<strong>${dateLabel(selectedDay)}</strong> · 听歌 ${duration(record.ms)}`;
   }
 
   function selectDay(key) {
@@ -207,14 +218,14 @@
   function aggregatePoints(start, end, granularity) {
     if (granularity === 'hour') {
       const record = recordAt(start);
-      return record.hourlyMs.map((ms, h) => ({ label: `${String(h).padStart(2, '0')}:00`, fullLabel: `${dateLabel(start)} ${String(h).padStart(2, '0')}:00 — ${String(h + 1).padStart(2, '0')}:00`, ms, plays: record.hourlyPlays[h] }));
+      return record.hourlyMs.map((ms, h) => ({ label: `${String(h).padStart(2, '0')}:00`, fullLabel: `${dateLabel(start)} ${String(h).padStart(2, '0')}:00 — ${String(h + 1).padStart(2, '0')}:00`, ms }));
     }
     const points = [];
     for (let key = start; key <= end; key = addDays(key, granularity === 'week' ? 7 : 1)) {
       const until = granularity === 'week' && addDays(key, 6) < end ? addDays(key, 6) : granularity === 'week' ? end : key;
-      let ms = 0, plays = 0;
-      for (let date = key; date <= until; date = addDays(date, 1)) { ms += recordAt(date).ms; plays += recordAt(date).plays; }
-      points.push({ label: shortDate(key), fullLabel: key === until ? dateLabel(key) : `${dateLabel(key)} — ${dateLabel(until)}`, ms, plays });
+      let ms = 0;
+      for (let date = key; date <= until; date = addDays(date, 1)) ms += recordAt(date).ms;
+      points.push({ label: shortDate(key), fullLabel: key === until ? dateLabel(key) : `${dateLabel(key)} — ${dateLabel(until)}`, ms });
     }
     return points;
   }
@@ -237,21 +248,20 @@
     chartPoints = aggregatePoints(start, end, granularitySelect.value);
     const maxMs = Math.max(0, ...chartPoints.map(point => point.ms));
     const unitMs = maxMs >= 7_200_000 ? 3_600_000 : 60_000;
-    const unitName = metric === 'time' ? unitMs === 3_600_000 ? '小时' : '分钟' : '次';
-    const values = chartPoints.map(point => metric === 'time' ? point.ms / unitMs : point.plays);
+    const unitName = unitMs === 3_600_000 ? '小时' : '分钟';
+    const values = chartPoints.map(point => point.ms / unitMs);
     const max = niceCeiling(Math.max(...values) * 1.1);
     const svg = $('trend-chart');
     const width = Math.max(280, svg.clientWidth), height = svg.clientHeight || 258;
     const left = 37, right = width - 10, top = 10, bottom = height - 30;
     chartBounds = { left, right, top, bottom, width, height };
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-    svg.setAttribute('aria-label', `${dateLabel(start)}至${dateLabel(end)}${metric === 'time' ? '听歌时长' : '播放次数'}趋势图，下方可展开数据表`);
+    svg.setAttribute('aria-label', `${dateLabel(start)}至${dateLabel(end)}听歌时长趋势图，下方可展开数据表`);
     const xAt = index => left + (chartPoints.length === 1 ? (right - left) / 2 : index * (right - left) / (chartPoints.length - 1));
     const yAt = value => bottom - value / max * (bottom - top);
     let markup = '';
     for (let tick = 0; tick <= 4; tick++) {
       const value = max * tick / 4;
-      if (metric === 'plays' && !Number.isInteger(value)) continue;
       const y = yAt(value);
       markup += `<line class="chart-grid" x1="${left}" x2="${right}" y1="${y}" y2="${y}"/><text class="chart-tick" x="${left - 12}" y="${y + 4}" text-anchor="end">${Number(value.toFixed(1))}</text>`;
     }
@@ -267,13 +277,12 @@
     markup += '<g id="chart-hover" visibility="hidden"><line class="chart-crosshair" id="chart-crosshair"/><circle class="chart-point" id="chart-point" r="4"/></g>';
     svg.innerHTML = markup;
     chartPoints.forEach((point, index) => { point.x = xAt(index); point.y = yAt(values[index]); });
-    $('chart-unit').textContent = `${metric === 'time' ? '听歌时长' : '有效播放'}（${unitName}）`;
+    $('chart-unit').textContent = `听歌时长（${unitName}）`;
     const totalMs = chartPoints.reduce((sum, point) => sum + point.ms, 0);
-    const totalPlays = chartPoints.reduce((sum, point) => sum + point.plays, 0);
-    $('trend-caption').textContent = `这段时间${metric === 'time' ? `听了 ${duration(totalMs)}` : `有效播放 ${number.format(totalPlays)} 次`}`;
+    $('trend-caption').textContent = `这段时间听了 ${duration(totalMs)}`;
     $('range-caption').textContent = start === end ? `${start.replaceAll('-', '.')} · 按${granularitySelect.value === 'hour' ? '小时' : '日'}统计` : `${start.replaceAll('-', '.')} — ${end.replaceAll('-', '.')}`;
-    $('chart-empty').hidden = chartPoints.some(point => point.ms > 0 || point.plays > 0);
-    $('chart-table').innerHTML = chartPoints.map(point => `<tr><td>${point.fullLabel}</td><td>${duration(point.ms)}</td><td>${number.format(point.plays)} 次</td></tr>`).join('');
+    $('chart-empty').hidden = chartPoints.some(point => point.ms > 0);
+    $('chart-table').innerHTML = chartPoints.map(point => `<tr><td>${point.fullLabel}</td><td>${duration(point.ms)}</td></tr>`).join('');
   }
 
   function positionTooltip(rect) {
@@ -288,14 +297,14 @@
     tooltip.style.top = `${top}px`;
   }
 
-  function tooltipContent(label, ms, plays) {
-    $('tooltip').innerHTML = `<div class="tooltip-title">${label}</div><div class="tooltip-row"><span>听歌时长</span><span>${duration(ms)}</span></div><div class="tooltip-row"><span>有效播放</span><span>${number.format(plays)} 次</span></div>`;
+  function tooltipContent(label, ms) {
+    $('tooltip').innerHTML = `<div class="tooltip-title">${label}</div><div class="tooltip-row"><span>听歌时长</span><span>${duration(ms)}</span></div>`;
   }
 
   function showRecordTooltip(key, rect) {
     const record = recordAt(key);
     const weekday = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][parseDate(key).getDay()];
-    tooltipContent(`${dateLabel(key)} ${weekday}`, record.ms, record.plays);
+    tooltipContent(`${dateLabel(key)} ${weekday}`, record.ms);
     positionTooltip(rect);
   }
 
@@ -312,19 +321,35 @@
     line.setAttribute('y1', chartBounds.top); line.setAttribute('y2', chartBounds.bottom);
     $('chart-point').setAttribute('cx', point.x); $('chart-point').setAttribute('cy', point.y);
     $('chart-hover').setAttribute('visibility', 'visible');
-    tooltipContent(point.fullLabel, point.ms, point.plays);
+    tooltipContent(point.fullLabel, point.ms);
     positionTooltip({ left: rect.left + point.x, top: rect.top + point.y, bottom: rect.top + point.y, width: 0 });
   }
 
-  function setMetric(value) {
-    metric = value;
-    safeStorage.set('spw-preview-metric', value);
-    document.querySelectorAll('[data-metric]').forEach(button => {
-      const active = button.dataset.metric === value;
-      button.classList.toggle('active', active);
-      button.setAttribute('aria-pressed', String(active));
-    });
-    hideTooltip(); renderHeatmap(); renderChart();
+  function renderSongs() {
+    const query = $('song-search').value.trim().normalize('NFKC').toLocaleLowerCase('zh-CN');
+    const sort = $('song-sort').value;
+    const list = tracks.filter(track => `${track.title}\n${track.artist}`.normalize('NFKC').toLocaleLowerCase('zh-CN').includes(query));
+    list.sort((a, b) => sort === 'plays' ? b.plays - a.plays || a.title.localeCompare(b.title, 'zh-CN') : a[sort].localeCompare(b[sort], 'zh-CN') || b.plays - a.plays);
+    const fragment = document.createDocumentFragment();
+    for (const track of list) {
+      const row = document.createElement('tr');
+      row.dataset.trackId = track.id;
+      const song = document.createElement('td');
+      const title = document.createElement('span'); title.className = 'song-title'; title.textContent = track.title;
+      const artist = document.createElement('span'); artist.className = 'song-artist'; artist.textContent = track.artist || '未知歌手';
+      song.append(title, artist);
+      const album = document.createElement('td'); album.className = 'song-album'; album.textContent = track.album || '未知专辑';
+      const count = document.createElement('td'); count.className = 'play-count'; count.append(document.createTextNode(number.format(track.plays)));
+      const unit = document.createElement('span'); unit.textContent = '次'; count.append(unit);
+      row.append(song, album, count); fragment.append(row);
+    }
+    if (!list.length) {
+      const row = document.createElement('tr'), cell = document.createElement('td');
+      cell.colSpan = 3; cell.className = 'song-empty';
+      cell.textContent = query ? '没有找到匹配的歌曲' : '暂无逐首歌曲记录';
+      row.append(cell); fragment.append(row);
+    }
+    $('song-table').replaceChildren(fragment);
   }
 
   function toast(message) {
@@ -347,21 +372,32 @@
   }
 
   function validateImport(data) {
-    if (!data || data.format !== FORMAT || data.version !== 1 || !Array.isArray(data.records)) throw new Error('请选择本预览导出的 JSON 文件');
+    if (!data || data.format !== FORMAT || ![1, 2].includes(data.version) || !Array.isArray(data.records)) throw new Error('请选择本预览导出的 JSON 文件');
     if (data.records.length > 10_000) throw new Error('文件包含的记录过多');
     const seen = new Set();
     const validNumber = value => Number.isSafeInteger(value) && value >= 0;
     for (const record of data.records) {
-      if (!record || !validDate(record.date) || seen.has(record.date) || !validNumber(record.ms) || record.ms > 86_400_000 || !validNumber(record.plays) || record.plays > 100_000) throw new Error('日期、时长或播放次数不合法，未导入');
+      if (!record || !validDate(record.date) || seen.has(record.date) || !validNumber(record.ms) || record.ms > 86_400_000) throw new Error('日期或听歌时长不合法，未导入');
       seen.add(record.date);
-      for (const [field, total] of [['hourlyMs', record.ms], ['hourlyPlays', record.plays]]) {
-        if (!Array.isArray(record[field]) || record[field].length !== 24 || !record[field].every(validNumber) || record[field].reduce((a, b) => a + b, 0) !== total) throw new Error('小时数据与每日汇总不一致，未导入');
-      }
+      if (!Array.isArray(record.hourlyMs) || record.hourlyMs.length !== 24 || !record.hourlyMs.every(validNumber) || record.hourlyMs.reduce((a, b) => a + b, 0) !== record.ms) throw new Error('小时数据与每日汇总不一致，未导入');
     }
-    return data.records.map(({ date, ms, plays, hourlyMs, hourlyPlays }) => ({ date, ms, plays, hourlyMs: [...hourlyMs], hourlyPlays: [...hourlyPlays] })).sort((a, b) => a.date.localeCompare(b.date));
+    // Legacy daily totals cannot reconstruct per-song counts. Preserve only their listening time.
+    const importedTracks = data.version === 1 ? [] : data.tracks;
+    if (!Array.isArray(importedTracks) || importedTracks.length > 10_000) throw new Error('逐首歌曲数据不合法，未导入');
+    const trackIds = new Set();
+    for (const track of importedTracks) {
+      if (!track || typeof track.id !== 'string' || !track.id.trim() || track.id.length > 128 || trackIds.has(track.id) || typeof track.title !== 'string' || !track.title.trim() || track.title.length > 512 || typeof track.artist !== 'string' || track.artist.length > 512 || typeof track.album !== 'string' || track.album.length > 512 || !validNumber(track.plays) || track.plays > 1_000_000_000) throw new Error('歌曲信息或逐首播放次数不合法，未导入');
+      trackIds.add(track.id);
+    }
+    return {
+      records: data.records.map(({ date, ms, hourlyMs }) => ({ date, ms, hourlyMs: [...hourlyMs] })).sort((a, b) => a.date.localeCompare(b.date)),
+      tracks: importedTracks.map(({ id, title, artist, album, plays }) => ({ id, title, artist, album, plays })),
+      legacy: data.version === 1
+    };
   }
 
-  document.querySelectorAll('[data-metric]').forEach(button => button.addEventListener('click', () => setMetric(button.dataset.metric)));
+  $('song-search').addEventListener('input', renderSongs);
+  $('song-sort').addEventListener('change', renderSongs);
   $('year-select').addEventListener('change', () => { hideTooltip(); renderHeatmap(); });
   $('range-select').addEventListener('change', event => {
     if (event.target.value === 'custom') { event.target.value = range; openDateDialog(); return; }
@@ -391,7 +427,7 @@
     $('date-dialog').close(); renderChart();
   });
   $('export-button').addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify({ format: FORMAT, version: 1, demonstrationDate: TODAY, note: '界面预览数据，不是 SPW 播放历史或正式模组备份格式。', records }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ format: FORMAT, version: 2, demonstrationDate: TODAY, note: '界面预览数据，不是 SPW 播放历史或正式模组备份格式。播放次数仅按歌曲 ID 独立记录。', records, tracks }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a'); link.href = url; link.download = `spw-listening-preview-${TODAY}.json`;
     document.body.append(link); link.click(); link.remove();
@@ -405,16 +441,18 @@
     try {
       if (file.size > 2 * 1024 * 1024) throw new Error('预览文件不能超过 2 MB');
       const imported = validateImport(JSON.parse(await file.text()));
-      records = imported; byDate = new Map(records.map(record => [record.date, record])); selectedDay = null;
+      records = imported.records; tracks = imported.tracks;
+      byDate = new Map(records.map(record => [record.date, record])); selectedDay = null;
+      $('song-search').value = '';
       if (range === 'selected') { range = '30'; $('range-select').value = range; }
       $('range-select').querySelector('[value="selected"]').hidden = true;
-      setupYears(); renderSummary(); renderHeatmap(); renderChart();
-      toast('已载入预览数据；未写入 SPW 播放器');
+      setupYears(); renderSummary(); renderHeatmap(); renderChart(); renderSongs();
+      toast(imported.legacy ? '已导入收听时长；旧版文件没有逐首歌曲次数' : '已载入预览数据；未写入 SPW 播放器');
     } catch (error) { toast(error instanceof SyntaxError ? '无法读取 JSON 文件，未导入' : error.message); }
     finally { event.target.value = ''; }
   });
 
   document.documentElement.dataset.theme = theme;
-  setupYears(); renderSummary(); setMetric(metric);
+  setupYears(); renderSummary(); renderHeatmap(); renderChart(); renderSongs();
   new ResizeObserver(() => { hideTooltip(); renderChart(); }).observe($('chart-wrapper'));
 })();

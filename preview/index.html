@@ -28,7 +28,6 @@
 
     <section class="summary-strip" aria-label="累计听歌概览">
       <div class="summary-item"><div class="summary-number" id="total-time">—</div><div class="summary-label">累计听歌时长</div></div>
-      <div class="summary-item"><div class="summary-number" id="total-plays">—</div><div class="summary-label">有效播放 <button class="info-button" aria-label="有效播放：同一次播放实际听满歌曲时长的50%计一次，暂停和跳过的进度不计时" title="同一次播放实际听满歌曲时长的 50% 计一次；暂停和跳过的进度不计时。">ⓘ</button></div></div>
       <div class="summary-item"><div class="summary-number" id="active-days">—</div><div class="summary-label">听歌天数</div></div>
       <div class="summary-item"><div class="summary-number" id="longest-streak">—</div><div class="summary-label">最长连续</div></div>
       <div class="summary-item"><div class="summary-number" id="current-streak">—</div><div class="summary-label">当前连续</div></div>
@@ -38,10 +37,6 @@
       <div class="section-heading">
         <div><h2 id="activity-title">听歌足迹</h2><p class="section-caption" id="year-caption"></p></div>
         <div class="section-controls">
-          <div class="segmented-control" role="group" aria-label="热力图和趋势图的统计指标">
-            <button data-metric="time" class="active" aria-pressed="true">听歌时长</button>
-            <button data-metric="plays" aria-pressed="false">播放次数</button>
-          </div>
           <label class="select-wrap year-select"><span class="sr-only">热力图年份</span><select id="year-select"></select><span class="select-chevron">⌄</span></label>
         </div>
       </div>
@@ -72,7 +67,19 @@
         <div class="chart-empty" id="chart-empty" hidden>这段时间还没有听歌记录</div>
       </div>
       <div class="chart-footnote"><span id="range-caption"></span><span>悬停查看详情</span></div>
-      <details class="chart-accessible"><summary>查看图表数据</summary><div class="data-table-scroll"><table><thead><tr><th>日期 / 时段</th><th>听歌时长</th><th>有效播放</th></tr></thead><tbody id="chart-table"></tbody></table></div></details>
+      <details class="chart-accessible"><summary>查看图表数据</summary><div class="data-table-scroll"><table><thead><tr><th>日期 / 时段</th><th>听歌时长</th></tr></thead><tbody id="chart-table"></tbody></table></div></details>
+    </section>
+
+    <section class="songs-section" aria-labelledby="songs-title">
+      <div class="section-heading">
+        <div><h2 id="songs-title">歌曲播放次数</h2><p class="section-caption">每首歌分别累计 · 实际听满歌曲时长的 50% 计一次</p></div>
+        <div class="section-controls song-controls">
+          <label class="search-wrap"><span class="sr-only">搜索歌曲或歌手</span><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><input id="song-search" type="search" placeholder="搜索歌曲或歌手" autocomplete="off"></label>
+          <label class="select-wrap"><span class="sr-only">歌曲列表排序</span><select id="song-sort"><option value="plays">播放次数 ↓</option><option value="title">歌曲名称</option><option value="artist">歌手名称</option></select><span class="select-chevron">⌄</span></label>
+        </div>
+      </div>
+      <div class="song-table-scroll"><table class="song-table"><thead><tr><th scope="col">歌曲</th><th scope="col">专辑</th><th scope="col" class="play-count">播放次数</th></tr></thead><tbody id="song-table"></tbody></table></div>
+      <p class="song-count-note">累计次数独立记录，不受上方年份与日期筛选影响。</p>
     </section>
 
     <section class="insights-section" aria-labelledby="insights-title">
@@ -82,7 +89,7 @@
       <div class="insight-row"><span>最常听歌的时段</span><span id="favorite-hours">—</span></div>
     </section>
 
-    <footer class="page-footer"><span><i class="status-dot"></i>示例数据 · 尚未连接 SPW 播放器</span><span>仅记录实际收听，听满 50% 计一次</span></footer>
+    <footer class="page-footer"><span><i class="status-dot"></i>示例数据 · 尚未连接 SPW 播放器</span><span>仅记录实际收听 · 播放次数按歌曲独立累计</span></footer>
   </main>
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
   <div class="toast" id="toast" role="status" hidden></div>
