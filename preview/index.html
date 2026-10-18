@@ -84,9 +84,23 @@
 
     <section class="insights-section" aria-labelledby="insights-title">
       <h2 id="insights-title"><svg class="material-icon" data-icon="lightbulb" viewBox="0 -960 960 960" aria-hidden="true" focusable="false"><path d="M480-80q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-200v-80h320v80H320Zm10-120q-69-41-109.5-110T180-580q0-125 87.5-212.5T480-880q125 0 212.5 87.5T780-580q0 81-40.5 150T630-320H330Zm24-80h252q45-32 69.5-79T700-580q0-92-64-156t-156-64q-92 0-156 64t-64 156q0 54 24.5 101t69.5 79Zm126 0Z"/></svg><span>听歌小结</span></h2>
-      <div class="insight-row"><span>听得最多的一天</span><span id="peak-day">—</span></div>
-      <div class="insight-row"><span>每个听歌日平均收听</span><span id="daily-average">—</span></div>
-      <div class="insight-row"><span>最常听歌的时段</span><span id="favorite-hours">—</span></div>
+      <div class="insights-grid">
+        <article class="insight-card" aria-labelledby="peak-day-title">
+          <h3 id="peak-day-title">听得最多的一天</h3>
+          <p class="insight-value" id="peak-day">—</p>
+          <p class="insight-note" id="peak-date">—</p>
+        </article>
+        <article class="insight-card" aria-labelledby="daily-average-title">
+          <h3 id="daily-average-title">每个听歌日平均收听</h3>
+          <p class="insight-value" id="daily-average">—</p>
+          <p class="insight-note">按有收听记录的日期计算</p>
+        </article>
+        <article class="insight-card" aria-labelledby="favorite-hours-title">
+          <h3 id="favorite-hours-title">最常听歌的时段</h3>
+          <p class="insight-value" id="favorite-hours">—</p>
+          <p class="insight-note" id="favorite-hours-note">—</p>
+        </article>
+      </div>
     </section>
     </div>
 

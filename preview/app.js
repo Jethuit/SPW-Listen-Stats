@@ -130,11 +130,14 @@
     $('current-streak').innerHTML = `${current}<small>天</small>`;
     $('current-streak').title = '连续听歌天数；当天尚未听歌时，延续到昨天的连续记录。';
     const peak = [...records].sort((a, b) => b.ms - a.ms)[0];
-    $('peak-day').textContent = peak ? `${peak.date.slice(0, 4)}年${dateLabel(peak.date)} · ${duration(peak.ms)}` : '暂无记录';
+    $('peak-day').textContent = peak?.ms > 0 ? duration(peak.ms) : '暂无记录';
+    $('peak-date').textContent = peak?.ms > 0 ? `${peak.date.slice(0, 4)}年${dateLabel(peak.date)}` : '开始听歌后生成小结';
     $('daily-average').textContent = active.length ? duration(totalMs / active.length) : '暂无记录';
     const hourly = Array.from({ length: 24 }, (_, h) => records.reduce((sum, record) => sum + record.hourlyMs[h], 0));
     const peakHour = hourly.indexOf(Math.max(...hourly));
     $('favorite-hours').textContent = totalMs ? `${String(peakHour).padStart(2, '0')}:00 — ${String(peakHour + 1).padStart(2, '0')}:00` : '暂无记录';
+    const daypart = peakHour < 6 ? '深夜' : peakHour < 12 ? '上午' : peakHour < 18 ? '下午' : '夜间';
+    $('favorite-hours-note').textContent = totalMs ? `${daypart}高频聆听` : '开始听歌后生成小结';
   }
 
   function setupYears() {
@@ -459,7 +462,7 @@
     const max = niceCeiling(Math.max(...values) * 1.1);
     const svg = $('trend-chart');
     const width = Math.max(280, svg.clientWidth), height = svg.clientHeight || 258;
-    const left = 37, right = width - 10, top = 10, bottom = height - 30;
+    const left = 52, right = width - 10, top = 10, bottom = height - 30;
     chartBounds = { left, right, top, bottom, width, height };
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     svg.dataset.chartType = chartType;
@@ -467,11 +470,17 @@
     const slotWidth = (right - left) / chartPoints.length;
     const xAt = index => chartType === 'bar' ? left + (index + 0.5) * slotWidth : left + (chartPoints.length === 1 ? (right - left) / 2 : index * (right - left) / (chartPoints.length - 1));
     const yAt = value => bottom - value / max * (bottom - top);
+    const averageY = yAt(averageMs / unitMs);
+    const averageValue = averageMs / unitMs;
+    const averageAxisLabel = averageValue > 0 && averageValue < 0.01 ? '<0.01' : number.format(Number(averageValue.toFixed(2)));
     let markup = '';
     for (let tick = 0; tick <= 4; tick++) {
       const value = max * tick / 4;
       const y = yAt(value);
-      markup += `<line class="chart-grid" x1="${left}" x2="${right}" y1="${y}" y2="${y}"/><text class="chart-tick" x="${left - 12}" y="${y + 4}" text-anchor="end">${Number(value.toFixed(1))}</text>`;
+      markup += `<line class="chart-grid" x1="${left}" x2="${right}" y1="${y}" y2="${y}"/>`;
+      if (maxMs === 0 || Math.abs(y - averageY) >= 14) {
+        markup += `<text class="chart-tick" x="${left - 12}" y="${y + 4}" text-anchor="end">${Number(value.toFixed(1))}</text>`;
+      }
     }
     if (chartType === 'bar') {
       const barWidth = Math.min(32, slotWidth * 0.65);
@@ -487,8 +496,7 @@
       if (values.length === 1) markup += `<circle class="chart-point" cx="${xAt(0)}" cy="${yAt(values[0])}" r="3"/>`;
     }
     if (maxMs > 0) {
-      const averageY = yAt(averageMs / unitMs);
-      markup += `<g class="chart-average"><line class="chart-average-line" x1="${left}" x2="${right}" y1="${averageY}" y2="${averageY}"/><text class="chart-average-label" x="${right - 4}" y="${Math.max(top + 12, averageY - 7)}" text-anchor="end">${averageLabel}</text></g>`;
+      markup += `<g class="chart-average"><title>${averageLabel}，单位：${unitName}</title><line class="chart-average-line" x1="${left - 6}" x2="${right}" y1="${averageY}" y2="${averageY}"/><text class="chart-average-label" x="${left - 12}" y="${averageY + 4}" text-anchor="end">${averageAxisLabel.replace('<', '&lt;')}</text></g>`;
     }
     const labelCount = Math.min(width < 500 ? 4 : 7, chartPoints.length);
     for (let label = 0; label < labelCount; label++) {
