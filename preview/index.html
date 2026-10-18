@@ -12,8 +12,8 @@
   <main class="page">
     <header class="page-header">
       <div class="heading-group">
-        <div class="title-line"><h1>听歌统计</h1><span class="preview-badge">示例预览</span></div>
-        <p class="subtitle">累计收听与每日记录</p>
+        <div class="title-line"><h1 id="page-title">听歌统计</h1><span class="preview-badge">示例预览</span></div>
+        <p class="subtitle" id="page-subtitle">累计收听与每日记录</p>
       </div>
       <div class="header-actions">
         <button class="icon-button" id="theme-toggle" aria-label="切换明暗主题" title="切换明暗主题">
@@ -26,6 +26,12 @@
       </div>
     </header>
 
+    <nav class="page-nav" aria-label="统计页面">
+      <a id="overview-link" href="#overview" data-page-link="overview" class="active" aria-current="page">听歌概览</a>
+      <a id="ranking-link" href="#ranking" data-page-link="ranking">听歌排行</a>
+    </nav>
+
+    <div id="overview-page" aria-labelledby="overview-link">
     <section class="summary-strip" aria-label="累计听歌概览">
       <div class="summary-item"><div class="summary-number" id="total-time">—</div><div class="summary-label">累计听歌时长</div></div>
       <div class="summary-item"><div class="summary-number" id="active-days">—</div><div class="summary-label">听歌天数</div></div>
@@ -70,7 +76,15 @@
       <details class="chart-accessible"><summary>查看图表数据</summary><div class="data-table-scroll"><table><thead><tr><th>日期 / 时段</th><th>听歌时长</th></tr></thead><tbody id="chart-table"></tbody></table></div></details>
     </section>
 
-    <section class="songs-section" aria-labelledby="songs-title">
+    <section class="insights-section" aria-labelledby="insights-title">
+      <h2 id="insights-title">听歌小结</h2>
+      <div class="insight-row"><span>听得最多的一天</span><span id="peak-day">—</span></div>
+      <div class="insight-row"><span>每个听歌日平均收听</span><span id="daily-average">—</span></div>
+      <div class="insight-row"><span>最常听歌的时段</span><span id="favorite-hours">—</span></div>
+    </section>
+    </div>
+
+    <section class="songs-section" id="ranking-page" aria-labelledby="ranking-link songs-title" hidden>
       <div class="section-heading">
         <div><h2 id="songs-title">歌曲播放次数</h2><p class="section-caption">每首歌分别累计 · 实际听满歌曲时长的 50% 计一次</p></div>
         <div class="section-controls song-controls">
@@ -79,14 +93,7 @@
         </div>
       </div>
       <div class="song-table-scroll"><table class="song-table"><thead><tr><th scope="col">歌曲</th><th scope="col">专辑</th><th scope="col" class="play-count">播放次数</th></tr></thead><tbody id="song-table"></tbody></table></div>
-      <p class="song-count-note">累计次数独立记录，不受上方年份与日期筛选影响。</p>
-    </section>
-
-    <section class="insights-section" aria-labelledby="insights-title">
-      <h2 id="insights-title">听歌小结</h2>
-      <div class="insight-row"><span>听得最多的一天</span><span id="peak-day">—</span></div>
-      <div class="insight-row"><span>每个听歌日平均收听</span><span id="daily-average">—</span></div>
-      <div class="insight-row"><span>最常听歌的时段</span><span id="favorite-hours">—</span></div>
+      <p class="song-count-note">累计次数按歌曲独立记录，不受概览页年份与日期筛选影响。</p>
     </section>
 
     <footer class="page-footer"><span><i class="status-dot"></i>示例数据 · 尚未连接 SPW 播放器</span><span>仅记录实际收听 · 播放次数按歌曲独立累计</span></footer>

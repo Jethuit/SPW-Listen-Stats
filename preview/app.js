@@ -238,6 +238,7 @@
   }
 
   function renderChart() {
+    if ($('overview-page').hidden) return;
     const [start, end] = getRange();
     const singleDay = start === end;
     const granularitySelect = $('granularity-select');
@@ -352,6 +353,23 @@
     $('song-table').replaceChildren(fragment);
   }
 
+  function renderPage() {
+    const ranking = location.hash === '#ranking';
+    $('overview-page').hidden = ranking;
+    $('ranking-page').hidden = !ranking;
+    $('page-title').textContent = ranking ? '听歌排行' : '听歌统计';
+    $('page-subtitle').textContent = ranking ? '每首歌曲的累计播放次数' : '累计收听与每日记录';
+    document.title = `${ranking ? '听歌排行' : '听歌统计'} · SPW`;
+    document.querySelectorAll('[data-page-link]').forEach(link => {
+      const active = link.dataset.pageLink === (ranking ? 'ranking' : 'overview');
+      link.classList.toggle('active', active);
+      if (active) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    });
+    hideTooltip();
+    if (!ranking) renderChart();
+  }
+
   function toast(message) {
     clearTimeout(toastTimer);
     $('toast').textContent = message;
@@ -398,6 +416,7 @@
 
   $('song-search').addEventListener('input', renderSongs);
   $('song-sort').addEventListener('change', renderSongs);
+  addEventListener('hashchange', () => { renderPage(); window.scrollTo(0, 0); });
   $('year-select').addEventListener('change', () => { hideTooltip(); renderHeatmap(); });
   $('range-select').addEventListener('change', event => {
     if (event.target.value === 'custom') { event.target.value = range; openDateDialog(); return; }
@@ -453,6 +472,6 @@
   });
 
   document.documentElement.dataset.theme = theme;
-  setupYears(); renderSummary(); renderHeatmap(); renderChart(); renderSongs();
+  setupYears(); renderSummary(); renderHeatmap(); renderSongs(); renderPage();
   new ResizeObserver(() => { hideTooltip(); renderChart(); }).observe($('chart-wrapper'));
 })();
