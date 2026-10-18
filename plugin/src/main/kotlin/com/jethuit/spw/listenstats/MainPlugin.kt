@@ -20,6 +20,7 @@ class MainPlugin(
         PluginState.spwVersion = pluginContext.spwVersion
         PluginLog.info("start plugin ${pluginContext.pluginVersion} for SPW ${pluginContext.spwVersion}")
         com.jethuit.spw.listenstats.data.StatsStore.initialize(pluginContext.pluginPath)
+        com.jethuit.spw.listenstats.data.PlaybackTracker.initialize()
         hookHandle?.close()
         hookHandle = null
         try {
@@ -39,22 +40,13 @@ class MainPlugin(
             )
         }
         WorkshopApi.ui.toast("听歌统计已启用", WorkshopApi.Ui.ToastType.Success)
-        if (System.getProperty("spw.listenstats.autotest") == "true") {
-            Thread {
-                for (attempt in 0 until 20) {
-                    Thread.sleep(2_000)
-                    if (com.jethuit.spw.listenstats.ui.StatsWindow.open()) {
-                        break
-                    }
-                }
-            }.apply { isDaemon = true }.start()
-        }
     }
 
     override fun stop() {
         PluginLog.info("stop plugin")
         hookHandle?.close()
         hookHandle = null
+        com.jethuit.spw.listenstats.data.PlaybackTracker.shutdown()
     }
 
     override fun delete() {

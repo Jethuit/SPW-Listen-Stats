@@ -13,9 +13,9 @@ python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Pl
 
 产物为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.0.spmod`，在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。主界面右下角出现“听歌统计”入口；未授权 Hook 时可从插件配置页打开。
 
-当前读取宿主 `spw.db` 的 `Listen` 表，按本地时间拆分为每日/每小时，按“同一首歌实际听满 50% 计一次”计算排行；封面通过 Workshop API 读取内嵌图片。主题、图表类型和粒度保存在插件配置中。导入导出的版本化备份采用保守合并策略。
+当前读取宿主 `spw.db` 的 `Listen` 表，同时通过播放扩展点实时累计位置差并保存 `live-sessions.json`；宿主写入 `Listen` 后按开始时间去重。统计按本地时间拆分为每日/每小时，按“同一首歌实际听满 50% 计一次”计算排行；封面通过 Workshop API 读取内嵌图片。主题、图表类型和粒度保存在插件配置中。导入导出的版本化备份采用保守合并策略。
 
-已知限制：入口是宿主主界面浮层 + 借助宿主主窗口尺寸的无边框页面，不是宿主原生导航页；统计通常在该次播放被宿主写入 `Listen` 后更新；Hook 目标类名绑定 1.19.0；未做宿主级鼠标交互自动化。详细说明见 [docs/NATIVE-IMPLEMENTATION.md](docs/NATIVE-IMPLEMENTATION.md)。
+已知限制：入口是宿主主界面浮层 + 借助宿主主窗口尺寸的无边框页面，不是宿主原生导航页；实时回调与状态机已测试，但测试环境的音频限制使真实播放/暂停/seek 的完整链路仍需你在本机确认；页面每 5 秒刷新；Hook 目标类名绑定 1.19.0；未做宿主级鼠标交互自动化。详细说明见 [docs/NATIVE-IMPLEMENTATION.md](docs/NATIVE-IMPLEMENTATION.md)。
 
 ![正式模组听歌概览](docs/screenshots/overview-light.png)
 

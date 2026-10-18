@@ -19,7 +19,8 @@ object StatsStore {
             return StatsData.empty(error = "无法定位播放器数据目录")
         }
         databasePath = path
-        return BackupService.merge(HostDatabase.load(path))
+        val host = HostDatabase.load(path)
+        return BackupService.merge(LiveStore.merge(host))
     }
 
     private fun resolveDatabasePath(pluginPath: String?): Path? {

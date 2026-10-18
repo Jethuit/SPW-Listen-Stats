@@ -32,7 +32,9 @@ build/install/spw-listen-stats/     # 可直接放进 PF4J 插件目录
 ## 数据
 
 - 只读宿主 `spw.db` 的 `Listen` / `Track`，按 `startTime + duration` 拆分到本地小时和日期；
-- 每首歌仅当单次 `Listen.duration ≥ Track.duration × 50%` 时计一次；
+- 播放扩展点驱动 `PlaybackTracker`：播放中用相邻位置差（0–3 秒）累计，暂停/seek/循环回跳不计；
+- 实时会话每 10 秒、暂停、切歌、结束和插件停用时写入 `live-sessions.json`；宿主 `Listen` 落库后按开始时间 ±10 秒去重，以宿主记录为准；
+- 每首歌仅当单次 `Listen.duration` 或实时会话累计时长 ≥ `Track.duration × 50%` 时计一次；
 - 统计不写入宿主数据库；
 - 备份为版本 1 JSON，带 SHA-256 校验，导入按日期/小时/次数取较大值合并。
 

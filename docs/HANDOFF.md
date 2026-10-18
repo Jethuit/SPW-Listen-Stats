@@ -10,9 +10,11 @@
 - 插件被 PF4J 加载，声明 `library-read`、`class-transform`；独立 `APPDATA` 测试配置中启用并授权；
 - 自附加 agent 成功后，`afterComposable` 在宿主 `AppNavigation` 后显示右下角“听歌统计”入口，点击打开与宿主同尺寸的无边框页面；
 - 真实读取宿主 `spw.db` 的 `Listen`/`Track`，概览与排行使用真实数据；封面通过 Workshop API 读取并显示；
+- `PlaybackExtension` 已接入 `PlaybackTracker`：播放中用位置差累计，暂停/seek/回跳不计，按本地时间拆分并持久化到 `live-sessions.json`；宿主 `Listen` 落库后按开始时间去重；
+- 状态机测试通过：60 次位置回调累计 60 秒、50% 计次、关闭时 finalize、保存/加载与宿主去重；宿主回调已实际收到 Idle/Buffering/Ready、`isPlaying=false` 与当前曲目解析；
 - 浅色/深色主题、JScrollPane 滚动、50 首分页和排行搜索已渲染通过。
 
-未完成/需用户确认：真实鼠标交互逐项点击（主题循环、日/周切换、点击热力图联动、图表类型、下拉、导入导出）、当前曲目实时进度叠加、宿主原生导航页（目前是浮层入口 + 独立页面窗口）、宿主升级后的 Hook 兼容。
+未完成/需用户确认：真实播放中的播放/暂停/seek/切歌与跨日累计（测试环境队列可恢复但 `play()` 未能产生 `isPlaying=true`）、真实鼠标交互逐项点击（主题循环、日/周切换、点击热力图联动、图表类型、下拉、导入导出）、宿主原生导航页（目前是浮层入口 + 独立页面窗口）、宿主升级后的 Hook 兼容。
 
 ## 原始交接说明
 

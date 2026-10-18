@@ -5,10 +5,8 @@ import org.sqlite.SQLiteConfig
 import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.DriverManager
-import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 
 object HostDatabase {
     private const val DRIVER = "org.sqlite.JDBC"
@@ -65,8 +63,7 @@ object HostDatabase {
                                     playCounts[trackId] = (playCounts[trackId] ?: 0) + 1
                                 }
                             }
-                            splitIntoHours(entry, zone, daily, hourly)
-                        }
+                            splitIntoHours(entry, zone, daily, hourly)                        }
                     }
                 }
 
@@ -114,19 +111,6 @@ object HostDatabase {
         daily: MutableMap<LocalDate, Long>,
         hourly: MutableMap<LocalDate, LongArray>
     ) {
-        var cursor = java.time.Instant.ofEpochMilli(entry.startTimeMs).atZone(zone)
-        val end = cursor.plusNanos(entry.durationMs * 1_000_000L)
-        while (cursor.isBefore(end)) {
-            val nextHour = cursor.truncatedTo(ChronoUnit.HOURS).plusHours(1)
-            val segmentEnd = if (end.isBefore(nextHour)) end else nextHour
-            val millis = Duration.between(cursor, segmentEnd).toMillis()
-            if (millis > 0) {
-                val date = cursor.toLocalDate()
-                daily[date] = (daily[date] ?: 0L) + millis
-                val hours = hourly.getOrPut(date) { LongArray(24) }
-                hours[cursor.hour] += millis
-            }
-            cursor = segmentEnd
-        }
+        TimeSplitter.split(entry.startTimeMs, entry.durationMs, zone, daily, hourly)
     }
 }

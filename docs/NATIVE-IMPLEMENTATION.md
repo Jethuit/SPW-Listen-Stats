@@ -14,7 +14,7 @@
 build/libs/plugin-com.jethuit.spw.listenstats-0.1.0.spmod
 ```
 
-本版不是最终完成版：宿主入口以浮层入口 + 独立页面窗口实现，实时进度依赖宿主写入 `Listen` 记录，导入采用保守合并策略。具体差异见“限制与未完成”。
+本版不是最终完成版：宿主入口以浮层入口 + 独立页面窗口实现；播放事件会实时累计并每 5 秒刷新页面，宿主写入 `Listen` 后按开始时间去重；导入采用保守合并策略。具体差异见“限制与未完成”。
 
 ## 构建
 
@@ -54,15 +54,18 @@ python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Pl
 ```text
 plugin/src/main/kotlin/com/jethuit/spw/listenstats/
   MainPlugin.kt             插件生命周期、UI Hook、配置页动作
-  PlaybackExtension.kt      PF4J 播放扩展点，记录状态/跳转诊断
+  PlaybackExtension.kt      PF4J 播放扩展点，转发到 PlaybackTracker
   PluginLog.kt              打包后无控制台时的文件日志
   PluginState.kt            插件路径与版本
   Prefs.kt                  主题、图表类型、粒度等本机偏好
   data/
     StatsModels.kt          统计模型、日期范围、排行项
     HostDatabase.kt         只读读取宿主 spw.db 的 Listen/Track
-    StatsStore.kt           定位数据库并合并本地备份
+    StatsStore.kt           定位数据库并合并实时会话、备份
     StatsCalculations.kt    汇总、连续天数、热力图周、图表分桶
+    PlaybackTracker.kt      播放事件状态机：位置差、暂停、seek、切歌
+    LiveStore.kt            实时会话持久化与去重合并
+    TimeSplitter.kt         单次收听跨小时/跨日拆分
     CoverStore.kt           通过 Workshop API 读取内嵌封面
     BackupService.kt        版本化备份、校验、保守合并
   ui/
@@ -81,8 +84,10 @@ plugin/src/main/kotlin/com/jethuit/spw/listenstats/
 ## 数据口径
 
 - 数据源：宿主 `%APPDATA%\Salt Player for Windows\spw.db` 的 `Listen` 与 `Track` 表，只读打开。
-- 每日/每小时：用 `Listen.startTime` 与 `duration` 按本地时区拆分到小时，再汇总到日。小时边界、跨日边界分别累计。
-- 每首播放次数：仅当该条 `Listen.duration >= Track.duration × 50%` 时计一次。`Track.playCount` 在测试库中全部为 0，因此不使用。
+- 实时会话：`PlaybackExtension` 的 `onIsPlayingChanged`、`onPositionUpdated`、`onSeekTo`、`onStateChanged` 驱动 `PlaybackTracker`。只在播放中用相邻位置差累计（0–3 秒）；暂停、seek、循环回跳不计入。会话每 10 秒、暂停、切歌、结束和插件停用时落盘到 `workshop/data/<id>/live-sessions.json`。
+- 去重：若宿主 `Listen` 存在同一 `trackId` 且开始时间相差 ≤10 秒的记录，以宿主记录为准并跳过实时会话；否则把实时会话加入统计。因此播放事件先提供实时数据，宿主落库后自动切换到权威记录。
+- 每日/每小时：用 `Listen.startTime` 与 `duration`（实时会话用会话开始时间与累计时长）按本地时区拆分到小时，再汇总到日。小时边界、跨日边界分别累计。
+- 每首播放次数：仅当该条 `Listen.duration` 或实时会话累计时长 `>= Track.duration × 50%` 时计一次。`Track.playCount` 在测试库中全部为 0，因此不使用。
 - 概览统计为全部记录；排行不受年份/日期筛选影响。
 - 热力图日分档：0、<30 分钟、<75 分钟、<135 分钟、≥135 分钟；周视图以本年度单周峰值为基准分四档并画最多 7 个自下而上的方格。
 - 时长分布按日期范围分桶；单日固定 24 小时，2–13 天按日，14 天以上可选按日/按周；周分组从范围起点每 7 天一组。
@@ -117,12 +122,14 @@ plugin/src/main/kotlin/com/jethuit/spw/listenstats/
 - 排行页：53 首达到 50% 计次，真实封面加载，前 50 首分页、排名/搜索/次数布局。
 - 浅色与深色主题均渲染；页面滚动通过 JScrollPane 生效，概览高度 1575px、排行 5187px。
 - 宿主 `Listen` 表可被 sqlite-jdbc 只读读取；插件包内含 native SQLite。
+- 播放扩展点实际收到 `Idle / Buffering / Ready`、`isPlaying=false` 并解析出当前曲目（含标题与 294 秒时长）。
+- 用动态代理模拟宿主 API 的状态机测试：播放中 60 次位置回调累计 60 秒、50% 计次、插件关闭时 finalize、`live-sessions.json` 落盘和重新加载均通过；同一开始时间的宿主 `Listen` 会抑制实时会话，避免重复计数。
 
 ## 限制与未完成
 
 1. **主页入口是浮层 + 独立窗口，不是宿主原生导航页。** 宿主未提供公开的插件页面注册 API；本版用 `afterComposable` 在 `AppNavigation` 后追加右下角入口，页面为宿主主窗口上的无边框 `JDialog`。视觉接近预览，但不是宿主 `ScreenRoute` 的一页。
 2. **Hook 目标与版本绑定。** 1.19.0 的目标调用类是 `androidx.compose.ui.ۄ`（混淆名），已硬编码；宿主升级后可能失效。失败时配置页入口仍可用。
-3. **实时性。** 当前统计以宿主已写入的 `Listen` 行为准；通常在该次播放结束/达到宿主记录条件后出现。没有按秒把当前进度叠加到图表。
+3. **实时链路未在真实播放中完整跑通。** 位置回调、状态回调、当前曲目解析已在宿主中确认；状态机与持久化用代理 API 测试通过。但测试环境的宿主队列虽有当前曲目，`play()` 没有产生 `isPlaying=true`（可能是测试环境音频/焦点限制），因此暂停、seek、切歌、跨日与宿主落库去重仍需在真实播放中逐项确认。页面每 5 秒刷新，实时数据不是逐帧刷新。
 4. **数据库是宿主内部格式。** 表缺失/升级时显示错误与空状态，不做猜测或伪造历史。插件不写入宿主数据库。
 5. **导入是保守合并**，不删除/回滚现有统计；导出包含已合并的统计。
 6. **封面仅内嵌来源。** 外部图片、读取失败、无封面显示占位图；没有做本地缓存持久化（仅内存）。
@@ -132,8 +139,8 @@ plugin/src/main/kotlin/com/jethuit/spw/listenstats/
 
 ## 后续优先级
 
-1. 在真实用户配置中安装、授权并逐项点击验证：主题循环、日/周热力图、悬停提示、点击日期联动、图表类型、范围/粒度下拉、搜索、分页、导入/导出。
-2. 增加当前曲目实时进度叠加，处理暂停、seek、跨日/跨小时和宿主写入延迟。
+1. 在真实用户配置中安装、授权并逐项点击验证：真实播放/暂停/seek/切歌、主题循环、日/周热力图、悬停提示、点击日期联动、图表类型、范围/粒度下拉、搜索、分页、导入/导出。
+2. 根据真实播放验证结果调整位置差阈值、宿主落库去重容差和会话 finalize 时机；补暂停尾段、休眠、跨日与循环播放测试。
 3. 如果宿主提供稳定页面入口，把 `JDialog` 页面迁移到宿主导航；同时维护 1.19.0 之外的 Hook 候选。
 4. 备份导入选择“合并/替换”策略；补导出文件大小与异常中断测试。
 5. 按真实用户反馈微调字号、间距、热力图尺寸与搜索框高度。
