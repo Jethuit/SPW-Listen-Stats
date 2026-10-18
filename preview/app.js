@@ -204,9 +204,11 @@
       const label = `${fullDateLabel(week.start)}起的一周`;
       button.setAttribute('aria-label', week.future ? `${label}，未来日期` : `${label}，统计范围 ${coverage}，听歌时长 ${duration(week.ms)}`);
       const filled = peakMs > 0 && week.ms > 0 ? Math.max(1, Math.ceil(week.ms / peakMs * 7)) : 0;
+      const colorLevel = peakMs > 0 && week.ms > 0 ? Math.min(4, Math.ceil(week.ms / peakMs * 4)) : 0;
       for (let row = 0; row < 7; row++) {
         const block = document.createElement('span');
         block.className = `week-block${row >= 7 - filled ? ' filled' : ''}`;
+        block.dataset.level = row >= 7 - filled ? colorLevel : 0;
         block.setAttribute('aria-hidden', 'true');
         button.append(block);
       }
@@ -253,7 +255,7 @@
     $('heatmap').classList.toggle('is-weekly', weekly);
     $('heatmap').setAttribute('aria-label', weekly ? '按周显示的年度听歌时长，每列代表周一至周日的一周' : '按日显示的年度听歌热力图');
     $('weekday-labels').hidden = weekly;
-    $('heatmap-legend').hidden = weekly;
+    $('heatmap-legend').hidden = false;
     $('weekly-scale-note').hidden = !weekly;
     document.querySelectorAll('[data-heatmap-mode]').forEach(button => {
       const active = button.dataset.heatmapMode === heatmapMode;
