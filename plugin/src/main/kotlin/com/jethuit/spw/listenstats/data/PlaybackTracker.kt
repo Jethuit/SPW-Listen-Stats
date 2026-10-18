@@ -30,7 +30,11 @@ object PlaybackTracker {
     private var hint: PlaybackExtensionPoint.MediaItem? = null
     private var permissionLogged = false
 
+    @Volatile
+    private var stopping = false
+
     fun initialize() {
+        stopping = false
         if (executor.isShutdown) {
             executor = newExecutor()
         }
@@ -40,6 +44,7 @@ object PlaybackTracker {
     }
 
     fun shutdown() {
+        stopping = true
         withLock {
             finalizeCurrent()
         }
@@ -152,7 +157,7 @@ object PlaybackTracker {
     }
 
     private fun applyResolved(item: PlaybackExtensionPoint.MediaItem, position: Long) {
-        if (item.id.isBlank()) return
+        if (stopping || item.id.isBlank()) return
         var duration = item.duration
         if (duration <= 0) {
             duration = try {
