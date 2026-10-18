@@ -503,7 +503,7 @@ private fun PageHeader(
                 ThemeMode.System -> "跟随系统 · 点击切换浅色"
                 ThemeMode.Light -> "浅色 · 点击切换深色"
                 ThemeMode.Dark -> "深色 · 点击跟随系统"
-            }, colors.muted, onTheme)
+            }, colors.muted, onTheme, tooltip = null)
             VerticalRule(colors.line, 17.dp)
             TextAction(IconPaths.Download, "导入", colors.text, onImport)
             TextAction(IconPaths.Upload, "导出", colors.text, onExport)

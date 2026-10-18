@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.jethuit.spw.listenstats.data.ChartBucket
 import com.jethuit.spw.listenstats.data.ChartType
 import com.jethuit.spw.listenstats.util.formatDuration
+import com.moriafly.salt.ui.LocalTextStyle
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -45,11 +46,13 @@ fun TrendChart(
 ) {
     val colors = LocalStatsColors.current
     val measurer = rememberTextMeasurer()
+    val hostFont = LocalTextStyle.current.fontFamily
+    val axisStyle = AppType.tiny.copy(fontFamily = hostFont)
     val viewportRevision = LocalViewportRevision.current
     var tooltip by remember(buckets, chartType, viewportRevision) { mutableStateOf<TooltipData?>(null) }
     var hoverIndex by remember(buckets, chartType, viewportRevision) { mutableStateOf<Int?>(null) }
-    val widestLabel = remember(buckets) {
-        buckets.maxOfOrNull { measurer.measure(it.label, AppType.tiny).size.width.toFloat() } ?: 0f
+    val widestLabel = remember(buckets, hostFont) {
+        buckets.maxOfOrNull { measurer.measure(it.label, axisStyle).size.width.toFloat() } ?: 0f
     }
 
     val values = buckets.map { it.millis }
@@ -152,7 +155,7 @@ fun TrendChart(
                         if (!nearAverage) {
                             val layout = measurer.measure(
                                 label,
-                                AppType.tiny.copy(color = colors.muted)
+                                axisStyle.copy(color = colors.muted)
                             )
                             drawText(
                                 layout,
@@ -171,7 +174,7 @@ fun TrendChart(
                     val lastBucket = buckets.last()
                     val lastLayout = measurer.measure(
                         lastBucket.label,
-                        AppType.tiny.copy(color = colors.muted)
+                        axisStyle.copy(color = colors.muted)
                     )
                     val lastCenter = xAt(buckets.lastIndex)
                     val lastLeft = lastCenter - lastLayout.size.width / 2f
@@ -182,7 +185,7 @@ fun TrendChart(
                         val shouldDraw = isFirst || index % step == 0
                         if (!shouldDraw) return@forEachIndexed
                         val label = bucket.label
-                        val layout = measurer.measure(label, AppType.tiny.copy(color = colors.muted))
+                        val layout = measurer.measure(label, axisStyle.copy(color = colors.muted))
                         val center = xAt(index)
                         if (center - layout.size.width / 2f < 0f) return@forEachIndexed
                         if (center + layout.size.width / 2f > lastLeft - 6f) return@forEachIndexed
@@ -274,7 +277,7 @@ fun TrendChart(
                         val label = UiGeometry.tick(average, yMax / tickCount)
                         val layout = measurer.measure(
                             label,
-                            AppType.tiny.copy(
+                            axisStyle.copy(
                                 color = colors.accent,
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                             )

@@ -1,6 +1,19 @@
 # 新聊天交接
 
-## 最新：0.1.7 选择框去描边
+## 最新：0.1.8 排行榜/封面/字体修复
+
+用户对当前宿主内嵌页提出 5 项，已修：
+
+- 排行页顶部页码删除，只在列表底部保留分页。
+- 播放次数列固定 96dp，表头和数值居中；其余列按剩余宽度 56%/44% 分配。
+- 字体：正文已经走 SaltUI `Text`/`SaltTheme` 的宿主字体；图表和热力图 canvas 文字改用 SaltUI `LocalTextStyle.current.fontFamily`，配合原有 sp 字号，随 SPW 字体和缩放走，不再固定系统字体。
+- 封面：`CoverStore` 不再缓存失败/空结果；失败后进入 30 秒冷却，页面每 5 秒刷新时重试，成功后再缓存。仍只能读取宿主内嵌封面；无内嵌封面的曲目保持占位图。
+- 主题按钮的“跟随系统…”黑色 tooltip 删除（`tooltip=null`）；返回键此前已删除 tooltip。黑色提示不再出现。
+- 单日横轴 4 小时标签、纵轴“时长/h”、底部 96dp、热力图取消选择等 0.1.6 修复继续保留；右侧 SelectBox 描边已在 0.1.7 删除。
+
+0.1.8 只做了构建、13 组数据回归、4 组几何回归、107 项包结构检查；没有宿主截图。分页位置、封面重试、字体和黑色提示需要在正常 SPW 中核对。
+
+## 0.1.7 选择框去描边
 
 用户补充：左侧“每天/每周”分组没有描边，右侧年份/日期选择框也应无描边。0.1.7 删除 `SelectBox` 的 1px border，只保留 `subtle` 背景，与左侧分组一致。
 
@@ -76,8 +89,8 @@ SaltUI 已用于主题、滚动、文本和概览/错误卡片；热力图、部
 ## 路径
 
 - 正式源码 `plugin/src/main/kotlin/com/jethuit/spw/listenstats/`
-- 构建 `tools/build_plugin.py`，版本 0.1.7
-- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.7.spmod`
+- 构建 `tools/build_plugin.py`，版本 0.1.8
+- 产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.8.spmod`
 - 数据回归 `tests/DataRegressionTest.kt`、`tests/run-data-tests.py`（data / ui 两个 suite）
 - 结构检查 `tests/spmod-structure.py`
 - 详细设计和限制 `docs/NATIVE-IMPLEMENTATION.md`

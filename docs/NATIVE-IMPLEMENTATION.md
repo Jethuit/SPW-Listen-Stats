@@ -1,6 +1,6 @@
 # 正式模组实现说明
 
-更新时间：2026-10-18。当前源码版本 0.1.7；视觉基准仍为 `preview/`。0.1.5 将统计页内嵌到宿主内容区，移除独立窗口/浮动入口，并打包 SaltUI 3.0.0-beta02（宿主 Salt UI 3.0.0-SNAPSHOT / CMP 1.12.1）。0.1.6 修选择框底色、热力图取消选择、图表文案/横轴、底部遮挡和返回键；0.1.7 删除选择框描边。旧版运行截图不能证明新版已经在宿主中验收。
+更新时间：2026-10-18。当前源码版本 0.1.8；视觉基准仍为 `preview/`。0.1.5 将统计页内嵌到宿主内容区，移除独立窗口/浮动入口，并打包 SaltUI 3.0.0-beta02（宿主 Salt UI 3.0.0-SNAPSHOT / CMP 1.12.1）。0.1.8 修排行榜重复分页、播放次数固定列、封面重试、canvas 字体和黑色 tooltip；旧版运行截图不能证明新版已经在宿主中验收。
 
 ![0.1.0 历史运行截图](screenshots/overview-light.png)
 
@@ -11,9 +11,17 @@ python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Sa
 python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.7.spmod`。在 SPW 创意工坊“本地导入”，启用并授权 `library-read` 和 `class-transform`。使用宿主 1.19.0 的 fat jar 作编译类路径；JDK 25 / Kotlin 2.4.20 / sqlite-jdbc / SaltUI 3.0.0-beta02 与宿主包缓存在 `build/tools/`，均不提交。
+产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.8.spmod`。在 SPW 创意工坊“本地导入”，启用并授权 `library-read` 和 `class-transform`。使用宿主 1.19.0 的 fat jar 作编译类路径；JDK 25 / Kotlin 2.4.20 / sqlite-jdbc / SaltUI 3.0.0-beta02 与宿主包缓存在 `build/tools/`，均不提交。
 
 入口只在模块管理页插件配置的“打开听歌统计”。页面通过 `AppNavigation` 的 `afterComposable` hook 注入宿主内容区，不创建 `JDialog` 或 `Popup`；宿主侧栏和底部播放栏保留。当前关闭/返回按钮位于内容区左上角，样式待确认。
+
+## 0.1.8 排行榜/封面/字体
+
+- 排行分页只保留列表底部，顶部页码删除。
+- 播放次数列固定 96dp，表头与数值居中；其余宽度按 56%/44% 分配。
+- `CoverStore` 不再缓存 null/失败；失败后 30 秒冷却重试，封面成功才缓存。只使用宿主内嵌封面，无内嵌封面保持占位图。
+- 正文继续使用 SaltUI `Text`；`TrendChart`/`YearHeatmap` canvas 文字使用 SaltUI `LocalTextStyle.current.fontFamily`，字号继续用 sp，随宿主字体和缩放。
+- 主题按钮删除黑色 tooltip；返回键此前已删除，只保留无障碍名称。
 
 ## 0.1.7 选择框去描边
 

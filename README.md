@@ -6,18 +6,18 @@ GitHub：<https://github.com/Jethuit/SPW-Listen-Stats>。正式实现说明、�
 
 ## 正式模组
 
-当前 0.1.7 在 0.1.6 的反馈修复上删除右侧选择框描边，使其与左侧“每天/每周”分组一致；0.1.6 已修右侧底色、热力图取消选择、纵轴“时长/h”/单日 4 小时横轴、底部 96dp 预留和返回键 tooltip/箭头样式。SaltUI 主题、滚动、文本和卡片继续保留。
+当前 0.1.8 修掉排行榜顶部重复分页、热力图取消选择、图表坐标文案、底部遮挡和返回键 tooltip；同时把播放次数列固定为 96dp 并居中，封面加载失败改为 30 秒冷却后重试，图表/热力图 canvas 文字使用 SaltUI 的宿主字体族。0.1.7 已去掉右侧选择框描边。
 
 ```powershell
 python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-产物为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.7.spmod`，在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。入口在模块管理页的插件配置“打开听歌统计”；不再有主界面浮动入口。
+产物为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.8.spmod`，在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。入口在模块管理页的插件配置“打开听歌统计”；不再有主界面浮动入口。
 
 当前只读宿主 `spw.db` 的 `Listen` 表，同时通过播放扩展点、单调时钟和实际收听片段保存 `live-sessions.json`；每遍听满 50% 为该歌曲计一次。新版正式备份 v2 按会话身份合并去重，兼容旧 v1 汇总并提示其保守合并可能少计。宿主历史缺少暂停片段，小时分布仍为近似，实时/宿主记录匹配也仍依赖开始时间启发式。封面通过 Workshop API 读取；主题、图表类型和粒度保存在插件配置中。
 
-已知限制：页面通过 `AppNavigation` hook 占住宿主右侧内容区，不是宿主原生导航路由；Hook 目标类名绑定 1.19.0；侧栏仍可点击宿主原页面。真实播放/暂停/seek、宿主落库去重仍需本机验收；页面每 5 秒刷新。SaltUI 已打包 3.0.0-beta02，主题/滚动/文本/卡片已接入；按钮、分段控件、热力图和固定 dp 的响应式替换尚未完成。0.1.5 的内嵌与滚动已在隔离配置中截图验证，见 `build/screenshots/embed_saltui.png`（不提交）；0.1.7 的细节改动需要用户重新核对。下图来自先前 0.1.0，不代表新版已运行验收。数据检查命令为 `python tests/run-data-tests.py data|ui`，需先构建。详细说明见 [docs/NATIVE-IMPLEMENTATION.md](docs/NATIVE-IMPLEMENTATION.md)。
+已知限制：页面通过 `AppNavigation` hook 占住宿主右侧内容区，不是宿主原生导航路由；Hook 目标类名绑定 1.19.0；侧栏仍可点击宿主原页面。真实播放/暂停/seek、宿主落库去重仍需本机验收；页面每 5 秒刷新。SaltUI 已打包 3.0.0-beta02，主题/滚动/文本/卡片已接入；按钮、分段控件、热力图和固定 dp 的响应式替换尚未完成。封面仅能读取宿主内嵌封面，失败 30 秒后重试；无内嵌封面的曲目保持占位图。0.1.8 的改动需要用户重新核对；0.1.5 的内嵌截图见 `build/screenshots/`（不提交）。下图来自先前 0.1.0，不代表新版已运行验收。数据检查命令为 `python tests/run-data-tests.py data|ui`，需先构建。详细说明见 [docs/NATIVE-IMPLEMENTATION.md](docs/NATIVE-IMPLEMENTATION.md)。
 
 ![正式模组听歌概览](docs/screenshots/overview-light.png)
 

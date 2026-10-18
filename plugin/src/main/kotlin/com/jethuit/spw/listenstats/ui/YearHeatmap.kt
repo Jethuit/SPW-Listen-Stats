@@ -29,6 +29,7 @@ import com.jethuit.spw.listenstats.data.StatsData
 import com.jethuit.spw.listenstats.data.WeeklyCell
 import com.jethuit.spw.listenstats.util.formatDay
 import com.jethuit.spw.listenstats.util.formatDuration
+import com.moriafly.salt.ui.LocalTextStyle
 import java.time.LocalDate
 import kotlin.math.floor
 import kotlin.math.max
@@ -46,6 +47,7 @@ fun YearHeatmap(
 ) {
     val colors = LocalStatsColors.current
     val measurer = rememberTextMeasurer()
+    val labelStyle = AppType.tiny.copy(fontFamily = LocalTextStyle.current.fontFamily)
     val grid = remember(year) { StatsCalculations.heatmapGrid(year) }
     val weeks = remember(data, grid, today, weekly) {
         if (weekly) StatsCalculations.weeklyCells(data, grid, today) else emptyList()
@@ -172,7 +174,7 @@ fun YearHeatmap(
                         val first = LocalDate.of(year, month, 1)
                         val week = ((first.toEpochDay() - grid.gridStart.toEpochDay()) / 7).toInt()
                         val x = cellX(week)
-                        val layout = measurer.measure("$month" + "月", AppType.tiny.copy(color = colors.muted))
+                        val layout = measurer.measure("$month" + "月", labelStyle.copy(color = colors.muted))
                         if (x > lastLabelRight + 4f) {
                             drawText(
                                 layout,
@@ -188,7 +190,7 @@ fun YearHeatmap(
                         val row = index * 2
                         val layout = measurer.measure(
                             label,
-                            AppType.tiny.copy(fontSize = 10.sp, color = colors.muted)
+                            labelStyle.copy(fontSize = 10.sp, color = colors.muted)
                         )
                         drawText(
                             layout,

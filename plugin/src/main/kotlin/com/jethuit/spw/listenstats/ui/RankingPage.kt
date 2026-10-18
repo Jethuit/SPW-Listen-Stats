@@ -139,14 +139,11 @@ fun RankingPage(
                 pageSummary(filtered.size, from, to),
                 style = AppType.tiny.copy(color = colors.muted)
             )
-            if (totalPages > 1) {
-                Pagination(currentPage, totalPages, onPageChange)
-            }
         }
         Box(Modifier.height(8.dp))
         SongTableHeader()
         rows.forEachIndexed { index, rank ->
-            SongRow(rank, from + index + 1)
+            SongRow(rank, from + index + 1, data.loadedAt)
         }
         if (rows.isEmpty()) {
             Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
@@ -201,7 +198,7 @@ private fun SongTableHeader() {
                 "播放次数",
                 modifier = Modifier.width(widths.count),
                 style = AppType.tableHead.copy(color = colors.muted),
-                textAlign = androidx.compose.ui.text.style.TextAlign.End
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
         Box(
@@ -214,7 +211,7 @@ private fun SongTableHeader() {
 }
 
 @Composable
-private fun SongRow(rank: TrackRank, position: Int) {
+private fun SongRow(rank: TrackRank, position: Int, coverRevision: Long) {
     val colors = LocalStatsColors.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val widths = tableWidths(maxWidth)
@@ -238,7 +235,7 @@ private fun SongRow(rank: TrackRank, position: Int) {
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Cover(rank.track.id)
+                        Cover(rank.track.id, coverRevision)
                         Column {
                             Text(
                                 rank.track.title,
@@ -267,7 +264,7 @@ private fun SongRow(rank: TrackRank, position: Int) {
                     )
                     Row(
                         Modifier.width(widths.count),
-                        horizontalArrangement = Arrangement.End,
+                        horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.Bottom
                     ) {
                         Text(
@@ -293,11 +290,11 @@ private fun SongRow(rank: TrackRank, position: Int) {
 }
 
 @Composable
-private fun Cover(trackId: String) {
+private fun Cover(trackId: String, retryKey: Long) {
     val colors = LocalStatsColors.current
     var image by remember(trackId) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(trackId) {
-        image = withContext(Dispatchers.IO) { CoverStore.load(trackId) }
+    LaunchedEffect(trackId, retryKey) {
+        if (image == null) image = withContext(Dispatchers.IO) { CoverStore.load(trackId) }
     }
     Surface(
         modifier = Modifier.size(44.dp),
@@ -333,9 +330,10 @@ private data class TableWidths(
 
 private fun tableWidths(maxWidth: Dp): TableWidths {
     val rank = 48.dp
-    val song = maxWidth * 0.44f
-    val album = maxWidth * 0.30f
-    val count = (maxWidth - rank - song - album).coerceAtLeast(0.dp)
+    val count = 96.dp
+    val remaining = (maxWidth - rank - count).coerceAtLeast(0.dp)
+    val song = remaining * 0.56f
+    val album = remaining - song
     return TableWidths(rank, song, album, count)
 }
 
