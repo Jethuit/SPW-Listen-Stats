@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+@file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class, com.moriafly.salt.ui.UnstableSaltUiApi::class)
 
 package com.jethuit.spw.listenstats.ui
 
@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.moriafly.salt.ui.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,6 +45,7 @@ import com.jethuit.spw.listenstats.data.StatsCalculations
 import com.jethuit.spw.listenstats.data.StatsData
 import com.jethuit.spw.listenstats.data.StatsStore
 import com.jethuit.spw.listenstats.util.formatDay
+import com.moriafly.salt.ui.Card as SaltCard
 import com.moriafly.salt.ui.SaltTheme
 import com.moriafly.salt.ui.rememberScrollState
 import com.moriafly.salt.ui.saltConfigs
@@ -442,11 +443,11 @@ fun ListenStatsApp(
                     // Host-composed page: no title bar, so keep the close affordance
                     // outside the preview page column.
                     IconAction(
-                        IconPaths.Close,
-                        "关闭",
+                        IconPaths.ArrowBack,
+                        "返回宿主",
                         colors.muted,
                         onClose,
-                        modifier = Modifier.align(Alignment.TopEnd).padding(top = 20.dp, end = 20.dp)
+                        modifier = Modifier.align(Alignment.TopStart).padding(top = 20.dp, start = 20.dp)
                     )
                 }
             }
@@ -581,7 +582,7 @@ private fun PageFooter(data: StatsData) {
 @Composable
 private fun ErrorBanner(message: String) {
     val colors = LocalStatsColors.current
-    Surface(
+    SaltCard(
         shape = AppShape(10.dp),
         color = colors.subtle,
         border = androidx.compose.foundation.BorderStroke(1.dp, SolidColor(colors.line))
@@ -597,7 +598,7 @@ private fun ErrorBanner(message: String) {
 @Composable
 private fun EmptyBanner() {
     val colors = LocalStatsColors.current
-    Surface(
+    SaltCard(
         shape = AppShape(10.dp),
         color = colors.subtle
     ) {

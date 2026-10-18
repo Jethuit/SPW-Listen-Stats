@@ -20,7 +20,8 @@ python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Pl
 - `MainPlugin.openStats` 设置 `StatsHostState.visible`；`StatsOverlay` 直接在宿主编排中渲染 `ListenStatsApp(embedded = true)`。不再调用 `StatsWindow.open()`，不再创建窗口，也没有 `toFront`/置顶。
 - 删除右下角 `Popup` pill；入口只保留模块管理页配置按钮。
 - SaltUI 依赖来自 Maven 的 `io.github.moriafly:salt-ui-desktop:3.0.0-beta02` 与 `salt-core-desktop:3.0.0-beta02`；宿主显示 Salt UI 3.0.0-SNAPSHOT、CMP 1.12.1，beta02 对应同一 CMP 线。两个 jar 放入 `.spmod` 的 `lib/`。
-- 页面包在 `SaltTheme(configs = saltConfigs(isDark))` 中；滚动使用 SaltUI `rememberScrollState`/`verticalScroll`，所以内嵌页可以滚到图表和听歌小结。
+- 页面包在 `SaltTheme(configs = saltConfigs(isDark))` 中；滚动使用 SaltUI `rememberScrollState`/`verticalScroll`，文本使用 SaltUI `Text`，概览卡片/错误卡片使用 SaltUI `Card`；热力图、部分按钮/分段控件和固定尺寸仍待迁移。
+- 返回按钮位于内容区左上角，使用返回箭头，语义为回到宿主原页面。
 - 侧栏/播放栏仍可操作；当前页面不是宿主原生导航路由，hook 目标仍是 1.19.0 的 `androidx.compose.ui.ۄ`。
 - 卡片、按钮、文本、热力图等大部分仍是 Material3/自绘实现；SaltUI 目前承担主题与滚动，组件迁移待用户确认。
 

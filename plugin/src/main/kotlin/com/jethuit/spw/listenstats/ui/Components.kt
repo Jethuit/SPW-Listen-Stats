@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+@file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class, com.moriafly.salt.ui.UnstableSaltUiApi::class)
 
 package com.jethuit.spw.listenstats.ui
 
@@ -18,7 +18,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.moriafly.salt.ui.Card as SaltCard
+import com.moriafly.salt.ui.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
@@ -285,7 +286,7 @@ fun SummaryStrip(
     val colors = LocalStatsColors.current
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val itemWidth = (maxWidth - 8.dp) / columnCount
-        Surface(
+        SaltCard(
             modifier = Modifier.fillMaxWidth(),
             shape = AppShape(15.dp),
             color = colors.background,

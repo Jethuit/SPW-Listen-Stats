@@ -6,13 +6,13 @@
 
 - 当前页面通过 `AppNavigation` hook 直接注入宿主右侧内容区，不再创建 `JDialog` 或 Compose `Popup`；宿主侧栏和底部播放栏保留，页面占据中间内容区。无独立窗口、无拖动、无置顶。
 - 右下角浮动 pill 已删除；唯一入口是 **模块管理页 → 插件配置 → 打开听歌统计**（`preference_config.json` 的按钮）。`MainPlugin.openStats` 现在设置 `StatsHostState.visible`。
-- SaltUI 版本由宿主“更多”页确认为 **3.0.0-SNAPSHOT / CMP 1.12.1**；Maven 对应的发布版是 **3.0.0-beta02**。已下载并打包 `salt-ui-desktop-3.0.0-beta02.jar`、`salt-core-desktop-3.0.0-beta02.jar` 到插件 `lib/`，使用 `SaltTheme` + SaltUI `verticalScroll`。
+- SaltUI 版本由宿主“更多”页确认为 **3.0.0-SNAPSHOT / CMP 1.12.1**；Maven 对应的发布版是 **3.0.0-beta02**。已下载并打包 `salt-ui-desktop-3.0.0-beta02.jar`、`salt-core-desktop-3.0.0-beta02.jar` 到插件 `lib/`，使用 `SaltTheme`、SaltUI `verticalScroll`、`Text` 和 `Card`。
 - 滚动改为 SaltUI `rememberScrollState`/`verticalScroll`，宿主内嵌页可滚动到图表与听歌小结。
-- 当前关闭按钮显示在内容区左上角（原 X），这是内嵌页的临时返回/关闭 affordance；位置和图标还需要用户确认。
+- 当前关闭/返回按钮是内容区左上角的返回箭头，和宿主“更多”页的返回位置一致；点击回到宿主原页面。
 
 隔离配置实测（截图 `build/screenshots/embed_proto.png`、`embed_scrolled.png`，不提交）：页面确实嵌入宿主内容区，侧栏/播放栏未被遮挡；滚轮可滚动，图表 tooltip、听歌小结正常。**仍未在用户正常 Steam 启动中验收，且配置页入口的点击链路尚未由用户确认。**
 
-当前仍使用 Material3/自绘的卡片、按钮、文本和热力图；SaltUI 目前承担主题和滚动。是否把所有控件都换成 SaltUI 组件、以及左上角关闭/返回的具体样式，需要用户确认，不能默认继续改。
+SaltUI 已用于主题、滚动、文本和概览/错误卡片；热力图、部分按钮/分段控件和固定尺寸仍待迁移。后续按“逐步换成 SaltUI 组件”的确认继续，不再默认改布局。
 
 ## 0.1.4 按 preview 布局对齐
 
