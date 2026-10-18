@@ -63,6 +63,11 @@
       <div class="section-heading">
         <div><h2 id="trend-title">听歌趋势</h2><p class="section-caption" id="trend-caption"></p></div>
         <div class="section-controls">
+          <div class="chart-type-toggle" role="group" aria-label="趋势图类型">
+            <button type="button" data-chart-type="bar" aria-pressed="false" title="柱状图"><svg class="material-icon" viewBox="0 -960 960 960" aria-hidden="true" focusable="false"><path d="M640-160v-280h160v280H640Zm-240 0v-640h160v640H400Zm-240 0v-440h160v440H160Z"/></svg><span>柱状图</span></button>
+            <button type="button" data-chart-type="line" class="active" aria-pressed="true" title="折线图"><svg class="material-icon" viewBox="0 -960 960 960" aria-hidden="true" focusable="false"><path d="m140-220-60-60 300-300 160 160 284-320 56 56-340 384-160-160-240 240Z"/></svg><span>折线图</span></button>
+            <button type="button" data-chart-type="curve" aria-pressed="false" title="曲线图"><svg class="material-icon" viewBox="0 -960 960 960" aria-hidden="true" focusable="false"><path d="m136-220-56-58 300-300 160 160 116-130q-51-60-120-95t-152-35q-71 0-134 26.5T136-580l-56-58q62-56 139-88t165-32q98 0 181 39.5T710-608l114-130 56 58-120 136q33 53 53.5 115T840-298h-80q-6-50-20.5-95.5T702-480L544-302 380-464 136-220Z"/></svg><span>曲线图</span></button>
+          </div>
           <label class="select-wrap"><span class="sr-only">趋势图日期范围</span><select id="range-select"><option value="7">近 7 天</option><option value="30" selected>近 30 天</option><option value="month">本月</option><option value="today">今天</option><option value="selected" hidden>所选日期</option><option value="custom">自定义日期</option></select><span class="select-chevron">⌄</span></label>
           <label class="select-wrap"><span class="sr-only">趋势图统计粒度</span><select id="granularity-select"><option value="day">按日</option><option value="week">按周</option><option value="hour">按小时</option></select><span class="select-chevron">⌄</span></label>
         </div>

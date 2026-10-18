@@ -16,6 +16,9 @@
     set(key, value) { try { localStorage.setItem(key, value); } catch { /* Local files may disable storage. */ } }
   };
   let theme = safeStorage.get('spw-preview-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const chartTypes = { bar: '柱状图', line: '折线图', curve: '曲线图' };
+  const savedChartType = safeStorage.get('spw-preview-chart-type');
+  let chartType = Object.hasOwn(chartTypes, savedChartType) ? savedChartType : 'line';
   let selectedDay = null;
   let range = '30';
   let customStart = addDays(TODAY, -29);
@@ -237,6 +240,59 @@
     return (fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 4 ? 4 : fraction <= 5 ? 5 : 10) * magnitude;
   }
 
+  // Monotone cubic interpolation: each segment stays between its two measured endpoints.
+  function chartPath(points, smooth = false) {
+    if (!points.length) return '';
+    const coordinate = value => Number(value.toFixed(3));
+    let path = `M${coordinate(points[0].x)},${coordinate(points[0].y)}`;
+    if (!smooth || points.length < 2) {
+      return path + points.slice(1).map(point => ` L${coordinate(point.x)},${coordinate(point.y)}`).join('');
+    }
+    const intervals = points.slice(1).map((point, index) => point.x - points[index].x);
+    const slopes = points.slice(1).map((point, index) => (point.y - points[index].y) / intervals[index]);
+    const tangents = [slopes[0]];
+    for (let i = 1; i < points.length - 1; i++) {
+      if (slopes[i - 1] * slopes[i] <= 0) tangents.push(0);
+      else {
+        const w1 = 2 * intervals[i] + intervals[i - 1];
+        const w2 = intervals[i] + 2 * intervals[i - 1];
+        tangents.push((w1 + w2) / (w1 / slopes[i - 1] + w2 / slopes[i]));
+      }
+    }
+    tangents.push(slopes[slopes.length - 1]);
+    for (let i = 0; i < slopes.length; i++) {
+      if (slopes[i] === 0) { tangents[i] = 0; tangents[i + 1] = 0; continue; }
+      const a = tangents[i] / slopes[i], b = tangents[i + 1] / slopes[i];
+      const magnitude = Math.hypot(a, b);
+      if (magnitude > 3) {
+        tangents[i] *= 3 / magnitude;
+        tangents[i + 1] *= 3 / magnitude;
+      }
+    }
+    for (let i = 0; i < points.length - 1; i++) {
+      const step = intervals[i] / 3;
+      const from = points[i], to = points[i + 1];
+      path += ` C${coordinate(from.x + step)},${coordinate(from.y + tangents[i] * step)} ${coordinate(to.x - step)},${coordinate(to.y - tangents[i + 1] * step)} ${coordinate(to.x)},${coordinate(to.y)}`;
+    }
+    return path;
+  }
+
+  function syncChartTypeButtons() {
+    document.querySelectorAll('[data-chart-type]').forEach(button => {
+      const active = button.dataset.chartType === chartType;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+  }
+
+  function setChartType(type) {
+    if (!Object.hasOwn(chartTypes, type)) return;
+    chartType = type;
+    safeStorage.set('spw-preview-chart-type', type);
+    syncChartTypeButtons();
+    hideTooltip(); renderChart();
+  }
+
   function renderChart() {
     if ($('overview-page').hidden) return;
     const [start, end] = getRange();
@@ -257,8 +313,10 @@
     const left = 37, right = width - 10, top = 10, bottom = height - 30;
     chartBounds = { left, right, top, bottom, width, height };
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-    svg.setAttribute('aria-label', `${dateLabel(start)}至${dateLabel(end)}听歌时长趋势图，下方可展开数据表`);
-    const xAt = index => left + (chartPoints.length === 1 ? (right - left) / 2 : index * (right - left) / (chartPoints.length - 1));
+    svg.dataset.chartType = chartType;
+    svg.setAttribute('aria-label', `${dateLabel(start)}至${dateLabel(end)}听歌时长${chartTypes[chartType]}，下方可展开数据表`);
+    const slotWidth = (right - left) / chartPoints.length;
+    const xAt = index => chartType === 'bar' ? left + (index + 0.5) * slotWidth : left + (chartPoints.length === 1 ? (right - left) / 2 : index * (right - left) / (chartPoints.length - 1));
     const yAt = value => bottom - value / max * (bottom - top);
     let markup = '';
     for (let tick = 0; tick <= 4; tick++) {
@@ -266,10 +324,19 @@
       const y = yAt(value);
       markup += `<line class="chart-grid" x1="${left}" x2="${right}" y1="${y}" y2="${y}"/><text class="chart-tick" x="${left - 12}" y="${y + 4}" text-anchor="end">${Number(value.toFixed(1))}</text>`;
     }
-    const pointPath = values.map((value, index) => `${index ? 'L' : 'M'}${xAt(index).toFixed(2)},${yAt(value).toFixed(2)}`).join(' ');
-    if (values.length > 1) markup += `<path class="chart-area" d="${pointPath} L${xAt(values.length - 1)},${bottom} L${xAt(0)},${bottom} Z"/>`;
-    markup += `<path class="chart-line" d="${pointPath}"/>`;
-    if (values.length === 1) markup += `<circle class="chart-point" cx="${xAt(0)}" cy="${yAt(values[0])}" r="3"/>`;
+    if (chartType === 'bar') {
+      const barWidth = Math.min(32, slotWidth * 0.65);
+      values.forEach((value, index) => {
+        if (value <= 0) return;
+        const y = yAt(value), barHeight = bottom - y;
+        markup += `<rect class="chart-bar" data-point-index="${index}" x="${xAt(index) - barWidth / 2}" y="${y}" width="${barWidth}" height="${barHeight}" rx="${Math.min(3, barWidth / 3, barHeight / 2)}"/>`;
+      });
+    } else {
+      const pointPath = chartPath(values.map((value, index) => ({ x: xAt(index), y: yAt(value) })), chartType === 'curve');
+      if (values.length > 1) markup += `<path class="chart-area" d="${pointPath} L${xAt(values.length - 1)},${bottom} L${xAt(0)},${bottom} Z"/>`;
+      markup += `<path class="chart-line" d="${pointPath}"/>`;
+      if (values.length === 1) markup += `<circle class="chart-point" cx="${xAt(0)}" cy="${yAt(values[0])}" r="3"/>`;
+    }
     const labelCount = Math.min(width < 500 ? 4 : 7, chartPoints.length);
     for (let label = 0; label < labelCount; label++) {
       const index = labelCount === 1 ? 0 : Math.round(label * (chartPoints.length - 1) / (labelCount - 1));
@@ -315,8 +382,10 @@
     if (!chartBounds || !chartPoints.length || !$('chart-empty').hidden) return;
     const rect = $('trend-chart').getBoundingClientRect();
     const localX = event.clientX - rect.left;
-    const index = chartPoints.length === 1 ? 0 : Math.max(0, Math.min(chartPoints.length - 1, Math.round((localX - chartBounds.left) / (chartBounds.right - chartBounds.left) * (chartPoints.length - 1))));
+    const index = chartPoints.length === 1 ? 0 : Math.max(0, Math.min(chartPoints.length - 1, Math.round((localX - chartPoints[0].x) / (chartPoints[chartPoints.length - 1].x - chartPoints[0].x) * (chartPoints.length - 1))));
     const point = chartPoints[index];
+    $('trend-chart').querySelector('.chart-bar.is-active')?.classList.remove('is-active');
+    $('trend-chart').querySelector(`[data-point-index="${index}"]`)?.classList.add('is-active');
     const line = $('chart-crosshair');
     line.setAttribute('x1', point.x); line.setAttribute('x2', point.x);
     line.setAttribute('y1', chartBounds.top); line.setAttribute('y2', chartBounds.bottom);
@@ -414,6 +483,7 @@
     };
   }
 
+  document.querySelectorAll('[data-chart-type]').forEach(button => button.addEventListener('click', () => setChartType(button.dataset.chartType)));
   $('song-search').addEventListener('input', renderSongs);
   $('song-sort').addEventListener('change', renderSongs);
   addEventListener('hashchange', () => { renderPage(); window.scrollTo(0, 0); });
@@ -432,7 +502,10 @@
     $('theme-toggle').setAttribute('aria-label', `切换到${theme === 'dark' ? '浅色' : '深色'}主题`);
   });
   $('trend-chart').addEventListener('pointermove', showChartPoint);
-  $('trend-chart').addEventListener('pointerleave', () => { hideTooltip(); $('chart-hover')?.setAttribute('visibility', 'hidden'); });
+  $('trend-chart').addEventListener('pointerleave', () => {
+    hideTooltip(); $('chart-hover')?.setAttribute('visibility', 'hidden');
+    $('trend-chart').querySelector('.chart-bar.is-active')?.classList.remove('is-active');
+  });
   addEventListener('scroll', hideTooltip, { passive: true, capture: true });
   $('date-cancel').addEventListener('click', () => $('date-dialog').close());
   $('date-form').addEventListener('submit', event => {
@@ -472,6 +545,7 @@
   });
 
   document.documentElement.dataset.theme = theme;
+  syncChartTypeButtons();
   setupYears(); renderSummary(); renderHeatmap(); renderSongs(); renderPage();
   new ResizeObserver(() => { hideTooltip(); renderChart(); }).observe($('chart-wrapper'));
 })();
