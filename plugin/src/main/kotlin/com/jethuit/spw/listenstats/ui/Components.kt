@@ -193,8 +193,7 @@ fun SelectBox(
         Surface(
             onClick = { expanded = true },
             shape = AppShape(7.dp),
-            color = colors.subtle,
-            border = BorderStroke(1.dp, SolidColor(colors.line))
+            color = colors.subtle
         ) {
             Row(
                 Modifier
