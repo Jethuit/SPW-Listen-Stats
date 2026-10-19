@@ -248,6 +248,7 @@ fun ListenStatsApp(
     var customEnd by remember { mutableStateOf<LocalDate?>(null) }
     var query by remember { mutableStateOf("") }
     var rankPage by remember { mutableStateOf(1) }
+    var bottomScrollRequest by remember { mutableStateOf(0) }
     var reloadTick by remember { mutableStateOf(0) }
     var dateDialogOpen by remember { mutableStateOf(false) }
 
@@ -286,6 +287,14 @@ fun ListenStatsApp(
         }
     }
     LaunchedEffect(query) { rankPage = 1 }
+    LaunchedEffect(bottomScrollRequest) {
+        if (bottomScrollRequest > 0) {
+            // Wait for the new page to be laid out, then keep the reader at the
+            // bottom instead of leaving them at an arbitrary scroll offset.
+            delay(60)
+            scrollState.scrollTo(scrollState.maxValue)
+        }
+    }
 
     StatsTheme(themeMode) {
         val colors = LocalStatsColors.current
@@ -449,7 +458,11 @@ fun ListenStatsApp(
                                     query = query,
                                     onQueryChange = { query = it },
                                     page = safePage,
-                                    onPageChange = { rankPage = it }
+                                    onPageChange = {
+                                        val wasAtBottom = scrollState.value >= scrollState.maxValue - 2
+                                        rankPage = it
+                                        if (wasAtBottom) bottomScrollRequest++
+                                    }
                                 )
                             }
                             if (page == StatsPage.Overview) PageFooter(snapshot)

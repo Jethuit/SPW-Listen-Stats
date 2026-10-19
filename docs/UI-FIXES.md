@@ -1,5 +1,11 @@
 # UI 修订
 
+## 0.1.31 分页居中/跳页/底部保持
+
+- 贴底切页恢复 maxValue；否则保持偏移。
+- 页码居中；右侧“共 x 页 · 跳转至 [x] 页”，Enter 跳转。
+- 详见 [UI-0.1.31.md](UI-0.1.31.md)。
+
 ## 0.1.30 下拉箭头截断修复
 
 - SelectBox `width(minWidth)` → `widthIn(minWidth)`，箭头不再被裁掉。

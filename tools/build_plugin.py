@@ -27,7 +27,7 @@ TOOLS = BUILD / 'tools'
 PLUGIN_SRC = ROOT / 'plugin' / 'src' / 'main' / 'kotlin'
 RESOURCES = ROOT / 'plugin' / 'src' / 'main' / 'resources'
 PLUGIN_ID = 'com.jethuit.spw.listenstats'
-PLUGIN_VERSION = '0.1.30'
+PLUGIN_VERSION = '0.1.31'
 PLUGIN_CLASS = 'com.jethuit.spw.listenstats.MainPlugin'
 DEFAULT_SPW_DIR = Path(r'E:\SteamLibrary\steamapps\common\Salt Player for Windows')
 

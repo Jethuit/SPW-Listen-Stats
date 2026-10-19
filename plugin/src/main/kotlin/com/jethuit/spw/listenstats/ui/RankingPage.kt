@@ -35,6 +35,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -156,18 +161,17 @@ fun RankingPage(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "共 ${formatNumber(filtered.size.toLong())} 首 · 听满单曲 50% 计一次",
-                style = AppType.tiny.copy(color = colors.muted)
-            )
-            if (totalPages > 1) {
-                Box(Modifier.weight(1f))
+            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                 Text(
-                    "第 $currentPage / $totalPages 页",
-                    modifier = Modifier.padding(end = 10.dp),
+                    "共 ${formatNumber(filtered.size.toLong())} 首 · 听满单曲 50% 计一次",
                     style = AppType.tiny.copy(color = colors.muted)
                 )
+            }
+            if (totalPages > 1) {
                 Pagination(currentPage, totalPages, onPageChange)
+            }
+            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                PageJumpControl(currentPage, totalPages, onPageChange)
             }
         }
     }
@@ -352,6 +356,63 @@ private fun tableWidths(maxWidth: Dp): TableWidths {
 }
 
 @Composable
+private fun PageJumpControl(
+    current: Int,
+    total: Int,
+    onPage: (Int) -> Unit
+) {
+    val colors = LocalStatsColors.current
+    val state = remember(current) { TextFieldState(current.toString()) }
+
+    fun submit() {
+        val target = state.text.toString().trim().toIntOrNull() ?: return
+        onPage(target.coerceIn(1, total))
+    }
+
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            "共 $total 页",
+            style = AppType.tiny.copy(color = colors.muted)
+        )
+        if (total > 1) {
+            Text("·", style = AppType.tiny.copy(color = colors.muted))
+            Text("跳转至", style = AppType.tiny.copy(color = colors.muted))
+            OutlinedTextField(
+                state = state,
+                modifier = Modifier
+                    .width(42.dp)
+                    .height(30.dp)
+                    .onPreviewKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
+                            submit()
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                lineLimits = TextFieldLineLimits.SingleLine,
+                shape = AppShape(6.dp),
+                contentPadding = PaddingValues(0.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = colors.text,
+                    unfocusedTextColor = colors.text,
+                    focusedContainerColor = colors.controlBackground,
+                    unfocusedContainerColor = colors.controlBackground,
+                    cursorColor = colors.accent,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent
+                ),
+                textStyle = com.moriafly.salt.ui.LocalTextStyle.current.merge(AppType.tiny)
+            )
+            Text("页", style = AppType.tiny.copy(color = colors.muted))
+        }
+    }
+}
+
+@Composable
 private fun Pagination(
     current: Int,
     total: Int,
@@ -411,7 +472,7 @@ private fun PageArrowButton(
                 AppIcon(
                     pathData,
                     if (enabled) colors.muted else colors.muted.copy(alpha = 0.45f),
-                    iconSize = 18.dp,
+                    iconSize = 24.dp,
                     viewBoxSize = 24f,
                     positiveCoordinates = true
                 )
