@@ -1,6 +1,6 @@
 # GPT 交接文档：听歌统计
 
-> **最新发布：v0.1.0 首个公开预发布版。** 用户于 2026-10-19 授权公开，[Release 已发布](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.0)，保持 `prerelease=true`。`main` 已快进同步发布源码与最新 README，仓库 topic 为 `salt-player-for-windows`。基于开发版 0.1.35 整理，不改统计或 UI 逻辑。发布说明见 [releases/v0.1.0.md](releases/v0.1.0.md)，验证与附件见 [releases/PREPARATION-v0.1.0.md](releases/PREPARATION-v0.1.0.md)。
+> **最新发布：v0.1.0 首个正式版。** 用户于 2026-10-19 授权公开，随后明确转为正式版。[Release 已正式发布](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.0)，`prerelease=false`，设为 Latest。`main` 已同步发布源码与最新 README，仓库 topic 为 `salt-player-for-windows`，已补充简短简介。基于开发版 0.1.35 整理，不改统计或 UI 逻辑。发布说明见 [releases/v0.1.0.md](releases/v0.1.0.md)，验证与附件见 [releases/PREPARATION-v0.1.0.md](releases/PREPARATION-v0.1.0.md)。
 >
 > 最终对外名称统一为 **听歌统计**，入口为“打开听歌统计”，安装包为 `SPW-Stats-v0.1.0.spmod`。三张实际效果图只放 README；Release 简短且不放图，附件仅安装包，不发布 `SHA256SUMS.txt`。保留“椒盐经典”推荐，插件 ID 保持。
 >
@@ -11,7 +11,7 @@
 > **2026-10-19 更新：0.1.20。** 已处理审查发现的六项问题，当前变更及验证状态以 [BUGFIX-0.1.20.md](BUGFIX-0.1.20.md) 为准；下文 0.1.19 版本、提交和检查数字保留为上一轮背景。仍不能把离线回归视为真实播放或宿主字体/交互验收。
 
 > 这是给接手 GPT 的**单一入口文档**。先读本文件，再按需读 `docs/NATIVE-IMPLEMENTATION.md`、`docs/HANDOFF.md`、`docs/UI-0.1.22.md`。
-> 最后更新：2026-10-19；首个公开版本 **0.1.0（预发布）**；分支 `codex/listening-stats`。此前 0.1.35 等编号是开发阶段版本。
+> 最后更新：2026-10-19；首个正式版本 **0.1.0**；发布分支 `main`，工作分支 `codex/listening-stats`。此前 0.1.35 等编号是开发阶段版本。
 
 ## 0. 一句话状态
 

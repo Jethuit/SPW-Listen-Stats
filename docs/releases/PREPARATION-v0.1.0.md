@@ -14,11 +14,12 @@
 ## 公开发布状态
 
 - 仓库：`Jethuit/SPW-Listen-Stats`。
-- 2026-10-19，用户授权将草稿公开，沿用此前确认的预发布定位。
-- 版本：`v0.1.0`，已公开，`draft=false`、`prerelease=true`；[Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.0)。
+- 2026-10-19，用户授权公开，随后明确将预发布版转为正式版。
+- 版本：`v0.1.0`，已正式发布并设为 Latest，`draft=false`、`prerelease=false`；[Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.0)。
 - 发布标签对应提交 `88de79f88d839aa5f23e574ef451583130ac6e77`；`main` 已快进同步发布源码及最新 README，保留原有历史。
 - Release ID：`417088208`；附件仅 `SPW-Stats-v0.1.0.spmod`。
 - 仓库 topic：`salt-player-for-windows`。
+- 仓库简介：Salt Player for Windows 听歌统计插件，支持热力图、时长分布与歌曲排行。
 - 对外正文：`docs/releases/v0.1.0.md`。
 - 附件目录：`build/releases/v0.1.0/`；公开地址与远端核对结果保存在本机 `build/releases/published-v0.1.0.json`。
 
