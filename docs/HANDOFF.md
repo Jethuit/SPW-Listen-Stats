@@ -2,6 +2,12 @@
 
 > 给接手 GPT 的单一入口文档见 [`GPT-HANDOFF.md`](GPT-HANDOFF.md)；本文件保留逐版本修订记录。
 
+## 最新调查：顶部统计入口
+
+- 用户选择窗口最上方、头像附近。新调查找到 `CaptionButtons` 内 `QuickCaptionButton` 的独立调用点，可尝试在其后、Steam 头像之前追加按钮，详见 [TOPBAR-ENTRY.md](TOPBAR-ENTRY.md)。这修正了早期仅检查整个标题栏后得出的“无安全插入点”结论。
+- 一轮只读探针通过：宿主 UI Hook 解析器接受目标；整个调用类仅一处匹配；调用位于按钮 Row 内。尚未注册、渲染或进行真实窗口点击验收。
+- 生产源码、版本与已发布 v0.1.1 均未改动；检查脚本在 `tests/probe-titlebar-hook.py`。
+
 ## 最新：v0.1.1 已正式发布
 
 - 用户于 2026-10-19 授权更新 GitHub，v0.1.1 已正式发布并设为 Latest：[Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.1)。源码和 README 已同步到 main，正文采用用户提供的四条更新日志。

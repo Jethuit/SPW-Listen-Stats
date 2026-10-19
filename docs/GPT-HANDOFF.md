@@ -26,7 +26,7 @@
 - **封面性能**：后台生成 44dp 方形缩略图、12MiB LRU、并发 4（基线 3）、相同请求合并、稳定行 key、组件自身 30 秒重试；移除全局滚动重组源。隔离实测 25 首：wait 0–355ms、API 多为 3–15ms（个别 244ms）、decode 21–160ms、UI 约 300–562ms；瓶颈是并发排队。**未测滚动 FPS、内存、缓存命中返回**，不能声称“不卡顿已解决”。
 - **日期/菜单**：`DateRangeDialog` 起始/结束两张独立卡片，各自年月选择+箭头，左只改开始、右只改结束；不自动交换，起>止提示并禁用确定；底部已选天数含首尾；窄宽上下排列。`SelectBox` 自绘 Popup，菜单宽按最长选项测量、最小 144dp，外框 6dp 留白、选项背景内缩、文字 10dp、行高 34dp，年份菜单限高滚动。
 - **排行底栏**：删除标题下摘要；底部固定“共 xx 首 · 听满单曲 50% 计一次”，数量随筛选；右侧分页。
-- **顶部入口**：验证结论为**当前无安全插入点**。`MainTitleBar` 只有 `(MainTitleBarType, PlaybackChromeVisibilityState, MusicVideoPlaybackUiState, Modifier)`，内部 `MainTitleBarContent` 构建操作区；afterComposable 不能插入内部 Row，replace 无原调用委托，appendContent 不是任意 lambda。未做固定坐标 overlay。
+- **顶部入口调查更新（2026-10-19）**：用户选择头像附近。已找到 `CaptionButtons` 内 `QuickCaptionButton` 的独立调用点，宿主真实 UI Hook 解析器接受 `afterComposable` 目标，整个调用类仅一处匹配，可尝试在快捷按钮之后、Steam 头像之前追加。修正早期“无安全插入点”的结论；尚未实际注册、渲染或验收。见 [TOPBAR-ENTRY.md](TOPBAR-ENTRY.md)，探针 `tests/probe-titlebar-hook.py`。生产源码与 v0.1.1 未改。
 - 详细：`docs/UI-0.1.22.md`。
 
 ## 1. 项目位置与产物
