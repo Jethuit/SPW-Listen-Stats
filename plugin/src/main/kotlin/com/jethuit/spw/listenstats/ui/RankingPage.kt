@@ -45,13 +45,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jethuit.spw.listenstats.data.CoverDiagnostics
 import com.jethuit.spw.listenstats.data.CoverStore
 import com.jethuit.spw.listenstats.data.StatsData
 import com.jethuit.spw.listenstats.data.TrackRank
 import com.jethuit.spw.listenstats.util.formatNumber
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 
 const val RANKING_PAGE_SIZE = 25
 
@@ -86,51 +85,53 @@ fun RankingPage(
     val rows = filtered.subList(from, to)
 
     Column(Modifier.fillMaxWidth()) {
-        SectionHeading(
-            icon = IconPaths.QueueMusic,
-            title = "歌曲播放次数",
-            headingHeight = 34.dp,
-            titleStyle = AppType.sectionTitle.copy(fontSize = 18.sp, lineHeight = 24.sp)
-        ) {
-            Surface(
-                modifier = Modifier.width(190.dp).height(34.dp),
-                shape = AppShape(8.dp),
-                color = colors.controlBackground
+        Box(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+            SectionHeading(
+                icon = IconPaths.QueueMusic,
+                title = "歌曲播放次数",
+                headingHeight = 34.dp,
+                titleStyle = AppType.sectionTitle.copy(fontSize = 18.sp, lineHeight = 24.sp)
             ) {
-                Row(
-                    Modifier.fillMaxSize().padding(horizontal = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Surface(
+                    modifier = Modifier.width(190.dp).height(34.dp),
+                    shape = AppShape(8.dp),
+                    color = colors.controlBackground
                 ) {
-                    AppIcon(IconPaths.Search, colors.muted, iconSize = 15.dp)
-                    OutlinedTextField(
-                        state = searchState,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(34.dp)
-                            .onFocusChanged { searchFocused = it.isFocused },
-                        lineLimits = TextFieldLineLimits.SingleLine,
-                        shape = AppShape(0.dp),
-                        contentPadding = PaddingValues(0.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = colors.text,
-                            unfocusedTextColor = colors.text,
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            cursorColor = colors.accent,
-                            focusedBorderColor = Color.Transparent,
-                            unfocusedBorderColor = Color.Transparent,
-                            focusedPlaceholderColor = colors.muted,
-                            unfocusedPlaceholderColor = colors.muted
-                        ),
-                        textStyle = com.moriafly.salt.ui.LocalTextStyle.current.merge(AppType.bodySmall),
-                        placeholder = {
-                            Text(
-                                "搜索歌曲或歌手",
-                                style = AppType.bodySmall.copy(color = colors.muted)
-                            )
-                        }
-                    )
+                    Row(
+                        Modifier.fillMaxSize().padding(horizontal = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AppIcon(IconPaths.Search, colors.muted, iconSize = 15.dp)
+                        OutlinedTextField(
+                            state = searchState,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(34.dp)
+                                .onFocusChanged { searchFocused = it.isFocused },
+                            lineLimits = TextFieldLineLimits.SingleLine,
+                            shape = AppShape(0.dp),
+                            contentPadding = PaddingValues(0.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = colors.text,
+                                unfocusedTextColor = colors.text,
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                cursorColor = colors.accent,
+                                focusedBorderColor = Color.Transparent,
+                                unfocusedBorderColor = Color.Transparent,
+                                focusedPlaceholderColor = colors.muted,
+                                unfocusedPlaceholderColor = colors.muted
+                            ),
+                            textStyle = com.moriafly.salt.ui.LocalTextStyle.current.merge(AppType.bodySmall),
+                            placeholder = {
+                                Text(
+                                    "搜索歌曲或歌手",
+                                    style = AppType.bodySmall.copy(color = colors.muted)
+                                )
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -289,7 +290,14 @@ private fun Cover(trackId: String) {
     var image by remember(trackId, targetPx) { mutableStateOf<ImageBitmap?>(null) }
     var retry by remember(trackId, targetPx) { mutableIntStateOf(0) }
     LaunchedEffect(trackId, targetPx, retry) {
-        image = withContext(Dispatchers.IO) { CoverStore.load(trackId, targetPx) }
+        val started = System.nanoTime()
+        image = CoverStore.load(trackId, targetPx)
+        CoverDiagnostics.display(
+            trackId,
+            targetPx,
+            (System.nanoTime() - started) / 1_000_000,
+            image != null
+        )
         if (image == null && retry == 0) {
             delay(30_000)
             retry++

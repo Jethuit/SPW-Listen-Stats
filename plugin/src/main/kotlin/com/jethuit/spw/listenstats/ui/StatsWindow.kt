@@ -542,7 +542,7 @@ private fun PageNav(page: StatsPage, onPage: (StatsPage) -> Unit) {
         }
         Box(Modifier.fillMaxWidth().height(1.dp).drawWith { drawRect(color = colors.line) })
     }
-    Box(Modifier.height(if (page == StatsPage.Ranking) 18.dp else 30.dp))
+    Box(Modifier.height(if (page == StatsPage.Ranking) 0.dp else 30.dp))
 }
 
 @Composable

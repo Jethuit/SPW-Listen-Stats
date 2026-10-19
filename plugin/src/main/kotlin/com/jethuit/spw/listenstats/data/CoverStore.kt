@@ -4,14 +4,19 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import com.jethuit.spw.listenstats.PluginLog
 import com.xuncorp.spw.workshop.api.WorkshopApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.withContext
 import org.jetbrains.skia.Image
 import org.jetbrains.skia.Rect
 import org.jetbrains.skia.SamplingMode
 import org.jetbrains.skia.Surface
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.coroutineContext
 
 /**
  * Decode covers on the IO side into the exact square thumbnail the row draws.
@@ -25,40 +30,54 @@ object CoverStore {
     private var cacheBytes = 0L
     private const val MAX_CACHE_BYTES = 12L * 1024L * 1024L
     private const val FAILURE_COOLDOWN_MS = 30_000L
-    private const val MAX_PARALLEL_DECODES = 3
+    // Three lanes made the 25-row page wait up to ~390 ms while the API/decode
+    // themselves were mostly under 50 ms. Four is a measured, bounded increase.
+    private const val MAX_PARALLEL_DECODES = 4
 
     private val failedAt = ConcurrentHashMap<String, Long>()
     private val inflight = ConcurrentHashMap<String, CompletableFuture<ImageBitmap?>>()
-    private val decodePermits = Semaphore(MAX_PARALLEL_DECODES, true)
+    private val decodeSemaphore = Semaphore(MAX_PARALLEL_DECODES)
 
-    fun load(trackId: String, targetPx: Int): ImageBitmap? {
+    suspend fun load(trackId: String, targetPx: Int): ImageBitmap? = withContext(Dispatchers.IO) {
         val size = targetPx.coerceIn(16, 256)
         val key = "$trackId@$size"
-        cached(key)?.let { return it }
+        cached(key)?.let {
+            CoverDiagnostics.log("cover cache=hit track=$trackId px=$size")
+            return@withContext it
+        }
         val now = System.currentTimeMillis()
         val failed = failedAt[trackId]
-        if (failed != null && now - failed < FAILURE_COOLDOWN_MS) return null
+        if (failed != null && now - failed < FAILURE_COOLDOWN_MS) {
+            CoverDiagnostics.log("cover cache=cooldown track=$trackId px=$size")
+            return@withContext null
+        }
 
         val promise = CompletableFuture<ImageBitmap?>()
         val existing = inflight.putIfAbsent(key, promise)
-        if (existing != null) return await(existing)
+        if (existing != null) {
+            CoverDiagnostics.log("cover cache=joined track=$trackId px=$size")
+            return@withContext await(existing)
+        }
 
-        return try {
-            val result = fetchAndDecode(trackId, size)
+        var completed = false
+        try {
+            val requestStart = System.nanoTime()
+            val result = fetchAndDecode(trackId, size, requestStart)
             if (result != null) {
                 cachePut(key, result)
                 failedAt.remove(trackId)
-                promise.complete(result)
             } else {
                 failedAt[trackId] = now
-                promise.complete(null)
             }
+            completed = true
+            promise.complete(result)
             result
         } catch (failure: Throwable) {
             failedAt[trackId] = now
             promise.complete(null)
             null
         } finally {
+            if (!completed) promise.complete(null)
             inflight.remove(key, promise)
         }
     }
@@ -71,21 +90,43 @@ object CoverStore {
         failedAt.clear()
     }
 
-    private fun fetchAndDecode(trackId: String, size: Int): ImageBitmap? {
+    private suspend fun fetchAndDecode(trackId: String, size: Int, requestStart: Long): ImageBitmap? {
+        val waitStart = System.nanoTime()
+        var waitMs = 0L
+        var apiMs = 0L
+        var decodeMs = 0L
+        var bytes: ByteArray? = null
+        var result: ImageBitmap? = null
         var acquired = false
         try {
-            decodePermits.acquire()
+            decodeSemaphore.acquire()
             acquired = true
-            val bytes = WorkshopApi.library.getCoverById(trackId)
-                .toCompletableFuture()
-                .get(5, TimeUnit.SECONDS)
-            if (bytes == null || bytes.isEmpty()) return null
-            return decodeThumbnail(bytes, size)
+            coroutineContext.ensureActive()
+            waitMs = (System.nanoTime() - waitStart) / 1_000_000
+            val apiStart = System.nanoTime()
+            bytes = runInterruptible {
+                WorkshopApi.library.getCoverById(trackId)
+                    .toCompletableFuture()
+                    .get(5, TimeUnit.SECONDS)
+            }
+            apiMs = (System.nanoTime() - apiStart) / 1_000_000
+            val coverBytes = bytes
+            if (coverBytes != null && coverBytes.isNotEmpty()) {
+                coroutineContext.ensureActive()
+                val decodeStart = System.nanoTime()
+                result = decodeThumbnail(coverBytes, size)
+                decodeMs = (System.nanoTime() - decodeStart) / 1_000_000
+            }
         } catch (failure: Throwable) {
-            return null
+            if (failure is kotlinx.coroutines.CancellationException) throw failure
         } finally {
-            if (acquired) decodePermits.release()
+            if (acquired) decodeSemaphore.release()
+            val totalMs = (System.nanoTime() - requestStart) / 1_000_000
+            CoverDiagnostics.log(
+                "cover cache=miss track=$trackId px=$size wait_ms=$waitMs api_ms=$apiMs decode_ms=$decodeMs total_ms=$totalMs bytes=${bytes?.size ?: 0}"
+            )
         }
+        return result
     }
 
     private fun decodeThumbnail(bytes: ByteArray, size: Int): ImageBitmap? {
@@ -141,11 +182,24 @@ object CoverStore {
         }
     }
 
-    private fun await(future: CompletableFuture<ImageBitmap?>): ImageBitmap? {
+    private suspend fun await(future: CompletableFuture<ImageBitmap?>): ImageBitmap? {
         return try {
-            future.get(8, TimeUnit.SECONDS)
+            runInterruptible { future.get(8, TimeUnit.SECONDS) }
         } catch (failure: Throwable) {
+            if (failure is kotlinx.coroutines.CancellationException) throw failure
             null
         }
+    }
+}
+
+object CoverDiagnostics {
+    val enabled: Boolean = System.getProperty("spw.listenstats.coverDiagnostics") == "true"
+
+    fun log(message: String) {
+        if (enabled) PluginLog.info(message)
+    }
+
+    fun display(trackId: String, targetPx: Int, elapsedMs: Long, shown: Boolean) {
+        log("cover cache=ui track=$trackId px=$targetPx ui_ms=$elapsedMs shown=$shown")
     }
 }

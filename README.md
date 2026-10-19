@@ -6,7 +6,7 @@ GitHub：<https://github.com/Jethuit/SPW-Listen-Stats>。正式实现说明、�
 
 ## 正式模组
 
-当前 0.1.22 重点做了封面缩略图/LRU/并发合并和滚动重组收敛（未做宿主帧率实测）；自定义日期改为页面内 Compose 弹窗，所有 SelectBox 改为统一主题菜单；排行底部改为筛选数量＋固定说明；顶部标题栏入口经源码级验证无安全插入点，暂不实现。详见 [0.1.22 修订](docs/UI-0.1.22.md)。
+当前 0.1.22 重点做了封面缩略图/LRU/并发合并和滚动重组收敛（已记录分段耗时，未测 FPS/内存）；自定义日期改为页面内 Compose 双月日历，所有 SelectBox 改为统一主题菜单；排行底部改为筛选数量＋固定说明；顶部标题栏入口经源码级验证无安全插入点，暂不实现。详见 [0.1.22 修订](docs/UI-0.1.22.md)。
 
 ```powershell
 python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"

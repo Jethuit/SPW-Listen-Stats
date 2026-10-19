@@ -18,7 +18,7 @@ python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Pl
 ## 0.1.22 封面/日期/底栏/顶部入口
 
 - 封面缩略图、LRU、并发合并、稳定 key、组件级重试；详见 `docs/UI-0.1.22.md`。未做宿主帧率/内存实测。
-- 日期弹窗为页面内 Compose 模态，不再调用 Swing `JOptionPane`；菜单通过 `SelectBox` 统一主题样式。
+- 日期弹窗为页面内 Compose 双月日历，不再调用 Swing `JOptionPane`；点击开始/结束，蓝色端点与浅蓝范围，支持同一天/跨月/年月切换；窄宽退单月。菜单通过 `SelectBox` 统一主题样式。
 - 排行底部固定筛选数量 + 50% 说明。
 - 顶部入口：`MainTitleBar` 无 action slot；内部 `MainTitleBarContent` 构建操作区；当前 hook API 无法安全插入，未实现占位。
 

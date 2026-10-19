@@ -4,9 +4,8 @@
 
 ## 最新：0.1.22 封面/日期/底部/顶部入口验证
 
-- 封面：后台按 44dp 显示尺寸生成方形缩略图（Skia raster 强制解码）、12MiB LRU、并发 3、相同请求合并、稳定行 key、自身 30 秒重试；移除全局滚动重组源，图表各自读滚动 bucket。**未做宿主帧率/内存实测**。
-- 日期：新增页面内 Compose `DateRangeDialog`，去掉 Swing `JOptionPane`/Windows 标题栏；预填当前范围、框内错误、Enter/Esc、取消不变更；`SelectBox` 统一主题菜单和选中态。
-- 排行：删除标题下“共…第 x–y 首”和留白；底部固定“共 xx 首 · 听满单曲 50% 计一次”，数量随筛选；单页/空结果也显示。
+- 封面：后台按 44dp 显示尺寸生成方形缩略图（Skia raster 强制解码）、12MiB LRU、并发 4（基线 3）、相同请求合并、稳定行 key、自身 30 秒重试；移除全局滚动重组源，图表各自读滚动 bucket。隔离实测 25 首：wait 0–355ms、API 多项 3–15ms（个别 244ms）、decode 21–160ms、UI 约 300–562ms；**主要耗时是排队，不是 API/解码；未测滚动 FPS、内存和缓存命中返回**。
+- 日期：新增页面内 Compose **双月日历** `DateRangeDialog`，去掉 Swing/Windows 标题栏；第一次点击开始、第二次结束，蓝色端点/浅蓝范围，支持同一天/跨月/年月切换；空间不足退单月；预填当前范围、取消不变更、Enter/Esc。`SelectBox` 统一主题菜单和选中态。- 排行：标题/搜索操作区外层 12dp 上下留白，移除 PageNav 旧 18dp；删除标题下摘要；底部固定“共 xx 首 · 听满单曲 50% 计一次”，数量随筛选；单页/空结果也显示。
 - 顶部入口：源码级验证 `MainTitleBar` 无 action slot，`MainTitleBarContent` 内部构建；afterComposable 无法插入内部 Row，replace 无原实现委托，appendContent 不是任意 lambda。**未实现占位，也未用固定坐标 overlay。**
 - 详见 [UI-0.1.22.md](UI-0.1.22.md)。
 

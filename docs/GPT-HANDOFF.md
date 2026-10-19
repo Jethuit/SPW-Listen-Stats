@@ -1,6 +1,6 @@
 # GPT 交接文档：SPW-Listen Stats
 
-> **最新源码 0.1.22：** 封面缩略图/LRU/并发合并、日期弹窗和统一菜单、排行底栏、顶部入口可行性验证。详见 [UI-0.1.22.md](UI-0.1.22.md)。**封面性能未做宿主帧率/内存实测；顶部入口因无安全 slot 未实现。**
+> **最新源码 0.1.22：** 封面缩略图/LRU/并发合并（已记录分段耗时，未测 FPS/内存）、双月日期日历和统一菜单、排行底栏、顶部入口可行性验证。详见 [UI-0.1.22.md](UI-0.1.22.md)。**顶部入口因无安全 slot 未实现。**
 >
 > **2026-10-19 更新：当前源码 0.1.21。** 控件底色及宿主字体接入见 [UI-0.1.21.md](UI-0.1.21.md)。用户实机反馈已证明 0.1.20 的字体继承不足；当前通过读取宿主字体策略和实际字体资源修正，视觉待用户核对。
 
@@ -15,8 +15,8 @@
 
 ## 0.1.22 当前增量（优先于下文旧状态）
 
-- **封面性能**：后台生成 44dp 方形缩略图、12MiB LRU、并发 3、相同请求合并、稳定行 key、组件自身 30 秒重试；移除全局滚动重组源。代码完成，**未做宿主帧率/内存实测**，不能声称“不卡顿已解决”。
-- **日期/菜单**：`DateRangeDialog` 页面内 Compose 弹窗，无 Windows 标题栏；预填当前范围、框内错误、Enter/Esc、取消不变更。`SelectBox` 统一主题菜单、选中/悬停/圆角。
+- **封面性能**：后台生成 44dp 方形缩略图、12MiB LRU、并发 4（基线 3）、相同请求合并、稳定行 key、组件自身 30 秒重试；移除全局滚动重组源。隔离实测 25 首：wait 0–355ms、API 多为 3–15ms（个别 244ms）、decode 21–160ms、UI 约 300–562ms；瓶颈是并发排队。**未测滚动 FPS、内存、缓存命中返回**，不能声称“不卡顿已解决”。
+- **日期/菜单**：`DateRangeDialog` 双月日历，页面内 Compose 模态，无 Windows 标题栏；第一次点击开始、第二次结束，蓝色端点/浅蓝范围，支持同一天/跨月/年月切换；窄宽退单月；预填当前范围、取消不变更、Enter/Esc。`SelectBox` 统一主题菜单、选中/悬停/圆角。
 - **排行底栏**：删除标题下摘要；底部固定“共 xx 首 · 听满单曲 50% 计一次”，数量随筛选；右侧分页。
 - **顶部入口**：验证结论为**当前无安全插入点**。`MainTitleBar` 只有 `(MainTitleBarType, PlaybackChromeVisibilityState, MusicVideoPlaybackUiState, Modifier)`，内部 `MainTitleBarContent` 构建操作区；afterComposable 不能插入内部 Row，replace 无原调用委托，appendContent 不是任意 lambda。未做固定坐标 overlay。
 - 详细：`docs/UI-0.1.22.md`。
@@ -27,7 +27,7 @@
 - 分支：`codex/listening-stats`
 - 最新代码提交：本文档随后提交（0.1.22；上一提交 `1387748` 是 0.1.21）
 - 构建产物：`build/libs/plugin-com.jethuit.spw.listenstats-0.1.22.spmod`
-- 产物约 17.12 MB，`.spmod` 内 125 项；`lib/` 含：
+- 产物约 17.14 MB，`.spmod` 内 130 项；`lib/` 含：
   - `sqlite-jdbc.jar`
   - `salt-ui-desktop-3.0.0-beta02.jar`
   - `salt-core-desktop-3.0.0-beta02.jar`
