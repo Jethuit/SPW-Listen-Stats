@@ -2,6 +2,7 @@ package com.jethuit.spw.listenstats.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -321,7 +322,7 @@ private fun InsightStat(
 }
 
 @Composable
-private fun FavoriteHourStat(
+fun FavoriteHourStat(
     width: Dp,
     hour: Int?,
     label: String,
@@ -331,10 +332,27 @@ private fun FavoriteHourStat(
         Modifier.width(width).padding(horizontal = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            hour?.let { formatHourRange(it) } ?: "—",
-            style = AppType.number.copy(color = colors.text)
-        )
+        val numberHeight = with(androidx.compose.ui.platform.LocalDensity.current) {
+            AppType.number.lineHeight.toDp()
+        }
+        BoxWithConstraints(
+            Modifier.fillMaxWidth().height(numberHeight), contentAlignment = Alignment.Center
+        ) {
+            val value = hour?.let { formatHourRange(it) } ?: "—"
+            val style = com.moriafly.salt.ui.LocalTextStyle.current.merge(AppType.number)
+            val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val measured = measurer.measure(
+                androidx.compose.ui.text.AnnotatedString(value), style = style, softWrap = false
+            )
+            val available = with(density) { maxWidth.toPx() }
+            val scale = minOf(1f, available / (measured.size.width + 1f))
+            Text(
+                value,
+                style = style.copy(color = colors.text, fontSize = style.fontSize * scale),
+                maxLines = 1
+            )
+        }
         Text(
             label,
             modifier = Modifier.padding(top = 5.dp),

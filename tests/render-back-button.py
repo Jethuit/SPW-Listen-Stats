@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 parser = argparse.ArgumentParser()
 parser.add_argument('--reference', type=Path)
 parser.add_argument('--spw-dir', type=Path)
+parser.add_argument('--layout', action='store_true', help='render responsive frame and footer checks')
 args = parser.parse_args()
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
@@ -21,22 +22,30 @@ scratch.mkdir(parents=True, exist_ok=True)
 classpath = os.pathsep.join(map(str, [kotlin / 'lib/kotlin-stdlib.jar', ROOT / 'build/plugin-classes',
     *builder.saltui_jars(), ROOT / 'build/tools/spw-host.jar']))
 java = str(jdk / 'bin/java.exe')
+test_name = 'ResponsiveLayoutVisualCheck' if args.layout else 'BackButtonVisualCheck'
 subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
     '-no-stdlib', '-classpath', classpath,
     f'-Xplugin={kotlin / "lib/compose-compiler-plugin.jar"}', '-jvm-target', '25',
-    '-d', str(scratch), str(ROOT / 'tests/BackButtonVisualCheck.kt')], check=True)
+    '-d', str(scratch), str(ROOT / 'tests' / f'{test_name}.kt')], check=True)
 environment = os.environ.copy()
 environment['APPDATA'] = str(scratch / 'appdata')
 environment['LOCALAPPDATA'] = str(scratch / 'localappdata')
-output = ROOT / 'build/screenshots/back-button-v0.1.2.png'
+output = ROOT / 'build/screenshots' / f'back-button-v{builder.PLUGIN_VERSION}.png'
+if args.layout:
+    output = ROOT / 'build/screenshots' / f'responsive-v{builder.PLUGIN_VERSION}'
 native_dir = (args.spw_dir or builder.DEFAULT_SPW_DIR) / 'app'
 native_temp = scratch / 'native-temp'
 native_temp.mkdir(exist_ok=True)
 subprocess.run([java, f'-Dskiko.library.path={native_dir}', f'-Djna.tmpdir={native_temp}',
     f'-Djava.io.tmpdir={native_temp}', '--enable-native-access=ALL-UNNAMED',
     '-cp', str(scratch) + os.pathsep + classpath,
-    'BackButtonVisualCheckKt', str(output)], check=True, env=environment)
-if args.reference:
+    test_name + 'Kt', str(output)], check=True, env=environment)
+if args.layout:
+    before = Image.open(output / 'frame-top.png').convert('RGB').crop((0, 0, 1875, 70))
+    after = Image.open(output / 'frame-scrolled.png').convert('RGB').crop((0, 0, 1875, 70))
+    assert ImageChops.difference(before, after).getbbox() is None, 'Scrolling content covers the navigation row'
+    print('PASS navigation row stays unchanged after scrolling')
+elif args.reference:
     # Supplied host screenshot: 125% scaling; the sidebar divider occupies x=275.
     reference = Image.open(args.reference).convert('RGB').crop((276, 50, 340, 114))
     rendered = Image.open(output).convert('RGB').crop((0, 0, 64, 64))

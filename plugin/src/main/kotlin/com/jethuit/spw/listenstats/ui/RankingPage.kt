@@ -157,14 +157,51 @@ fun RankingPage(
             }
         }
         Box(Modifier.height(16.dp))
+        RankingFooter(filtered.size, currentPage, totalPages, onPageChange)
+    }
+}
+
+@Composable
+fun RankingFooter(count: Int, currentPage: Int, totalPages: Int, onPageChange: (Int) -> Unit) {
+    val colors = LocalStatsColors.current
+    val caption = "共 ${formatNumber(count.toLong())} 首 · 听满单曲 50% 计一次"
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (maxWidth < 840.dp) {
+            val compact = maxWidth < 440.dp
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (compact) {
+                    Text(caption, style = AppType.tiny.copy(color = colors.muted), maxLines = 1)
+                } else {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            caption, modifier = Modifier.weight(1f),
+                            style = AppType.tiny.copy(color = colors.muted), maxLines = 1
+                        )
+                        Box(Modifier.width(12.dp))
+                        PageJumpControl(currentPage, totalPages, onPageChange)
+                    }
+                }
+                if (totalPages > 1) {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Pagination(currentPage, totalPages, onPageChange, compact)
+                    }
+                }
+                if (compact) {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                        PageJumpControl(currentPage, totalPages, onPageChange)
+                    }
+                }
+            }
+        } else {
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                 Text(
-                    "共 ${formatNumber(filtered.size.toLong())} 首 · 听满单曲 50% 计一次",
-                    style = AppType.tiny.copy(color = colors.muted)
+                    caption,
+                    style = AppType.tiny.copy(color = colors.muted),
+                    maxLines = 1
                 )
             }
             if (totalPages > 1) {
@@ -173,6 +210,7 @@ fun RankingPage(
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
                 PageJumpControl(currentPage, totalPages, onPageChange)
             }
+        }
         }
     }
 }
@@ -416,7 +454,8 @@ private fun PageJumpControl(
 private fun Pagination(
     current: Int,
     total: Int,
-    onPage: (Int) -> Unit
+    onPage: (Int) -> Unit,
+    compact: Boolean = false
 ) {
     val colors = LocalStatsColors.current
     Row(
@@ -433,7 +472,7 @@ private fun Pagination(
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                pageItems(current, total).forEach { item ->
+                pageItems(current, total, compact).forEach { item ->
                     if (item == null) {
                         Text(
                             "…",
@@ -441,7 +480,7 @@ private fun Pagination(
                             style = AppType.tiny.copy(color = colors.muted)
                         )
                     } else {
-                        PageButton("$item", item == current, true) { onPage(item) }
+                        PageButton("$item", item == current, true, compact) { onPage(item) }
                     }
                 }
             }
@@ -486,6 +525,7 @@ private fun PageButton(
     text: String,
     active: Boolean,
     enabled: Boolean,
+    compact: Boolean = false,
     onClick: () -> Unit
 ) {
     val colors = LocalStatsColors.current
@@ -501,7 +541,8 @@ private fun PageButton(
             color = if (active) colors.background else Color.Transparent
         ) {
             Box(
-                Modifier.height(28.dp).padding(horizontal = 7.dp).widthIn(min = 28.dp),
+                Modifier.height(28.dp).padding(horizontal = if (compact) 4.dp else 7.dp)
+                    .widthIn(min = if (compact) 24.dp else 28.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -513,9 +554,12 @@ private fun PageButton(
     }
 }
 
-private fun pageItems(current: Int, total: Int): List<Int?> {
-    if (total <= 7) return (1..total).toList()
+private fun pageItems(current: Int, total: Int, compact: Boolean = false): List<Int?> {
+    if (total <= if (compact) 5 else 7) return (1..total).toList()
     val window = when {
+        compact && current == 1 -> 1..2
+        compact && current == total -> (total - 1)..total
+        compact -> current..current
         current <= 3 -> 1..4
         current >= total - 2 -> (total - 3)..total
         else -> (current - 1)..(current + 1)

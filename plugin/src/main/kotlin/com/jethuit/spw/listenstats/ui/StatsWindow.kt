@@ -309,7 +309,7 @@ fun ListenStatsApp(
         val snapshot = data
         if (snapshot == null) {
             Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {
-                LoadingPage(onClose)
+                StatsPageFrame(onClose) { LoadingPage(onClose) }
             }
             return@SaltTheme
         }
@@ -321,6 +321,7 @@ fun ListenStatsApp(
             if (rankPage > totalPages) rankPage = totalPages
         }
         Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {
+        StatsPageFrame(onClose) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val density = LocalDensity.current
             val pageWidth = when {
@@ -328,12 +329,6 @@ fun ListenStatsApp(
                 maxWidth > 900.dp -> maxWidth - 112.dp
                 maxWidth > 600.dp -> maxWidth - 64.dp
                 else -> (maxWidth - 36.dp).coerceAtLeast(280.dp)
-            }
-            val pageTop = when {
-                maxWidth >= 1450.dp -> 68.dp
-                maxWidth > 900.dp -> 56.dp
-                maxWidth > 600.dp -> 34.dp
-                else -> 26.dp
             }
             Box(
                 Modifier
@@ -349,9 +344,9 @@ fun ListenStatsApp(
                                 .wrapContentHeight(unbounded = true)
                                 .onSizeChanged { size ->
                                     // Swing dimensions are logical pixels; Compose size is device pixels.
-                                    onContentHeight(page, (size.height / density.density).toInt())
+                                    onContentHeight(page, (size.height / density.density).toInt() + 56)
                                 }
-                                .padding(top = pageTop, bottom = if (embedded) 96.dp else 24.dp)
+                                .padding(bottom = if (embedded) 96.dp else 24.dp)
                         ) {
                             PageHeader(
                                 themeMode = themeMode,
@@ -468,10 +463,7 @@ fun ListenStatsApp(
                             if (page == StatsPage.Overview) PageFooter(snapshot)
                         }
                     }
-                    HostBackButton(
-                        onBack = onClose,
-                        modifier = Modifier.align(Alignment.TopStart)
-                    )
+                }
                 }
                 if (dateDialogOpen) {
                     val dateRange = StatsCalculations.range(
