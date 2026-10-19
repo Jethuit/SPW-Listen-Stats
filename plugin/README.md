@@ -1,6 +1,8 @@
-# SPW Listen Stats 正式模组
+# SPW热力图&排行 正式模组
 
 Kotlin / Compose 模组源码，视觉基准为根目录 `preview/`。首个公开预发布版为 0.1.0，基于开发版 0.1.35 整理，保留封面取消及重试修复。安装与限制见 [v0.1.0 发布说明](../docs/releases/v0.1.0.md)。
+
+推荐使用 SPW 的“椒盐经典”主题样式获得最佳体验。插件显示名称为“SPW热力图&排行”，内部 ID 保持 `com.jethuit.spw.listenstats`，页面标题为“听歌统计”。
 
 ## 构建
 

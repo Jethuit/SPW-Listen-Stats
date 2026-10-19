@@ -4,6 +4,8 @@
 
 ## 最新：v0.1.0 首次公开预发布准备
 
+- 用户确定插件显示名称为 **SPW热力图&排行**，README 与 Release 展示其提供的三张实际效果图；推荐使用 SPW“椒盐经典”主题样式获得最佳体验。插件 ID 与页面“听歌统计”标题保持，现有草稿及附件随本轮更新。
+
 - 用户选择首版编号 `v0.1.0`，仅创建 GitHub 草稿 Release，不公开发布。基于开发版 0.1.35 整理，历史记录保留。
 - 对外正文见 [releases/v0.1.0.md](releases/v0.1.0.md)，材料与验证记录见 [releases/PREPARATION-v0.1.0.md](releases/PREPARATION-v0.1.0.md)。
 - 安装包加入项目与第三方许可证；`tools/prepare_release.py` 整理安装包及 SHA-256。源码仍在 `codex/listening-stats`，本轮不合并 main，不启动 SPW。

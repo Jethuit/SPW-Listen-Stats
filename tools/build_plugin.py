@@ -117,7 +117,7 @@ def manifest_text() -> str:
         ('Plugin-Id', PLUGIN_ID),
         ('Plugin-Version', PLUGIN_VERSION),
         ('Plugin-Provider', 'Jethuit'),
-        ('Plugin-Name', '听歌统计'),
+        ('Plugin-Name', 'SPW热力图&排行'),
         ('Plugin-Description', 'Salt Player for Windows 的听歌时长、年度足迹与歌曲排行统计'),
         ('Plugin-Has-Config', 'true'),
         ('Plugin-Open-Source-Url', 'https://github.com/Jethuit/SPW-Listen-Stats'),

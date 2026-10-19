@@ -1,7 +1,7 @@
 {
   "configs": [
     {
-      "title": "听歌统计",
+      "title": "SPW热力图&排行",
       "config": "config.json",
       "preferences": [
         {
