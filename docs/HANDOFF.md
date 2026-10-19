@@ -2,11 +2,12 @@
 
 > 给接手 GPT 的单一入口文档见 [`GPT-HANDOFF.md`](GPT-HANDOFF.md)；本文件保留逐版本修订记录。
 
-## v0.1.2 正式发布准备（用户已恢复授权）
+## 最新：v0.1.2 已正式发布
 
-- 用户在 dev.2 验收后明确要求正式发布，之前的发布暂停已解除。将版本与安装包描述转为 `0.1.2`，功能代码、图标、浅深卡片及提示框配色沿用已确认的 dev.2。
-- README 更新正式版本；Release 沿用 [releases/v0.1.2.md](releases/v0.1.2.md) 的两条简短更新日志。
-- 正式附件仅 `SPW-Stats-v0.1.2.spmod`，不附效果图或 SHA256SUMS.txt；发布结果在实际完成后补记。
+- 用户在 dev.2 验收后明确要求正式发布，发布暂停已解除。v0.1.2 已正式公开并设为 Latest：[Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.2)，Release ID `417473230`。
+- 源码及 README 已同步到 `main` 与工作分支；标签目标为 `e1b6406fd25c24dda1253062cb62f5ed032e845a`。Release 沿用 [releases/v0.1.2.md](releases/v0.1.2.md) 的两条简短日志。
+- 附件仅 `SPW-Stats-v0.1.2.spmod`，17,193,719 字节；无效果图、无 SHA256SUMS.txt。GitHub 返回的摘要与本地一致，发布回执保存在本机 `build/releases/published-v0.1.2.json`。
+- 正式包除版本描述外的全部代码、资源和依赖均与已确认 dev.2 一致；ZIP 完整性、插件描述及权限检查通过。发布步骤没有操作用户的播放器安装目录。
 
 ## v0.1.2-dev.2：本地开发包，发布继续暂停
 

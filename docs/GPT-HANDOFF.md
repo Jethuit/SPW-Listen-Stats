@@ -1,12 +1,12 @@
 # GPT 交接文档：听歌统计
 
-> **当前源码：v0.1.2，正式发布准备中。** 用户已在 dev.2 验收后明确恢复上传与正式发布授权，发布暂停解除。功能沿用 dev.2：顶部入口、官方截图取色的浅色卡片/提示框 `#FCFCFC` 与深色 `#2A2A2A`，提示文字随主题适配。仅转换版本信息，说明见 [UI-v0.1.2.md](UI-v0.1.2.md)，Release 正文见 [releases/v0.1.2.md](releases/v0.1.2.md)。实际远端发布结果待完成后记录。
+> **当前源码及最新发布：v0.1.2，已正式公开并设为 Latest。** 用户已在 dev.2 验收后恢复发布授权，[Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.2) 已完成（ID `417473230`）。标签目标 `e1b6406fd25c24dda1253062cb62f5ed032e845a`；`main` 与工作分支已同步。附件仅 `SPW-Stats-v0.1.2.spmod`，17,193,719 字节，远端摘要与本地一致。代码、资源和依赖均与已确认 dev.2 一致，仅转换版本描述。功能为顶部入口与官方卡片/提示框配色；说明见 [UI-v0.1.2.md](UI-v0.1.2.md)。本机回执 `build/releases/published-v0.1.2.json`。
 
-> **最新发布：v0.1.1，已正式公开并设为 Latest。** 用户于 2026-10-19 授权更新 GitHub，[Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.1) 采用其提供的四条更新日志。源码与 README 已同步 main；附件仅 `SPW-Stats-v0.1.1.spmod`，17,180,687 字节；标签对应 `9547491dda859cc193d60e572cd870b6dc61ca6e`。导航、返回箭头、自定义日期按钮与窄屏布局修复统一纳入此版本。技术说明见 [UI-v0.1.1.md](UI-v0.1.1.md) 和 [BUGFIX-0.1.1.md](BUGFIX-0.1.1.md)。
+> **历史发布：v0.1.1。** 用户于 2026-10-19 授权更新 GitHub，[Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.1) 采用其提供的四条更新日志。源码与 README 已同步 main；附件仅 `SPW-Stats-v0.1.1.spmod`，17,180,687 字节；标签对应 `9547491dda859cc193d60e572cd870b6dc61ca6e`。导航、返回箭头、自定义日期按钮与窄屏布局修复统一纳入此版本。技术说明见 [UI-v0.1.1.md](UI-v0.1.1.md) 和 [BUGFIX-0.1.1.md](BUGFIX-0.1.1.md)。
 
 > **v0.1.1 验证边界：** 构建、导航回归、离屏尺寸与渲染、安装包结构检查通过；完整宿主交互的实机检查仍以用户反馈为准，发布状态不代表所有宿主场景均已实测。
 
-> **首发记录：v0.1.0。** 用户于 2026-10-19 授权公开，随后明确转为正式版。[首发 Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.0) 保留；当前 Latest 为上方 v0.1.1。仓库 topic 为 `salt-player-for-windows`，已补充简短简介。首发基于开发版 0.1.35 整理。发布说明见 [releases/v0.1.0.md](releases/v0.1.0.md)，验证与附件见 [releases/PREPARATION-v0.1.0.md](releases/PREPARATION-v0.1.0.md)。
+> **首发记录：v0.1.0。** 用户于 2026-10-19 授权公开，随后明确转为正式版。[首发 Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.0) 保留；当前 Latest 为上方 v0.1.2。仓库 topic 为 `salt-player-for-windows`，已补充简短简介。首发基于开发版 0.1.35 整理。发布说明见 [releases/v0.1.0.md](releases/v0.1.0.md)，验证与附件见 [releases/PREPARATION-v0.1.0.md](releases/PREPARATION-v0.1.0.md)。
 >
 > 最终对外名称统一为 **听歌统计**，入口为“打开听歌统计”，安装包为 `SPW-Stats-v0.1.0.spmod`。三张实际效果图只放 README；Release 简短且不放图，附件仅安装包，不发布 `SHA256SUMS.txt`。保留“椒盐经典”推荐，插件 ID 保持。
 >
