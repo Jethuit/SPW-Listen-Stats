@@ -9,12 +9,14 @@ import com.xuncorp.spw.workshop.api.UnstableSpwWorkshopApi
 import com.xuncorp.spw.workshop.api.WorkshopApi
 import com.jethuit.spw.listenstats.ui.StatsOverlay
 import com.jethuit.spw.listenstats.ui.StatsNavigationHooks
+import com.jethuit.spw.listenstats.ui.StatsTitlebarEntry
 
 class MainPlugin(
     pluginContext: PluginContext
 ) : SpwPlugin(pluginContext) {
     private var hookHandle: AutoCloseable? = null
     private var navigationHandle: AutoCloseable? = null
+    private var titlebarHandle: AutoCloseable? = null
 
     override fun start() {
         PluginState.pluginPath = pluginContext.pluginPath
@@ -49,6 +51,27 @@ class MainPlugin(
                 WorkshopApi.Ui.ToastType.Warning
             )
         }
+        if (hookHandle != null) {
+            try {
+                titlebarHandle = StatsTitlebarEntry.register { target, method, caller, parameters, content ->
+                    WorkshopApi.hookRegistrar.afterComposable(
+                        className = target,
+                        methodName = method,
+                        inClass = caller,
+                        parameterTypes = parameters,
+                        priority = 50,
+                        content = content
+                    )
+                }
+                PluginLog.info("Titlebar statistics entry registered before Quick")
+            } catch (failure: Throwable) {
+                PluginLog.error("Optional titlebar entry unavailable; keeping the statistics page hook", failure)
+                WorkshopApi.ui.toast(
+                    "顶部统计按钮加载失败，仍可从插件配置打开",
+                    WorkshopApi.Ui.ToastType.Warning
+                )
+            }
+        }
         WorkshopApi.ui.toast("听歌统计已启用", WorkshopApi.Ui.ToastType.Success)
     }
 
@@ -75,7 +98,8 @@ class MainPlugin(
     }
 
     private fun closeHooks() {
-        val pending = listOfNotNull(hookHandle, navigationHandle)
+        val pending = listOfNotNull(titlebarHandle, hookHandle, navigationHandle)
+        titlebarHandle = null
         hookHandle = null
         navigationHandle = null
         for (handle in pending) {
