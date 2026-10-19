@@ -24,7 +24,8 @@ data class HeatmapGrid(
     val gridStart: LocalDate,
     val weeks: Int,
     val firstDay: LocalDate,
-    val lastDay: LocalDate
+    val lastDay: LocalDate,
+    val rolling: Boolean = false
 )
 
 data class WeeklyCell(
@@ -52,7 +53,7 @@ enum class RangePreset(val storage: String, val label: String, val visibleWhenNo
     Month("month", "本月"),
     Today("today", "今天"),
     Selected("selected", "所选日期", visibleWhenNoSelection = false),
-    Custom("custom", "自定义日期");
+    Custom("custom", "自定义");
 
     companion object {
         fun fromStorage(value: String?): RangePreset =
@@ -151,13 +152,20 @@ object StatsCalculations {
         return years.toList().sortedDescending()
     }
 
-    fun heatmapGrid(year: Int): HeatmapGrid {
-        val first = LocalDate.of(year, 1, 1)
-        val last = LocalDate.of(year, 12, 31)
+    fun heatmapGrid(year: Int, rolling: Boolean = false, today: LocalDate = LocalDate.now()): HeatmapGrid {
+        val first: LocalDate
+        val last: LocalDate
+        if (rolling) {
+            first = today.minusDays(364)
+            last = today
+        } else {
+            first = LocalDate.of(year, 1, 1)
+            last = LocalDate.of(year, 12, 31)
+        }
         val start = first.minusDays((first.dayOfWeek.value - 1).toLong())
         val end = last.plusDays((7 - last.dayOfWeek.value).toLong())
         val weeks = (ChronoUnit.DAYS.between(start, end) + 1).toInt() / 7
-        return HeatmapGrid(year, start, weeks, first, last)
+        return HeatmapGrid(year, start, weeks, first, last, rolling)
     }
 
     fun dayLevel(millis: Long, today: LocalDate, date: LocalDate): Int {
@@ -179,7 +187,7 @@ object StatsCalculations {
             var total = 0L
             for (offset in 0L until 7L) {
                 val date = start.plusDays(offset)
-                if (date.year != grid.year || date.isAfter(today)) continue
+                if (date.isBefore(grid.firstDay) || date.isAfter(grid.lastDay) || date.isAfter(today)) continue
                 total += data.millisOn(date)
             }
             totals[week] = total

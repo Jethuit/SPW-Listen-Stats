@@ -44,12 +44,15 @@ fun YearHeatmap(
     selectedDate: LocalDate?,
     onDaySelected: (LocalDate) -> Unit,
     onWeekSelected: (LocalDate, LocalDate) -> Unit,
-    viewportRevision: Int = 0
+    viewportRevision: Int = 0,
+    rolling: Boolean = false
 ) {
     val colors = LocalStatsColors.current
     val measurer = rememberTextMeasurer()
     val labelStyle = AppType.tiny.copy(fontFamily = LocalTextStyle.current.fontFamily)
-    val grid = remember(year) { StatsCalculations.heatmapGrid(year) }
+    val grid = remember(year, rolling, today) { StatsCalculations.heatmapGrid(year, rolling, today) }
+    fun inRange(date: LocalDate): Boolean =
+        !date.isBefore(grid.firstDay) && !date.isAfter(grid.lastDay)
     val weeks = remember(data, grid, today, weekly) {
         if (weekly) StatsCalculations.weeklyCells(data, grid, today) else emptyList()
     }
@@ -129,7 +132,7 @@ fun YearHeatmap(
                     if (weekly) {
                         val weekCell = week?.let { weeklyCellAt(it) }
                         hoverRow = null
-                        if (weekCell == null || row == null || grid.gridStart.plusDays(week!! * 7L + row).year != year) {
+                        if (weekCell == null || row == null || !inRange(grid.gridStart.plusDays(week!! * 7L + row))) {
                             tooltip = null
                         } else {
                             showTooltipForWeek(weekCell, position.x, position.y)
@@ -139,7 +142,7 @@ fun YearHeatmap(
                             tooltip = null
                         } else {
                             val date = grid.gridStart.plusDays((week * 7 + row).toLong())
-                            if (date.year != year) {
+                            if (!inRange(date)) {
                                 tooltip = null
                             } else {
                                 showTooltipForDay(date, position.x, position.y)
@@ -156,13 +159,14 @@ fun YearHeatmap(
                     val position = event.changes.firstOrNull()?.position ?: return@onPointerEvent
                     val week = weekIndex(position.x) ?: return@onPointerEvent
                     val row = rowIndex(position.y) ?: return@onPointerEvent
-                    if (grid.gridStart.plusDays(week * 7L + row).year != year) return@onPointerEvent
+                    val pressedDate = grid.gridStart.plusDays(week * 7L + row)
+                    if (!inRange(pressedDate)) return@onPointerEvent
                     if (weekly) {
                         val weekCell = weeklyCellAt(week) ?: return@onPointerEvent
                         if (!weekCell.start.isAfter(today)) onWeekSelected(weekCell.start, minOf(weekCell.end, today))
                     } else {
-                        val date = grid.gridStart.plusDays((week * 7 + row).toLong())
-                        if (date.year == year && !date.isAfter(today)) {
+                        val date = pressedDate
+                        if (!date.isAfter(today)) {
                             onDaySelected(date)
                         }
                     }
@@ -170,11 +174,13 @@ fun YearHeatmap(
                 .drawWith {
                     // Month labels
                     var lastLabelRight = -100f
-                    for (month in 1..12) {
-                        val first = LocalDate.of(year, month, 1)
+                    var month = java.time.YearMonth.from(grid.firstDay)
+                    val lastMonth = java.time.YearMonth.from(grid.lastDay)
+                    while (!month.isAfter(lastMonth)) {
+                        val first = maxOf(month.atDay(1), grid.firstDay)
                         val week = ((first.toEpochDay() - grid.gridStart.toEpochDay()) / 7).toInt()
                         val x = cellX(week)
-                        val layout = measurer.measure("$month" + "月", labelStyle.copy(color = colors.muted))
+                        val layout = measurer.measure("${month.monthValue}月", labelStyle.copy(color = colors.muted))
                         if (x > lastLabelRight + 4f) {
                             drawText(
                                 layout,
@@ -182,6 +188,7 @@ fun YearHeatmap(
                             )
                             lastLabelRight = x + layout.size.width
                         }
+                        month = month.plusMonths(1)
                     }
 
                     // Weekday labels
@@ -203,7 +210,7 @@ fun YearHeatmap(
                         for (week in 0 until grid.weeks) {
                             for (row in 0..6) {
                                 val date = grid.gridStart.plusDays((week * 7 + row).toLong())
-                                if (date.year != year) continue
+                                if (!inRange(date)) continue
                                 val x = cellX(week)
                                 val y = cellY(row)
                                 val millis = data.millisOn(date)
@@ -245,7 +252,7 @@ fun YearHeatmap(
                             val x = cellX(week)
                             val selected = selectedDate != null &&
                                 selectedDate in weekCell.start..weekCell.end
-                            val validRows = (0..6).filter { grid.gridStart.plusDays(week * 7L + it).year == year }
+                            val validRows = (0..6).filter { inRange(grid.gridStart.plusDays(week * 7L + it)) }
                             for (row in 0..6) {
                                 if (row !in validRows) continue
                                 val y = cellY(row)

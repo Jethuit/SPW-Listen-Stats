@@ -242,6 +242,7 @@ fun ListenStatsApp(
     var rangePreset by remember { mutableStateOf(RangePreset.Last30) }
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
     var heatmapYear by remember { mutableStateOf(today.year) }
+    var heatmapRolling by remember { mutableStateOf(false) }
     var heatmapWeekly by remember { mutableStateOf(false) }
     var customStart by remember { mutableStateOf<LocalDate?>(null) }
     var customEnd by remember { mutableStateOf<LocalDate?>(null) }
@@ -376,7 +377,9 @@ fun ListenStatsApp(
                                     today = today,
                                     year = heatmapYear,
                                     weekly = heatmapWeekly,
+                                    heatmapRolling = heatmapRolling,
                                     onYearSelected = { heatmapYear = it },
+                                    onHeatmapRollingSelected = { heatmapRolling = it },
                                     onWeeklySelected = { heatmapWeekly = it },
                                     selectedDate = selectedDate,
                                     rangePreset = rangePreset,

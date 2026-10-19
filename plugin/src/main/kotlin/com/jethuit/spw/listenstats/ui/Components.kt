@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
@@ -373,27 +372,20 @@ fun SectionHeading(
         }
     }
     val actions: @Composable () -> Unit = {
-        FlowRow(
+        Row(
             horizontalArrangement = Arrangement.spacedBy(controlsGap),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            itemVerticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically
         ) {
             controls()
         }
     }
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        if (maxWidth < 600.dp) {
-            Column(
-                Modifier.heightIn(min = headingHeight),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) { heading(); actions() }
-        } else {
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = headingHeight),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) { heading(); actions() }
-        }
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = headingHeight),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.weight(1f, fill = false)) { heading() }
+        actions()
     }
 }
 

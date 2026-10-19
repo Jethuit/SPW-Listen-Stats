@@ -42,7 +42,9 @@ fun OverviewPage(
     today: LocalDate,
     year: Int,
     weekly: Boolean,
+    heatmapRolling: Boolean = false,
     onYearSelected: (Int) -> Unit,
+    onHeatmapRollingSelected: (Boolean) -> Unit = {},
     onWeeklySelected: (Boolean) -> Unit,
     selectedDate: LocalDate?,
     rangePreset: RangePreset,
@@ -60,11 +62,13 @@ fun OverviewPage(
 ) {
     val colors = LocalStatsColors.current
     val years = remember(data, today) { StatsCalculations.years(data, today) }
-    val yearTotal = remember(data, year) {
-        data.dailyMillis.filterKeys { it.year == year }.values.sum()
+    val heatmapStart = if (heatmapRolling) today.minusDays(364) else LocalDate.of(year, 1, 1)
+    val heatmapEnd = if (heatmapRolling) today else LocalDate.of(year, 12, 31)
+    val yearTotal = remember(data, heatmapStart, heatmapEnd) {
+        data.dailyMillis.filterKeys { it in heatmapStart..heatmapEnd }.values.sum()
     }
-    val yearActiveDays = remember(data, year) {
-        data.dailyMillis.count { (date, millis) -> date.year == year && millis > 0 }
+    val yearActiveDays = remember(data, heatmapStart, heatmapEnd) {
+        data.dailyMillis.count { (date, millis) -> date in heatmapStart..heatmapEnd && millis > 0 }
     }
     val range = StatsCalculations.range(rangePreset, today, selectedDate, customStart, customEnd)
     val effectiveGranularity = if (range.days < 14) Granularity.Day else userGranularity
@@ -88,7 +92,11 @@ fun OverviewPage(
         SectionHeading(
             icon = IconPaths.CalendarMonth,
             title = "听歌热力图",
-            caption = "$year 年 · $yearActiveDays 个听歌日 · ${formatDuration(yearTotal)}"
+            caption = if (heatmapRolling) {
+                "近一年 · $yearActiveDays 个听歌日 · ${formatDuration(yearTotal)}"
+            } else {
+                "$year 年 · $yearActiveDays 个听歌日 · ${formatDuration(yearTotal)}"
+            }
         ) {
             SegmentedControl(
                 options = listOf(
@@ -99,10 +107,17 @@ fun OverviewPage(
                 onSelected = { onWeeklySelected(it == "week") }
             )
             SelectBox(
-                label = "${year}年",
-                options = years.map { it.toString() to "${it}年" },
-                selected = year.toString(),
-                onSelected = { onYearSelected(it.toIntOrNull() ?: year) },
+                label = if (heatmapRolling) "近一年" else "${year}年",
+                options = listOf("rolling" to "近一年") + years.map { it.toString() to "${it}年" },
+                selected = if (heatmapRolling) "rolling" else year.toString(),
+                onSelected = { key ->
+                    if (key == "rolling") {
+                        onHeatmapRollingSelected(true)
+                    } else {
+                        onHeatmapRollingSelected(false)
+                        key.toIntOrNull()?.let(onYearSelected)
+                    }
+                },
                 minWidth = 78.dp
             )
         }
@@ -116,7 +131,8 @@ fun OverviewPage(
                 selectedDate = selectedDate,
                 onDaySelected = onDaySelected,
                 onWeekSelected = onWeekSelected,
-                viewportRevision = viewportRevision
+                viewportRevision = viewportRevision,
+                rolling = heatmapRolling
             )
         }
 
@@ -344,14 +360,7 @@ private fun rangeLabel(
 ): String {
     return when (preset) {
         RangePreset.Selected -> formatDay(selectedDate ?: java.time.LocalDate.now())
-        RangePreset.Custom -> {
-            if (customStart != null && customEnd != null) {
-                "${formatDay(customStart)}–${formatDay(customEnd)}"
-            } else {
-                val end = java.time.LocalDate.now()
-                "${formatDay(end.minusDays(29))}–${formatDay(end)}"
-            }
-        }
+        RangePreset.Custom -> "自定义"
         else -> preset.label
     }
 }
