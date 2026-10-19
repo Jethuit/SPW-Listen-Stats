@@ -28,6 +28,8 @@ fun main(args: Array<String>) {
     check(rankingSafePage(72, 3) == 3) { "page three must survive the host clamp" }
     check(rankingSafePage(72, 4) == 3) { "out-of-range page should clamp to the last page" }
     check(rankingTotalPages(25) == 1) { "exactly 25 tracks should fit on one page" }
+    check(rankingTotalPages(600) == 24) { "600 tracks must produce 24 pages, not a fixed count" }
+    check(rankingTotalPages(10_000) == 400) { "large libraries must stay dynamic" }
     println("PASS ranking pagination uses 25 rows and keeps page three")
     for (scale in listOf(1.0, 1.25, 1.5, 2.0)) {
         fun px(value: Int) = (value * scale).toInt()
