@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -29,6 +31,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -37,6 +40,8 @@ import com.jethuit.spw.listenstats.ui.StatsText as Text
 import com.jethuit.spw.listenstats.util.formatDay
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.temporal.ChronoUnit
+import kotlin.math.min
 
 private val WeekdayLabels = listOf("一", "二", "三", "四", "五", "六", "日")
 
@@ -48,38 +53,33 @@ fun DateRangeDialog(
     onConfirm: (LocalDate, LocalDate) -> Unit
 ) {
     val colors = LocalStatsColors.current
-    var firstMonth by remember { mutableStateOf(YearMonth.from(initialStart)) }
-    var start by remember { mutableStateOf<LocalDate?>(initialStart) }
-    var end by remember { mutableStateOf<LocalDate?>(initialEnd) }
-    var selectingNewRange by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var startDate by remember { mutableStateOf(initialStart) }
+    var endDate by remember { mutableStateOf(initialEnd) }
+    var startMonth by remember { mutableStateOf(YearMonth.from(initialStart)) }
+    var endMonth by remember { mutableStateOf(YearMonth.from(initialEnd)) }
     val rootFocus = remember { FocusRequester() }
+    val years = remember(initialStart.year, initialEnd.year) {
+        val first = minOf(2000, initialStart.year - 1)
+        val last = maxOf(LocalDate.now().year + 1, initialEnd.year + 1)
+        (first..last).toList()
+    }
+    val months = (1..12).map { it.toString() to "${it}月" }
+    val yearOptions = years.map { it.toString() to "${it}年" }
 
-    fun pick(date: LocalDate) {
-        error = null
-        if (!selectingNewRange || end != null) {
-            start = date
-            end = null
-            selectingNewRange = true
-        } else {
-            val currentStart = start
-            if (currentStart != null && date.isBefore(currentStart)) {
-                start = date
-                end = currentStart
-            } else {
-                end = date
-            }
-        }
+    val rangeValid = !startDate.isAfter(endDate)
+    val days = if (rangeValid) {
+        ChronoUnit.DAYS.between(startDate, endDate) + 1
+    } else {
+        null
+    }
+    val summary = if (!rangeValid) {
+        "起始日期不能晚于结束日期"
+    } else {
+        "${formatDay(startDate)} 至 ${formatDay(endDate)} · 已选 $days 天"
     }
 
     fun submit() {
-        val selectedStart = start
-        val selectedEnd = end
-        if (selectedStart == null || selectedEnd == null) {
-            error = "请先选择开始日期和结束日期"
-            return
-        }
-        onConfirm(selectedStart, selectedEnd)
+        if (rangeValid) onConfirm(startDate, endDate)
     }
 
     LaunchedEffect(Unit) { runCatching { rootFocus.requestFocus() } }
@@ -111,7 +111,7 @@ fun DateRangeDialog(
         ) {
             Surface(
                 onClick = {},
-                modifier = Modifier.fillMaxWidth(0.92f).widthIn(max = 640.dp),
+                modifier = Modifier.fillMaxWidth(0.94f).widthIn(max = 880.dp),
                 shape = AppShape(14.dp),
                 color = colors.background,
                 border = BorderStroke(1.dp, SolidColor(colors.line))
@@ -122,81 +122,95 @@ fun DateRangeDialog(
                         style = AppType.sectionTitle.copy(color = colors.text)
                     )
                     Text(
-                        "点击开始日期，再点击结束日期；再次点击可重新选择",
+                        "分别选择起始和结束日期；切换年月只浏览，不改变已选日期",
                         modifier = Modifier.padding(top = 5.dp),
                         style = AppType.tiny.copy(color = colors.muted)
                     )
 
-                    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 10.dp)) {
-                        val twoMonths = maxWidth >= 470.dp
-                        val secondMonth = firstMonth.plusMonths(1)
-                        Column {
+                    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+                        val fontScale = LocalDensity.current.fontScale
+                        val twoCards = maxWidth >= 620.dp && fontScale <= 1.15f
+                        if (twoCards) {
                             Row(
                                 Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
                             ) {
-                                CalendarNavButton("«", "上一年") { firstMonth = firstMonth.minusYears(1) }
-                                CalendarNavButton("‹", "上个月") { firstMonth = firstMonth.minusMonths(1) }
-                                Text(
-                                    if (twoMonths) {
-                                        "${firstMonth.year}年${firstMonth.monthValue}月 — ${secondMonth.year}年${secondMonth.monthValue}月"
-                                    } else {
-                                        "${firstMonth.year}年${firstMonth.monthValue}月"
-                                    },
-                                    modifier = Modifier.padding(horizontal = 10.dp),
-                                    style = AppType.bodySmall.copy(color = colors.text)
-                                )
-                                CalendarNavButton("›", "下个月") { firstMonth = firstMonth.plusMonths(1) }
-                                CalendarNavButton("»", "下一年") { firstMonth = firstMonth.plusYears(1) }
-                            }
-                            Row(
-                                Modifier.fillMaxWidth().padding(top = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(18.dp)
-                            ) {
-                                MonthGrid(
-                                    month = firstMonth,
-                                    start = start,
-                                    end = end,
+                                DateCard(
+                                    title = "起始日期",
+                                    selected = startDate,
+                                    month = startMonth,
+                                    onMonthChange = { startMonth = it },
+                                    onDateSelected = { startDate = it },
+                                    years = yearOptions,
+                                    months = months,
                                     colors = colors,
-                                    modifier = Modifier.weight(1f),
-                                    onPick = ::pick
+                                    modifier = Modifier.weight(1f)
                                 )
-                                if (twoMonths) {
-                                    MonthGrid(
-                                        month = secondMonth,
-                                        start = start,
-                                        end = end,
-                                        colors = colors,
-                                        modifier = Modifier.weight(1f),
-                                        onPick = ::pick
-                                    )
-                                }
+                                DateCard(
+                                    title = "结束日期",
+                                    selected = endDate,
+                                    month = endMonth,
+                                    onMonthChange = { endMonth = it },
+                                    onDateSelected = { endDate = it },
+                                    years = yearOptions,
+                                    months = months,
+                                    colors = colors,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        } else {
+                            Column(
+                                Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                DateCard(
+                                    title = "起始日期",
+                                    selected = startDate,
+                                    month = startMonth,
+                                    onMonthChange = { startMonth = it },
+                                    onDateSelected = { startDate = it },
+                                    years = yearOptions,
+                                    months = months,
+                                    colors = colors,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                DateCard(
+                                    title = "结束日期",
+                                    selected = endDate,
+                                    month = endMonth,
+                                    onMonthChange = { endMonth = it },
+                                    onDateSelected = { endDate = it },
+                                    years = yearOptions,
+                                    months = months,
+                                    colors = colors,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
                         }
                     }
 
                     Text(
-                        error ?: when {
-                            start == null -> "请选择开始日期"
-                            end == null -> "请选择结束日期"
-                            else -> "${formatDay(start!!)} 至 ${formatDay(end!!)}"
-                        },
+                        summary,
                         modifier = Modifier.padding(top = 12.dp),
                         style = AppType.tiny.copy(
-                            color = if (error != null || start == null || end == null) colors.danger else colors.muted
+                            color = if (rangeValid) colors.muted else colors.danger
                         )
                     )
                     Row(
-                        Modifier.fillMaxWidth().padding(top = 14.dp),
+                        Modifier.fillMaxWidth().padding(top = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        DialogButton("取消", colors.controlBackground, colors.text, onCancel)
+                        DialogButton("取消", colors.controlBackground, colors.text, true, onCancel)
                         DialogButton(
                             "确定",
-                            colors.accent,
-                            if (colors.isDark) colors.background else Color.White,
+                            if (rangeValid) colors.accent else colors.controlBackground,
+                            if (rangeValid) {
+                                if (colors.isDark) colors.background else Color.White
+                            } else {
+                                colors.muted
+                            },
+                            rangeValid,
                             ::submit
                         )
                     }
@@ -207,10 +221,68 @@ fun DateRangeDialog(
 }
 
 @Composable
+private fun DateCard(
+    title: String,
+    selected: LocalDate,
+    month: YearMonth,
+    onMonthChange: (YearMonth) -> Unit,
+    onDateSelected: (LocalDate) -> Unit,
+    years: List<Pair<String, String>>,
+    months: List<Pair<String, String>>,
+    colors: StatsColors,
+    modifier: Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = AppShape(12.dp),
+        color = colors.subtle,
+        border = BorderStroke(1.dp, SolidColor(colors.line))
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Text(title, style = AppType.bodySmall.copy(color = colors.text))
+            Row(
+                Modifier.fillMaxWidth().padding(top = 6.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CalendarNavButton("‹", "上个月") { onMonthChange(month.minusMonths(1)) }
+                SelectBox(
+                    label = "${month.year}年",
+                    options = years,
+                    selected = month.year.toString(),
+                    onSelected = { year ->
+                        year.toIntOrNull()?.let { onMonthChange(YearMonth.of(it, month.monthValue)) }
+                    },
+                    modifier = Modifier.padding(horizontal = 3.dp),
+                    minWidth = 78.dp
+                )
+                SelectBox(
+                    label = "${month.monthValue}月",
+                    options = months,
+                    selected = month.monthValue.toString(),
+                    onSelected = { value ->
+                        value.toIntOrNull()?.let { onMonthChange(YearMonth.of(month.year, it)) }
+                    },
+                    modifier = Modifier.padding(horizontal = 3.dp),
+                    minWidth = 58.dp
+                )
+                CalendarNavButton("›", "下个月") { onMonthChange(month.plusMonths(1)) }
+            }
+            MonthGrid(
+                month = month,
+                selected = selected,
+                colors = colors,
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                onPick = onDateSelected
+            )
+        }
+    }
+}
+
+@Composable
 private fun MonthGrid(
     month: YearMonth,
-    start: LocalDate?,
-    end: LocalDate?,
+    selected: LocalDate,
     colors: StatsColors,
     modifier: Modifier,
     onPick: (LocalDate) -> Unit
@@ -222,39 +294,32 @@ private fun MonthGrid(
         if (index < offset || index >= offset + days) null
         else first.plusDays((index - offset).toLong())
     }
-    Column(modifier) {
-        Text(
-            "${month.year}年${month.monthValue}月",
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-            style = AppType.bodySmall.copy(color = colors.text)
-        )
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
-            WeekdayLabels.forEach { label ->
-                Text(
-                    label,
-                    modifier = Modifier.weight(1f),
-                    style = AppType.tiny.copy(color = colors.muted, fontSize = 10.sp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-            }
-        }
-        for (week in 0 until 6) {
+    BoxWithConstraints(modifier, contentAlignment = Alignment.TopCenter) {
+        val cell = minOf(maxWidth / 7f, 34.dp)
+        Column(Modifier.width(cell * 7f)) {
             Row(Modifier.fillMaxWidth()) {
-                for (day in 0 until 7) {
-                    val date = cells[week * 7 + day]
-                    Box(
-                        Modifier.weight(1f).height(30.dp).padding(1.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (date != null) {
-                            CalendarDay(
-                                date = date,
-                                isStart = date == start,
-                                isEnd = date == end,
-                                inRange = start != null && end != null && !date.isBefore(start) && !date.isAfter(end),
-                                colors = colors,
-                                onClick = { onPick(date) }
-                            )
+                WeekdayLabels.forEach { label ->
+                    Box(Modifier.width(cell), contentAlignment = Alignment.Center) {
+                        Text(
+                            label,
+                            style = AppType.tiny.copy(color = colors.muted, fontSize = 10.sp)
+                        )
+                    }
+                }
+            }
+            for (week in 0 until 6) {
+                Row(Modifier.fillMaxWidth()) {
+                    for (day in 0 until 7) {
+                        val date = cells[week * 7 + day]
+                        Box(Modifier.size(cell).padding(1.dp), contentAlignment = Alignment.Center) {
+                            if (date != null) {
+                                CalendarDay(
+                                    date = date,
+                                    selected = date == selected,
+                                    colors = colors,
+                                    onClick = { onPick(date) }
+                                )
+                            }
                         }
                     }
                 }
@@ -266,20 +331,14 @@ private fun MonthGrid(
 @Composable
 private fun CalendarDay(
     date: LocalDate,
-    isStart: Boolean,
-    isEnd: Boolean,
-    inRange: Boolean,
+    selected: Boolean,
     colors: StatsColors,
     onClick: () -> Unit
 ) {
-    val endpoint = isStart || isEnd
-    val normal = when {
-        endpoint -> colors.accent
-        inRange -> colors.accentSoft
-        else -> Color.Transparent
-    }
-    val hover = if (endpoint) colors.accent else colors.hover
-    HoverColor(normal, hover) { background ->
+    HoverColor(
+        if (selected) colors.accent else Color.Transparent,
+        if (selected) colors.accent else colors.hover
+    ) { background ->
         Surface(
             onClick = onClick,
             modifier = Modifier.fillMaxSize(),
@@ -290,7 +349,7 @@ private fun CalendarDay(
                 Text(
                     date.dayOfMonth.toString(),
                     style = AppType.tiny.copy(
-                        color = if (endpoint) {
+                        color = if (selected) {
                             if (colors.isDark) colors.background else Color.White
                         } else {
                             colors.text
@@ -325,12 +384,13 @@ private fun DialogButton(
     label: String,
     background: Color,
     foreground: Color,
+    enabled: Boolean,
     onClick: () -> Unit
 ) {
     Surface(
-        onClick = onClick,
+        onClick = { if (enabled) onClick() },
         shape = AppShape(8.dp),
-        color = background
+        color = if (enabled) background else background.copy(alpha = 0.55f)
     ) {
         Box(
             Modifier.height(34.dp).padding(horizontal = 16.dp),

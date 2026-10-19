@@ -16,10 +16,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Surface
 import com.moriafly.salt.ui.Card as SaltCard
+import com.moriafly.salt.ui.LocalTextStyle
+import com.moriafly.salt.ui.rememberScrollState
+import com.moriafly.salt.ui.verticalScroll
 import com.jethuit.spw.listenstats.ui.StatsText as Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -34,14 +35,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
+import kotlin.math.roundToInt
 
 data class SegmentOption(
     val key: String,
@@ -199,8 +209,29 @@ fun SelectBox(
     minWidth: Dp = 0.dp
 ) {
     val colors = LocalStatsColors.current
+    val density = LocalDensity.current
+    val measurer = rememberTextMeasurer()
+    val optionTextStyle = LocalTextStyle.current.merge(AppType.bodySmall)
+    val longestTextPx = remember(options, optionTextStyle) {
+        options.maxOfOrNull { measurer.measure(it.second, optionTextStyle).size.width } ?: 0
+    }
+    val optionWidth = with(density) {
+        (longestTextPx + 20.dp.toPx()).toDp()
+    }.coerceAtLeast(132.dp)
+    val menuWidth = optionWidth + 12.dp
     var expanded by remember { mutableStateOf(false) }
-    Box(modifier) {
+    var anchorBounds by remember { mutableStateOf<IntRect?>(null) }
+    Box(
+        modifier.onGloballyPositioned {
+            val bounds = it.boundsInWindow()
+            anchorBounds = IntRect(
+                bounds.left.roundToInt(),
+                bounds.top.roundToInt(),
+                bounds.right.roundToInt(),
+                bounds.bottom.roundToInt()
+            )
+        }
+    ) {
         Surface(
             onClick = { expanded = true },
             modifier = Modifier.height(ControlHeight),
@@ -219,51 +250,88 @@ fun SelectBox(
                 AppIcon(IconPaths.ExpandMore, colors.muted, iconSize = 16.dp)
             }
         }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.widthIn(min = 160.dp),
-            shape = AppShape(8.dp),
-            containerColor = colors.background,
-            tonalElevation = 0.dp,
-            shadowElevation = 4.dp
-        ) {
-            Column(
-                Modifier.padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                options.forEach { (value, text) ->
-                    val isSelected = value == selected
-                    HoverColor(
-                        if (isSelected) colors.controlBackground else Color.Transparent,
-                        colors.hover
-                    ) { background ->
-                        Surface(
-                            onClick = {
-                                expanded = false
-                                onSelected(value)
-                            },
-                            modifier = Modifier.fillMaxWidth().height(32.dp),
-                            shape = AppShape(5.dp),
-                            color = background
-                        ) {
-                            Row(
-                                Modifier.fillMaxWidth().padding(horizontal = 11.dp),
-                                verticalAlignment = Alignment.CenterVertically
+        if (expanded) {
+            val anchor = anchorBounds
+            if (anchor != null) {
+                Popup(
+                    popupPositionProvider = remember(anchor, density) {
+                        SelectMenuPositionProvider(anchor, with(density) { 4.dp.roundToPx() })
+                    },
+                    onDismissRequest = { expanded = false },
+                    properties = PopupProperties(focusable = true, dismissOnClickOutside = true)
+                ) {
+                    Surface(
+                        modifier = Modifier.width(menuWidth),
+                        shape = AppShape(9.dp),
+                        color = colors.background,
+                        border = BorderStroke(1.dp, SolidColor(colors.line)),
+                        shadowElevation = 4.dp
+                    ) {
+                        Box(Modifier.padding(6.dp)) {
+                            Column(
+                                Modifier
+                                    .heightIn(max = 320.dp)
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
-                                Text(
-                                    text,
-                                    modifier = Modifier.weight(1f),
-                                    style = AppType.bodySmall.copy(
-                                        color = if (isSelected) colors.accent else colors.text
-                                    )
-                                )
+                                options.forEach { (value, text) ->
+                                val isSelected = value == selected
+                                HoverColor(
+                                    if (isSelected) colors.controlBackground else Color.Transparent,
+                                    colors.hover
+                                ) { background ->
+                                    Surface(
+                                        onClick = {
+                                            expanded = false
+                                            onSelected(value)
+                                        },
+                                        modifier = Modifier.fillMaxWidth().height(34.dp),
+                                        shape = AppShape(5.dp),
+                                        color = background
+                                    ) {
+                                        Row(
+                                            Modifier.fillMaxWidth().padding(horizontal = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text,
+                                                maxLines = 1,
+                                                style = AppType.bodySmall.copy(
+                                                    color = if (isSelected) colors.accent else colors.text
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+}
+
+private class SelectMenuPositionProvider(
+    private val anchor: IntRect,
+    private val gapPx: Int
+) : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize
+    ): IntOffset {
+        var x = anchor.left
+        var y = anchor.bottom + gapPx
+        if (y + popupContentSize.height > windowSize.height) {
+            y = anchor.top - popupContentSize.height - gapPx
+        }
+        x = x.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0))
+        y = y.coerceIn(0, (windowSize.height - popupContentSize.height).coerceAtLeast(0))
+        return IntOffset(x, y)
     }
 }
 
