@@ -2,7 +2,13 @@
 
 > 给接手 GPT 的单一入口文档见 [`GPT-HANDOFF.md`](GPT-HANDOFF.md)；本文件保留逐版本修订记录。
 
-## 最新：0.1.28 分页不跳顶/箭头统一
+## 最新：0.1.29 keyboard_arrow 图标
+
+- 日期、分页、下拉菜单改用 Material Symbols `keyboard_arrow_left/right/down`，不再旋转 ExpandMore。
+- 统一 18dp、muted、34dp 按钮/8dp 圆角；AppIcon 支持 24 viewBox 正坐标。
+- 截图 `build/screenshots/keyboard_arrows.png`。详见 [UI-0.1.29.md](UI-0.1.29.md)。
+
+## 0.1.28 分页不跳顶/箭头统一
 
 - 排行切页不再 `scrollTop()`；页面切换（概览/排行）仍回顶。
 - 日期上下月、分页前后箭头改用与下拉菜单同一 `ExpandMore` 路径，分别旋转 ±90°；16dp、muted、按钮 34dp/8dp。

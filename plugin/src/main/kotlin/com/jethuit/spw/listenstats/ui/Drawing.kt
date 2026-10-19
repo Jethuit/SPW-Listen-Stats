@@ -79,7 +79,9 @@ fun AppIcon(
     tint: Color,
     modifier: Modifier = Modifier,
     iconSize: Dp = 18.dp,
-    rotationDegrees: Float = 0f
+    rotationDegrees: Float = 0f,
+    viewBoxSize: Float = 960f,
+    positiveCoordinates: Boolean = false
 ) {
     val path = remember(pathData) {
         try {
@@ -89,13 +91,13 @@ fun AppIcon(
         }
     }
     Box(modifier.size(iconSize).drawWith {
-        val scale = minOf(size.width, size.height) / 960f
+        val scale = minOf(size.width, size.height) / viewBoxSize
         if (scale <= 0f) return@drawWith
         withTransform({
             if (rotationDegrees != 0f) {
                 rotate(rotationDegrees, pivot = Offset(size.width / 2f, size.height / 2f))
             }
-            translate(0f, size.height)
+            translate(0f, if (positiveCoordinates) 0f else size.height)
             scale(scale, scale, pivot = Offset.Zero)
         }) {
             drawPath(path, tint)

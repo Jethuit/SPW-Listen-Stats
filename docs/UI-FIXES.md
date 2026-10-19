@@ -1,5 +1,10 @@
 # UI 修订
 
+## 0.1.29 keyboard_arrow 图标
+
+- 日期/分页/下拉菜单改用 Material Symbols keyboard_arrow_left/right/down；18dp/muted/34dp。
+- 不再旋转 ExpandMore。详见 [UI-0.1.29.md](UI-0.1.29.md)。
+
 ## 0.1.28 分页不跳顶/箭头统一
 
 - 排行切页不再 `scrollTop()`。

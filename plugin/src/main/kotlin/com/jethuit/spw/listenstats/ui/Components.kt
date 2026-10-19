@@ -254,7 +254,13 @@ fun SelectBox(
             ) {
                 Text(label, style = AppType.bodySmall.copy(color = colors.text))
                 Box(Modifier.width(8.dp))
-                AppIcon(IconPaths.ExpandMore, colors.muted, iconSize = 16.dp)
+                AppIcon(
+                    IconPaths.KeyboardArrowDown,
+                    colors.muted,
+                    iconSize = 18.dp,
+                    viewBoxSize = 24f,
+                    positiveCoordinates = true
+                )
             }
         }
         if (expanded) {
