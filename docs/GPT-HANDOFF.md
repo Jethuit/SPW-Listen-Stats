@@ -1,15 +1,15 @@
 # GPT 交接文档：SPW-Listen Stats
 
-> **最新源码 0.1.29：** 日期、分页和下拉菜单改用 Material Symbols `keyboard_arrow_left/right/down`，统一 18dp/muted/34dp，不再旋转 ExpandMore。详见 [UI-0.1.29.md](UI-0.1.29.md)。0.1.28 切页不跳顶保持。
+> **最新源码 0.1.30：** 年份/月份下拉箭头被固定 `width` 截断，改为 `widthIn`；箭头统一 24dp keyboard_arrow。详见 [UI-0.1.30.md](UI-0.1.30.md)。0.1.29 图标族、0.1.28 切页不跳顶保持。
 >
-> **0.1.28：** 排行切页不再跳回顶部；日期/分页/下拉箭头统一（0.1.29 进一步替换为 keyboard_arrow 图标）。
+> **0.1.29：** 日期、分页和下拉菜单改用 Material Symbols `keyboard_arrow_left/right/down`，不再旋转 ExpandMore。
 >
 > **2026-10-19 更新：当前源码 0.1.21。** 控件底色及宿主字体接入见 [UI-0.1.21.md](UI-0.1.21.md)。用户实机反馈已证明 0.1.20 的字体继承不足；当前通过读取宿主字体策略和实际字体资源修正，视觉待用户核对。
 
 > **2026-10-19 更新：0.1.20。** 已处理审查发现的六项问题，当前变更及验证状态以 [BUGFIX-0.1.20.md](BUGFIX-0.1.20.md) 为准；下文 0.1.19 版本、提交和检查数字保留为上一轮背景。仍不能把离线回归视为真实播放或宿主字体/交互验收。
 
 > 这是给接手 GPT 的**单一入口文档**。先读本文件，再按需读 `docs/NATIVE-IMPLEMENTATION.md`、`docs/HANDOFF.md`、`docs/UI-0.1.22.md`。
-> 最后更新：2026-10-19；源码版本 **0.1.29**；分支 `codex/listening-stats`。
+> 最后更新：2026-10-19；源码版本 **0.1.30**；分支 `codex/listening-stats`。
 
 ## 0. 一句话状态
 

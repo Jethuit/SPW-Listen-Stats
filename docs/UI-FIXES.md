@@ -1,5 +1,10 @@
 # UI 修订
 
+## 0.1.30 下拉箭头截断修复
+
+- SelectBox `width(minWidth)` → `widthIn(minWidth)`，箭头不再被裁掉。
+- 箭头统一 24dp keyboard_arrow。详见 [UI-0.1.30.md](UI-0.1.30.md)。
+
 ## 0.1.29 keyboard_arrow 图标
 
 - 日期/分页/下拉菜单改用 Material Symbols keyboard_arrow_left/right/down；18dp/muted/34dp。

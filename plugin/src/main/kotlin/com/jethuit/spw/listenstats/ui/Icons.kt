@@ -16,7 +16,7 @@ object IconPaths {
     const val ExpandMore = "M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z"
     const val KeyboardArrowLeft = "M15.41 16.59 10.83 12l4.58-4.59L14 6l-6 6 6 6z"
     const val KeyboardArrowRight = "M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z"
-    const val KeyboardArrowDown = "M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"
+    const val KeyboardArrowDown = "M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z"
     const val Close = "M256-200l-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"
     const val ArrowBack = "M360-200 L160-400 L360-600 L416-544 L312-440 L840-440 L840-360 L312-360 L416-256 Z"
     const val BarChart = "M640-160v-280h160v280H640Zm-240 0v-640h160v640H400Zm-240 0v-440h160v440H160Z"

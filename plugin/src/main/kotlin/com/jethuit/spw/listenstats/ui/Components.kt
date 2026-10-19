@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Surface
 import com.moriafly.salt.ui.Card as SaltCard
 import com.moriafly.salt.ui.LocalTextStyle
@@ -248,7 +249,7 @@ fun SelectBox(
             Row(
                 Modifier
                     .fillMaxHeight()
-                    .then(if (minWidth > 0.dp) Modifier.width(minWidth) else Modifier)
+                    .then(if (minWidth > 0.dp) Modifier.widthIn(min = minWidth) else Modifier)
                     .padding(start = 12.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -257,9 +258,7 @@ fun SelectBox(
                 AppIcon(
                     IconPaths.KeyboardArrowDown,
                     colors.muted,
-                    iconSize = 18.dp,
-                    viewBoxSize = 24f,
-                    positiveCoordinates = true
+                    iconSize = 24.dp
                 )
             }
         }

@@ -2,7 +2,13 @@
 
 > 给接手 GPT 的单一入口文档见 [`GPT-HANDOFF.md`](GPT-HANDOFF.md)；本文件保留逐版本修订记录。
 
-## 最新：0.1.29 keyboard_arrow 图标
+## 最新：0.1.30 下拉箭头截断修复
+
+- `SelectBox` 的固定 `width(minWidth)` 改为 `widthIn(minWidth)`；年份/月份按钮不再裁掉右侧箭头。
+- 三个箭头图标统一 24dp（keyboard_arrow 路径），日期/分页/下拉一致。
+- 截图 `build/screenshots/arrows_24.png`。详见 [UI-0.1.30.md](UI-0.1.30.md)。
+
+## 0.1.29 keyboard_arrow 图标
 
 - 日期、分页、下拉菜单改用 Material Symbols `keyboard_arrow_left/right/down`，不再旋转 ExpandMore。
 - 统一 18dp、muted、34dp 按钮/8dp 圆角；AppIcon 支持 24 viewBox 正坐标。
