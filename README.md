@@ -16,8 +16,6 @@
 
 ## 实际效果图
 
-以下为 SPW 中的实际运行效果。
-
 ### 听歌概览与热力图
 
 ![听歌概览与热力图实际效果](docs/screenshots/v0.1.2/overview-heatmap.png)
