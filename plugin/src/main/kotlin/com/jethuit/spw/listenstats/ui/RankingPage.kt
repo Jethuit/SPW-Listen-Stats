@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -384,7 +385,7 @@ private fun PageJumpControl(
                 state = state,
                 modifier = Modifier
                     .width(42.dp)
-                    .height(30.dp)
+                    .height(34.dp)
                     .onPreviewKeyEvent { event ->
                         if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
                             submit()
@@ -394,7 +395,7 @@ private fun PageJumpControl(
                         }
                     },
                 lineLimits = TextFieldLineLimits.SingleLine,
-                shape = AppShape(6.dp),
+                shape = AppShape(8.dp),
                 contentPadding = PaddingValues(0.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = colors.text,
@@ -405,7 +406,9 @@ private fun PageJumpControl(
                     focusedBorderColor = Color.Transparent,
                     unfocusedBorderColor = Color.Transparent
                 ),
-                textStyle = com.moriafly.salt.ui.LocalTextStyle.current.merge(AppType.tiny)
+                textStyle = com.moriafly.salt.ui.LocalTextStyle.current
+                    .merge(AppType.tiny)
+                    .copy(textAlign = TextAlign.Center)
             )
             Text("页", style = AppType.tiny.copy(color = colors.muted))
         }
@@ -497,7 +500,7 @@ private fun PageButton(
     CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
         Surface(
             onClick = { if (enabled) onClick() },
-            shape = AppShape(5.dp),
+            shape = AppShape(8.dp),
             color = if (active) colors.background else Color.Transparent
         ) {
             Box(
