@@ -29,7 +29,7 @@ RESOURCES = ROOT / 'plugin' / 'src' / 'main' / 'resources'
 PLUGIN_ID = 'com.jethuit.spw.listenstats'
 PLUGIN_VERSION = '0.1.0'
 PLUGIN_NAME = '听歌统计'
-PACKAGE_FILENAME = f'{PLUGIN_NAME}-v{PLUGIN_VERSION}.spmod'
+PACKAGE_FILENAME = f'SPW-Stats-v{PLUGIN_VERSION}.spmod'
 PLUGIN_CLASS = 'com.jethuit.spw.listenstats.MainPlugin'
 DEFAULT_SPW_DIR = Path(r'E:\SteamLibrary\steamapps\common\Salt Player for Windows')
 

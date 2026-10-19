@@ -11,7 +11,7 @@ python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Sa
 python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-产物：`build/libs/听歌统计-v0.1.0.spmod`；解包目录 `build/install/spw-listen-stats/`。执行 `py -3.12 tools/prepare_release.py` 将安装包整理到 `build/releases/v0.1.0/`。工具链缓存在 `build/tools/`，SaltUI jar 缓存在 `build/tools/saltui/`，不提交 Git。
+产物：`build/libs/SPW-Stats-v0.1.0.spmod`；解包目录 `build/install/spw-listen-stats/`。执行 `py -3.12 tools/prepare_release.py` 将安装包整理到 `build/releases/v0.1.0/`。工具链缓存在 `build/tools/`，SaltUI jar 缓存在 `build/tools/saltui/`，不提交 Git。
 
 在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。入口在模块管理页插件配置“打开听歌统计”；页面通过 AppNavigation hook 内嵌在宿主内容区，不再创建 JDialog/Popup。Hook 仍绑定 SPW 1.19.0。
 

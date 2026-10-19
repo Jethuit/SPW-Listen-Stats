@@ -4,7 +4,7 @@
 
 ## 最新：v0.1.0 首次公开预发布准备
 
-- 最终名称统一为 **听歌统计**，入口为“打开听歌统计”，安装包为 `听歌统计-v0.1.0.spmod`；不再发布 `SHA256SUMS.txt`。三张实际效果图只放 README，Release 保持简短；推荐使用 SPW“椒盐经典”主题样式。插件 ID 保持。
+- 最终名称统一为 **听歌统计**，入口为“打开听歌统计”，安装包为 `SPW-Stats-v0.1.0.spmod`；不再发布 `SHA256SUMS.txt`。三张实际效果图只放 README，Release 保持简短；推荐使用 SPW“椒盐经典”主题样式。插件 ID 保持。
 
 - 用户选择首版编号 `v0.1.0`，仅创建 GitHub 草稿 Release，不公开发布。基于开发版 0.1.35 整理，历史记录保留。
 - 对外正文见 [releases/v0.1.0.md](releases/v0.1.0.md)，材料与验证记录见 [releases/PREPARATION-v0.1.0.md](releases/PREPARATION-v0.1.0.md)。
