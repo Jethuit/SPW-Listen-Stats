@@ -149,7 +149,10 @@ object CoverStore {
                 decodeMs = (System.nanoTime() - decodeStart) / 1_000_000
             }
         } catch (failure: Throwable) {
-            if (failure is kotlinx.coroutines.CancellationException) throw failure
+            // A canceled API future does not imply that this request's coroutine
+            // was canceled. Only propagate our own cancellation; otherwise the
+            // null result follows the normal cooldown and row retry path.
+            coroutineContext.ensureActive()
         } finally {
             if (acquired) decodeSemaphore.release()
             val totalMs = (System.nanoTime() - requestStart) / 1_000_000

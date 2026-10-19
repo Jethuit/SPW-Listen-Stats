@@ -1,6 +1,7 @@
 @file:OptIn(com.xuncorp.spw.workshop.api.UnstableSpwWorkshopApi::class)
 
 import com.jethuit.spw.listenstats.data.CoverStore
+import androidx.compose.ui.graphics.ImageBitmap
 import com.xuncorp.spw.workshop.api.WorkshopApi
 import java.io.IOException
 import java.lang.reflect.Proxy
@@ -118,17 +119,54 @@ fun main() = runBlocking(Dispatchers.IO) {
         check(calls.get() == 2)
     }
 
-    test("an API cancellation can be retried immediately") {
+    test("an API cancellation returns a retryable result with a cooldown") {
         val calls = AtomicInteger()
         fetch = {
             if (calls.incrementAndGet() == 1) CompletableFuture<ByteArray?>().also { it.cancel(false) }
             else CompletableFuture.completedFuture(null)
         }
         val first = async(start = CoroutineStart.UNDISPATCHED) { CoverStore.load("api-canceled", 44) }
-        first.join()
-        check(first.isCancelled)
+        check(first.await() == null)
+        check(!first.isCancelled)
         check(CoverStore.load("api-canceled", 44) == null)
-        check(calls.get() == 2) { "Cancellation must not start a failure cooldown" }
+        check(calls.get() == 1) { "API cancellation must respect the normal retry cooldown" }
+    }
+
+    test("API cancellation preserves the displayed row's retry loop") {
+        val calls = AtomicInteger()
+        val entered = CompletableDeferred<Unit>()
+        val pending = CompletableFuture<ByteArray?>()
+        fetch = { calls.incrementAndGet(); entered.complete(Unit); pending }
+        val firstReturned = CompletableDeferred<Unit>()
+        val retryDelay = CompletableDeferred<Unit>()
+        val nextReturned = CompletableDeferred<Unit>()
+        var image: ImageBitmap? = null
+        var attempts = 0
+        // Same load/retry boundary as Cover's LaunchedEffect. A gate replaces
+        // the 30-second delay, keeping this test deterministic and lightweight.
+        val row = launch(start = CoroutineStart.UNDISPATCHED) {
+            while (image == null) {
+                image = CoverStore.load("displayed-row", 44)
+                attempts++
+                if (attempts == 1) {
+                    firstReturned.complete(Unit)
+                    retryDelay.await()
+                } else {
+                    nextReturned.complete(Unit)
+                    awaitCancellation()
+                }
+            }
+        }
+        entered.await()
+        pending.cancel(false)
+        firstReturned.await()
+        check(row.isActive && attempts == 1)
+        retryDelay.complete(Unit)
+        nextReturned.await()
+        check(row.isActive && attempts == 2) { "API cancellation stopped the row's retry loop" }
+        check(calls.get() == 1) { "The early retry must still respect the real 30-second cooldown" }
+        row.cancelAndJoin()
+        check(row.isCancelled) { "Leaving the row must still cancel its retry loop" }
     }
 
     test("real API errors still fall back and are rate limited") {

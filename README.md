@@ -6,14 +6,14 @@ GitHub：<https://github.com/Jethuit/SPW-Listen-Stats>。正式实现说明、�
 
 ## 正式模组
 
-当前 0.1.34 修复封面取消、共享请求清理、持续重试和日期弹窗键盘操作，并为受限高度增加滚动。分页样式保持。详见 [0.1.34 修复说明](docs/BUGFIX-0.1.34.md)。
+当前 0.1.35 修复宿主 API 取消封面请求后自动重试中断的问题，保留 30 秒失败冷却；0.1.34 的封面共享、日期键盘与滚动修复保持。详见 [0.1.35 修复说明](docs/BUGFIX-0.1.35.md)。
 
 ```powershell
 python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-产物为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.34.spmod`，在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。入口在模块管理页的插件配置“打开听歌统计”；不再有主界面浮动入口。
+产物为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.35.spmod`，在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。入口在模块管理页的插件配置“打开听歌统计”；不再有主界面浮动入口。
 
 当前只读宿主 `spw.db` 的 `Listen` 表，同时通过播放扩展点、单调时钟和实际收听片段保存 `live-sessions.json`；每遍听满 50% 为该歌曲计一次。新版正式备份 v2 按会话身份合并去重，兼容旧 v1 汇总并提示其保守合并可能少计。宿主历史缺少暂停片段，小时分布仍为近似，实时/宿主记录匹配也仍依赖开始时间启发式。封面通过 Workshop API 读取；主题、图表类型和粒度保存在插件配置中。
 
