@@ -11,6 +11,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--reference', type=Path)
 parser.add_argument('--spw-dir', type=Path)
 parser.add_argument('--layout', action='store_true', help='render responsive frame and footer checks')
+parser.add_argument('--calendar', action='store_true', help='check fixed month-navigation controls')
 args = parser.parse_args()
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
@@ -22,7 +23,8 @@ scratch.mkdir(parents=True, exist_ok=True)
 classpath = os.pathsep.join(map(str, [kotlin / 'lib/kotlin-stdlib.jar', ROOT / 'build/plugin-classes',
     *builder.saltui_jars(), ROOT / 'build/tools/spw-host.jar']))
 java = str(jdk / 'bin/java.exe')
-test_name = 'ResponsiveLayoutVisualCheck' if args.layout else 'BackButtonVisualCheck'
+test_name = ('CalendarNavigationVisualCheck' if args.calendar else
+             'ResponsiveLayoutVisualCheck' if args.layout else 'BackButtonVisualCheck')
 subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
     '-no-stdlib', '-classpath', classpath,
     f'-Xplugin={kotlin / "lib/compose-compiler-plugin.jar"}', '-jvm-target', '25',
@@ -33,6 +35,8 @@ environment['LOCALAPPDATA'] = str(scratch / 'localappdata')
 output = ROOT / 'build/screenshots' / f'back-button-v{builder.PLUGIN_VERSION}.png'
 if args.layout:
     output = ROOT / 'build/screenshots' / f'responsive-v{builder.PLUGIN_VERSION}'
+if args.calendar:
+    output = ROOT / 'build/screenshots' / f'calendar-v{builder.PLUGIN_VERSION}'
 native_dir = (args.spw_dir or builder.DEFAULT_SPW_DIR) / 'app'
 native_temp = scratch / 'native-temp'
 native_temp.mkdir(exist_ok=True)
@@ -40,7 +44,35 @@ subprocess.run([java, f'-Dskiko.library.path={native_dir}', f'-Djna.tmpdir={nati
     f'-Djava.io.tmpdir={native_temp}', '--enable-native-access=ALL-UNNAMED',
     '-cp', str(scratch) + os.pathsep + classpath,
     test_name + 'Kt', str(output)], check=True, env=environment)
-if args.layout:
+if args.calendar:
+    widths = []
+    for file in sorted(output.glob('month-*.png')):
+        im = Image.open(file).convert('RGB')
+        remaining = {(x, y) for y in range(im.height) for x in range(im.width)
+                     if im.getpixel((x, y)) == (237, 238, 241)}
+        bounds = []
+        while remaining:
+            seed = remaining.pop()
+            component, pending = [seed], [seed]
+            while pending:
+                x, y = pending.pop()
+                for point in ((x-1, y), (x+1, y), (x, y-1), (x, y+1)):
+                    if point in remaining:
+                        remaining.remove(point)
+                        pending.append(point)
+                        component.append(point)
+            if len(component) > 200:
+                bounds.append((min(x for x,y in component), min(y for x,y in component),
+                               max(x for x,y in component)+1, max(y for x,y in component)+1))
+        bounds.sort()
+        assert len(bounds) == 4, (file, bounds)
+        measured = [r-l for l,t,r,b in bounds]
+        assert measured == [43, 115, 95, 43], (file, measured)
+        assert all(b-t == 43 for l,t,r,b in bounds), (file, bounds)
+        widths.append(measured)
+    assert len(widths) == 4
+    print('PASS four month/year labels: fixed 34/92/76/34dp control widths, both arrows 34x34dp at 125%')
+elif args.layout:
     before = Image.open(output / 'frame-top.png').convert('RGB').crop((0, 0, 1875, 70))
     after = Image.open(output / 'frame-scrolled.png').convert('RGB').crop((0, 0, 1875, 70))
     assert ImageChops.difference(before, after).getbbox() is None, 'Scrolling content covers the navigation row'

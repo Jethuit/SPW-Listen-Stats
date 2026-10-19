@@ -206,7 +206,8 @@ fun SelectBox(
     selected: String? = null,
     onSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
-    minWidth: Dp = 0.dp
+    minWidth: Dp = 0.dp,
+    fixedWidth: Dp? = null
 ) {
     val colors = LocalStatsColors.current
     val density = LocalDensity.current
@@ -242,19 +243,32 @@ fun SelectBox(
     ) {
         Surface(
             onClick = { expanded = true },
-            modifier = Modifier.height(ControlHeight),
+            modifier = Modifier.height(ControlHeight)
+                .then(if (fixedWidth != null) Modifier.width(fixedWidth) else Modifier),
             shape = AppShape(8.dp),
             color = colors.controlBackground
         ) {
             Row(
                 Modifier
                     .fillMaxHeight()
-                    .then(if (minWidth > 0.dp) Modifier.widthIn(min = minWidth) else Modifier)
-                    .padding(start = 12.dp, end = 8.dp),
+                    .then(when {
+                        fixedWidth != null -> Modifier.fillMaxWidth()
+                        minWidth > 0.dp -> Modifier.widthIn(min = minWidth)
+                        else -> Modifier
+                    })
+                    .padding(
+                        start = if (fixedWidth != null) 10.dp else 12.dp,
+                        end = if (fixedWidth != null) 6.dp else 8.dp
+                    ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(label, style = AppType.bodySmall.copy(color = colors.text))
-                Box(Modifier.width(8.dp))
+                Text(
+                    label,
+                    modifier = if (fixedWidth != null) Modifier.weight(1f) else Modifier,
+                    style = AppType.bodySmall.copy(color = colors.text),
+                    maxLines = if (fixedWidth != null) 1 else Int.MAX_VALUE
+                )
+                Box(Modifier.width(if (fixedWidth != null) 4.dp else 8.dp))
                 AppIcon(
                     IconPaths.KeyboardArrowDown,
                     colors.muted,

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Surface
@@ -268,33 +269,11 @@ private fun DateCard(
     ) {
         Column(Modifier.padding(12.dp)) {
             Text(title, style = AppType.bodySmall.copy(color = colors.text))
-            Row(
+            Box(
                 Modifier.fillMaxWidth().padding(top = 6.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+                contentAlignment = Alignment.Center
             ) {
-                CalendarNavButton(IconPaths.KeyboardArrowLeft, "上个月") { onMonthChange(month.minusMonths(1)) }
-                SelectBox(
-                    label = "${month.year}年",
-                    options = years,
-                    selected = month.year.toString(),
-                    onSelected = { year ->
-                        year.toIntOrNull()?.let { onMonthChange(YearMonth.of(it, month.monthValue)) }
-                    },
-                    modifier = Modifier.padding(horizontal = 3.dp),
-                    minWidth = 78.dp
-                )
-                SelectBox(
-                    label = "${month.monthValue}月",
-                    options = months,
-                    selected = month.monthValue.toString(),
-                    onSelected = { value ->
-                        value.toIntOrNull()?.let { onMonthChange(YearMonth.of(month.year, it)) }
-                    },
-                    modifier = Modifier.padding(horizontal = 3.dp),
-                    minWidth = 58.dp
-                )
-                CalendarNavButton(IconPaths.KeyboardArrowRight, "下个月") { onMonthChange(month.plusMonths(1)) }
+                CalendarMonthNavigation(month, onMonthChange, years, months)
             }
             MonthGrid(
                 month = month,
@@ -304,6 +283,38 @@ private fun DateCard(
                 onPick = onDateSelected
             )
         }
+    }
+}
+
+/** Fixed controls total 242dp; a 244dp row also allows fractional-DPI rounding. */
+@Composable
+fun CalendarMonthNavigation(
+    month: YearMonth,
+    onMonthChange: (YearMonth) -> Unit,
+    years: List<Pair<String, String>>,
+    months: List<Pair<String, String>>
+) {
+    Row(
+        Modifier.width(244.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CalendarNavButton(IconPaths.KeyboardArrowLeft, "上个月") { onMonthChange(month.minusMonths(1)) }
+        SelectBox(
+            label = "${month.year}年", options = years, selected = month.year.toString(),
+            onSelected = { year ->
+                year.toIntOrNull()?.let { onMonthChange(YearMonth.of(it, month.monthValue)) }
+            },
+            fixedWidth = 92.dp
+        )
+        SelectBox(
+            label = "${month.monthValue}月", options = months, selected = month.monthValue.toString(),
+            onSelected = { value ->
+                value.toIntOrNull()?.let { onMonthChange(YearMonth.of(month.year, it)) }
+            },
+            fixedWidth = 76.dp
+        )
+        CalendarNavButton(IconPaths.KeyboardArrowRight, "下个月") { onMonthChange(month.plusMonths(1)) }
     }
 }
 
@@ -390,13 +401,12 @@ private fun CalendarNavButton(pathData: String, description: String, onClick: ()
     Surface(
         onClick = onClick,
         modifier = Modifier
-            .height(34.dp)
-            .widthIn(min = 34.dp)
+            .requiredSize(34.dp)
             .semantics { contentDescription = description },
         shape = AppShape(8.dp),
         color = colors.controlBackground
     ) {
-        Box(Modifier.padding(horizontal = 6.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             AppIcon(
                 pathData,
                 colors.muted,
