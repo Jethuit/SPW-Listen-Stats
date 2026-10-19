@@ -41,6 +41,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -356,28 +358,63 @@ private fun Pagination(
     onPage: (Int) -> Unit
 ) {
     val colors = LocalStatsColors.current
-    Surface(
-        shape = AppShape(8.dp),
-        color = colors.controlBackground
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            Modifier.height(34.dp).padding(3.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-            verticalAlignment = Alignment.CenterVertically
+        PageArrowButton("‹", "上一页", current > 1) { onPage(current - 1) }
+        Surface(
+            shape = AppShape(8.dp),
+            color = colors.controlBackground
         ) {
-            PageButton("‹", false, current > 1) { onPage(current - 1) }
-            pageItems(current, total).forEach { item ->
-                if (item == null) {
-                    Text(
-                        "…",
-                        modifier = Modifier.padding(horizontal = 3.dp),
-                        style = AppType.tiny.copy(color = colors.muted)
-                    )
-                } else {
-                    PageButton("$item", item == current, true) { onPage(item) }
+            Row(
+                Modifier.height(34.dp).padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                pageItems(current, total).forEach { item ->
+                    if (item == null) {
+                        Text(
+                            "…",
+                            modifier = Modifier.padding(horizontal = 3.dp),
+                            style = AppType.tiny.copy(color = colors.muted)
+                        )
+                    } else {
+                        PageButton("$item", item == current, true) { onPage(item) }
+                    }
                 }
             }
-            PageButton("›", false, current < total) { onPage(current + 1) }
+        }
+        PageArrowButton("›", "下一页", current < total) { onPage(current + 1) }
+    }
+}
+
+@Composable
+private fun PageArrowButton(
+    text: String,
+    description: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    val colors = LocalStatsColors.current
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+        Surface(
+            onClick = { if (enabled) onClick() },
+            modifier = Modifier.semantics { contentDescription = description },
+            shape = AppShape(8.dp),
+            color = colors.controlBackground
+        ) {
+            Box(
+                Modifier.size(34.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text,
+                    style = AppType.bodySmall.copy(
+                        color = if (enabled) colors.text else colors.muted.copy(alpha = 0.45f)
+                    )
+                )
+            }
         }
     }
 }
