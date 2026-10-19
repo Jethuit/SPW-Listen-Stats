@@ -468,15 +468,9 @@ fun ListenStatsApp(
                             if (page == StatsPage.Overview) PageFooter(snapshot)
                         }
                     }
-                    // Host-composed page: no title bar, so keep the close affordance
-                    // outside the preview page column.
-                    IconAction(
-                        IconPaths.ArrowBack,
-                        "返回宿主",
-                        colors.muted,
-                        onClose,
-                        modifier = Modifier.align(Alignment.TopStart).padding(top = 20.dp, start = 20.dp),
-                        tooltip = null
+                    HostBackButton(
+                        onBack = onClose,
+                        modifier = Modifier.align(Alignment.TopStart)
                     )
                 }
                 if (dateDialogOpen) {

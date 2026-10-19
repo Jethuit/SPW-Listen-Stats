@@ -1,5 +1,7 @@
 # GPT 交接文档：听歌统计
 
+> **最新修订：v0.1.2，尚未公开发布。** 统计页返回控件改用 SaltUI 原生按钮与宿主标题行参数。125% 离屏对照截图的箭头位置、19×16 像素边界一致，平均通道误差 0.0030；37 文件构建与包结构检查通过，完整宿主页面待用户核对。包 `build/releases/v0.1.2/SPW-Stats-v0.1.2.spmod`，保留下方 v0.1.1 导航修复。见 [UI-v0.1.2.md](UI-v0.1.2.md)。
+
 > **最新修复：v0.1.1，尚未公开发布。** 侧栏切页时关闭统计页；返回事件在统计页可见时只退出本层。针对 SPW 1.19.0 `Navigator` 注册与清理钩子，36 文件构建、7 组导航回归及包结构检查通过。修复包 `build/releases/v0.1.1/SPW-Stats-v0.1.1.spmod`；实体鼠标侧键与宿主交互待用户核对。见 [BUGFIX-0.1.1.md](BUGFIX-0.1.1.md)。下方 v0.1.0 是当前公开 Release。
 
 > **最新发布：v0.1.0 首个正式版。** 用户于 2026-10-19 授权公开，随后明确转为正式版。[Release 已正式发布](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.0)，`prerelease=false`，设为 Latest。`main` 已同步发布源码与最新 README，仓库 topic 为 `salt-player-for-windows`，已补充简短简介。基于开发版 0.1.35 整理，不改统计或 UI 逻辑。发布说明见 [releases/v0.1.0.md](releases/v0.1.0.md)，验证与附件见 [releases/PREPARATION-v0.1.0.md](releases/PREPARATION-v0.1.0.md)。
