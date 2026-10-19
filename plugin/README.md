@@ -1,6 +1,6 @@
 # SPW Listen Stats 正式模组
 
-Kotlin / Compose 模组源码，视觉基准为根目录 `preview/`。当前 0.1.24 加热力图“近一年”、短“自定义”文案和最小窗口单行标题操作区；日期卡片/菜单沿用 0.1.23。详见 [UI-0.1.24](../docs/UI-0.1.24.md)。
+Kotlin / Compose 模组源码，视觉基准为根目录 `preview/`。当前 0.1.25 处理 600+ 首时的分页显示；0.1.24 近一年热力图/短自定义文案/最小窗口单行布局保持。详见 [UI-0.1.25](../docs/UI-0.1.25.md)。
 
 ## 构建
 
@@ -9,7 +9,7 @@ python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Sa
 python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-产物：`build/libs/plugin-com.jethuit.spw.listenstats-0.1.24.spmod`；解包目录 `build/install/spw-listen-stats/`。工具链缓存在 `build/tools/`，SaltUI jar 缓存在 `build/tools/saltui/`，不提交 Git。
+产物：`build/libs/plugin-com.jethuit.spw.listenstats-0.1.25.spmod`；解包目录 `build/install/spw-listen-stats/`。工具链缓存在 `build/tools/`，SaltUI jar 缓存在 `build/tools/saltui/`，不提交 Git。
 
 在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。入口在模块管理页插件配置“打开听歌统计”；页面通过 AppNavigation hook 内嵌在宿主内容区，不再创建 JDialog/Popup。Hook 仍绑定 SPW 1.19.0。
 

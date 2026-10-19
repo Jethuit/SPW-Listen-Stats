@@ -160,6 +160,11 @@ fun RankingPage(
             )
             if (totalPages > 1) {
                 Box(Modifier.weight(1f))
+                Text(
+                    "第 $currentPage / $totalPages 页",
+                    modifier = Modifier.padding(end = 10.dp),
+                    style = AppType.tiny.copy(color = colors.muted)
+                )
                 Pagination(currentPage, totalPages, onPageChange)
             }
         }
@@ -411,7 +416,13 @@ private fun PageButton(
 
 private fun pageItems(current: Int, total: Int): List<Int?> {
     if (total <= 7) return (1..total).toList()
-    val pages = sortedSetOf(1, total, current - 1, current, current + 1)
+    val window = when {
+        current <= 3 -> 1..4
+        current >= total - 2 -> (total - 3)..total
+        else -> (current - 1)..(current + 1)
+    }
+    val pages = sortedSetOf(1, total)
+    pages.addAll(window)
     val valid = pages.filter { it in 1..total }
     val result = ArrayList<Int?>()
     var previous = 0
