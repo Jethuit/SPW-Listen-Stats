@@ -218,12 +218,20 @@ fun SelectBox(
     val optionWidth = with(density) {
         (longestTextPx + 20.dp.toPx()).toDp()
     }.coerceAtLeast(132.dp)
-    val menuWidth = optionWidth + 12.dp
+    val naturalMenuWidth = optionWidth + 12.dp
+    var triggerWidthPx by remember { mutableStateOf(0) }
+    val triggerWidthDp = with(density) { triggerWidthPx.toDp() }
+    val menuWidth = if (triggerWidthPx > 0) {
+        minOf(triggerWidthDp, naturalMenuWidth)
+    } else {
+        naturalMenuWidth
+    }
     var expanded by remember { mutableStateOf(false) }
     var anchorBounds by remember { mutableStateOf<IntRect?>(null) }
     Box(
         modifier.onGloballyPositioned {
             val bounds = it.boundsInWindow()
+            triggerWidthPx = it.size.width
             anchorBounds = IntRect(
                 bounds.left.roundToInt(),
                 bounds.top.roundToInt(),

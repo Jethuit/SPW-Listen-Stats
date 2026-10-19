@@ -58,11 +58,7 @@ fun DateRangeDialog(
     var startMonth by remember { mutableStateOf(YearMonth.from(initialStart)) }
     var endMonth by remember { mutableStateOf(YearMonth.from(initialEnd)) }
     val rootFocus = remember { FocusRequester() }
-    val years = remember(initialStart.year, initialEnd.year) {
-        val first = minOf(2000, initialStart.year - 1)
-        val last = maxOf(LocalDate.now().year + 1, initialEnd.year + 1)
-        (first..last).toList()
-    }
+    val years = (2025..LocalDate.now().year).toList()
     val months = (1..12).map { it.toString() to "${it}月" }
     val yearOptions = years.map { it.toString() to "${it}年" }
 
@@ -84,7 +80,8 @@ fun DateRangeDialog(
 
     LaunchedEffect(Unit) { runCatching { rootFocus.requestFocus() } }
 
-    Box(Modifier.fillMaxSize()) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val dialogWidth = minOf(600.dp, maxWidth - 32.dp).coerceAtLeast(280.dp)
         Surface(
             onClick = onCancel,
             modifier = Modifier.fillMaxSize().focusRequester(rootFocus),
@@ -111,7 +108,7 @@ fun DateRangeDialog(
         ) {
             Surface(
                 onClick = {},
-                modifier = Modifier.fillMaxWidth(0.94f).widthIn(max = 880.dp),
+                modifier = Modifier.width(dialogWidth),
                 shape = AppShape(14.dp),
                 color = colors.background,
                 border = BorderStroke(1.dp, SolidColor(colors.line))
@@ -129,11 +126,11 @@ fun DateRangeDialog(
 
                     BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 12.dp)) {
                         val fontScale = LocalDensity.current.fontScale
-                        val twoCards = maxWidth >= 620.dp && fontScale <= 1.15f
+                        val twoCards = maxWidth >= 560.dp && fontScale <= 1.15f
                         if (twoCards) {
                             Row(
                                 Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                                horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally)
                             ) {
                                 DateCard(
                                     title = "起始日期",
@@ -144,7 +141,7 @@ fun DateRangeDialog(
                                     years = yearOptions,
                                     months = months,
                                     colors = colors,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.width(270.dp)
                                 )
                                 DateCard(
                                     title = "结束日期",
@@ -155,13 +152,14 @@ fun DateRangeDialog(
                                     years = yearOptions,
                                     months = months,
                                     colors = colors,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.width(270.dp)
                                 )
                             }
                         } else {
                             Column(
                                 Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 DateCard(
                                     title = "起始日期",
@@ -172,7 +170,7 @@ fun DateRangeDialog(
                                     years = yearOptions,
                                     months = months,
                                     colors = colors,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth()
                                 )
                                 DateCard(
                                     title = "结束日期",
@@ -183,36 +181,40 @@ fun DateRangeDialog(
                                     years = yearOptions,
                                     months = months,
                                     colors = colors,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth()
                                 )
                             }
                         }
                     }
 
-                    Text(
-                        summary,
-                        modifier = Modifier.padding(top = 12.dp),
-                        style = AppType.tiny.copy(
-                            color = if (rangeValid) colors.muted else colors.danger
-                        )
-                    )
                     Row(
                         Modifier.fillMaxWidth().padding(top = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        DialogButton("取消", colors.controlBackground, colors.text, true, onCancel)
-                        DialogButton(
-                            "确定",
-                            if (rangeValid) colors.accent else colors.controlBackground,
-                            if (rangeValid) {
-                                if (colors.isDark) colors.background else Color.White
-                            } else {
-                                colors.muted
-                            },
-                            rangeValid,
-                            ::submit
+                        Text(
+                            summary,
+                            modifier = Modifier.weight(1f),
+                            style = AppType.tiny.copy(
+                                color = if (rangeValid) colors.muted else colors.danger
+                            )
                         )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            DialogButton("取消", colors.controlBackground, colors.text, true, onCancel)
+                            DialogButton(
+                                "确定",
+                                if (rangeValid) colors.accent else colors.controlBackground,
+                                if (rangeValid) {
+                                    if (colors.isDark) colors.background else Color.White
+                                } else {
+                                    colors.muted
+                                },
+                                rangeValid,
+                                ::submit
+                            )
+                        }
                     }
                 }
             }
