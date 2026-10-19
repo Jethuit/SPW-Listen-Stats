@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+
 package com.jethuit.spw.listenstats.ui
 
 import androidx.compose.foundation.BorderStroke
@@ -31,6 +33,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -106,13 +110,22 @@ fun DateRangeDialog(
                 },
             contentAlignment = Alignment.Center
         ) {
-            Surface(
-                onClick = {},
-                modifier = Modifier.width(dialogWidth),
-                shape = AppShape(14.dp),
-                color = colors.background,
-                border = BorderStroke(1.dp, SolidColor(colors.line))
+            Box(
+                Modifier.width(dialogWidth)
             ) {
+                Surface(
+                    modifier = Modifier.matchParentSize(),
+                    shape = AppShape(14.dp),
+                    color = colors.background,
+                    border = BorderStroke(1.dp, SolidColor(colors.line))
+                ) {}
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .onPointerEvent(PointerEventType.Press) { event ->
+                            event.changes.forEach { it.consume() }
+                        }
+                )
                 Column(Modifier.padding(20.dp)) {
                     Text(
                         "自定义日期范围",
@@ -337,28 +350,23 @@ private fun CalendarDay(
     colors: StatsColors,
     onClick: () -> Unit
 ) {
-    HoverColor(
-        if (selected) colors.accent else Color.Transparent,
-        if (selected) colors.accent else colors.hover
-    ) { background ->
-        Surface(
-            onClick = onClick,
-            modifier = Modifier.fillMaxSize(),
-            shape = AppShape(7.dp),
-            color = background
-        ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    date.dayOfMonth.toString(),
-                    style = AppType.tiny.copy(
-                        color = if (selected) {
-                            if (colors.isDark) colors.background else Color.White
-                        } else {
-                            colors.text
-                        }
-                    )
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxSize(),
+        shape = AppShape(7.dp),
+        color = if (selected) colors.accent else Color.Transparent
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                date.dayOfMonth.toString(),
+                style = AppType.tiny.copy(
+                    color = if (selected) {
+                        if (colors.isDark) colors.background else Color.White
+                    } else {
+                        colors.text
+                    }
                 )
-            }
+            )
         }
     }
 }
@@ -369,10 +377,10 @@ private fun CalendarNavButton(label: String, description: String, onClick: () ->
     Surface(
         onClick = onClick,
         modifier = Modifier
-            .height(26.dp)
-            .widthIn(min = 26.dp)
+            .height(34.dp)
+            .widthIn(min = 34.dp)
             .semantics { contentDescription = description },
-        shape = AppShape(6.dp),
+        shape = AppShape(8.dp),
         color = colors.controlBackground
     ) {
         Box(Modifier.padding(horizontal = 6.dp), contentAlignment = Alignment.Center) {

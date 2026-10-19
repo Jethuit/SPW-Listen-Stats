@@ -1,5 +1,11 @@
 # UI 修订
 
+## 0.1.27 日期弹窗 hover/箭头高度
+
+- 去掉卡片 clickable Surface 的 hover 层和日格 HoverColor；透明层只拦截空白点击。
+- 年月/箭头统一 34dp 高、8dp 圆角。
+- 截图 `date_hover_fix.png`。详见 [UI-0.1.27.md](UI-0.1.27.md)。
+
 ## 0.1.26 分页箭头分离
 
 - `‹` / `›` 独立按钮，页码数字单独胶囊，间距 7dp。
