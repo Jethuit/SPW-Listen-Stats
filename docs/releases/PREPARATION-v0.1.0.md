@@ -13,7 +13,7 @@
 ## 发布材料
 
 - 对外说明：`docs/releases/v0.1.0.md`，作为 GitHub Release 正文。
-- 安装包：`build/releases/v0.1.0/plugin-com.jethuit.spw.listenstats-0.1.0.spmod`。
+- 安装包：`build/releases/v0.1.0/SPW-Heatmap-Ranking-v0.1.0.spmod`，对外文件名不包含作者 ID。
 - 校验文件：`build/releases/v0.1.0/SHA256SUMS.txt`。
 - 包内许可证：项目 MIT、Apache 2.0、SQLite JDBC Zentus 原始声明，以及第三方 NOTICE。
 
@@ -57,3 +57,7 @@ README 和发布说明展示听歌概览与热力图、时长分布与小结、�
 模组 manifest、配置分组名称、启用及入口失败提示改为“SPW热力图&排行”。本轮集中检查通过：构建、135 项包结构、manifest／配置名称、内部 ID 保持、三张截图与用户原图的 SHA-256 一致性、文档图片路径、主题提示和差异格式检查；发布目录与校验文件已重新生成。整体退出码为 0。
 
 现有 GitHub 草稿（Release ID `417088208`）继续使用 `draft=true`、`prerelease=true`；附件上传先校验新文件，再替换旧文件，远端摘要与本地匹配后保存到本机 `build/releases/draft-v0.1.0.json`。
+
+用户随后要求简化安装包文件名与 Release 正文。当前文件名统一为 `SPW-Heatmap-Ranking-v0.1.0.spmod`；说明仅保留功能简介、安装入口、“椒盐经典”建议、兼容性链接与三张实际截图。此轮仅改文件名与发布文案，复用已验证的安装包内容并重新生成校验文件，不重新编译插件。
+
+本轮轻量检查通过：发布目录生成、135 项包结构、改名前后二进制 SHA-256 一致、校验文件仅引用新文件名、差异格式检查。安装包摘要不变；GitHub 上只改安装附件名称并更新校验附件及简短正文。

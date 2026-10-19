@@ -64,7 +64,7 @@ py -3.12 tests/spmod-structure.py
 py -3.12 tools/prepare_release.py
 ```
 
-产物为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.0.spmod`；发布附件整理到 `build/releases/v0.1.0/`。
+产物为 `build/libs/SPW-Heatmap-Ranking-v0.1.0.spmod`；发布附件整理到 `build/releases/v0.1.0/`。
 
 已有离线回归可分别运行 `py -3.12 tests/run-data-tests.py data`、`ui`、`cover`，需先构建。离线检查不代替宿主验收。
 

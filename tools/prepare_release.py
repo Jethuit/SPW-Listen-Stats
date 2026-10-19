@@ -13,7 +13,7 @@ builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)
 
 def main() -> None:
-    filename = f'plugin-{builder.PLUGIN_ID}-{builder.PLUGIN_VERSION}.spmod'
+    filename = builder.PACKAGE_FILENAME
     source = ROOT / 'build/libs' / filename
     if not source.is_file():
         raise SystemExit('Build the current plugin version first: py -3.12 tools/build_plugin.py')

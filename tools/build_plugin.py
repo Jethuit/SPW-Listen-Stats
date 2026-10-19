@@ -28,6 +28,7 @@ PLUGIN_SRC = ROOT / 'plugin' / 'src' / 'main' / 'kotlin'
 RESOURCES = ROOT / 'plugin' / 'src' / 'main' / 'resources'
 PLUGIN_ID = 'com.jethuit.spw.listenstats'
 PLUGIN_VERSION = '0.1.0'
+PACKAGE_FILENAME = f'SPW-Heatmap-Ranking-v{PLUGIN_VERSION}.spmod'
 PLUGIN_CLASS = 'com.jethuit.spw.listenstats.MainPlugin'
 DEFAULT_SPW_DIR = Path(r'E:\SteamLibrary\steamapps\common\Salt Player for Windows')
 
@@ -143,7 +144,7 @@ def package(classes: Path) -> Path:
     manifest.write_text(manifest_text(), encoding='utf-8', newline='')
     output_dir = BUILD / 'libs'
     output_dir.mkdir(parents=True, exist_ok=True)
-    target = output_dir / f'plugin-{PLUGIN_ID}-{PLUGIN_VERSION}.spmod'
+    target = output_dir / PACKAGE_FILENAME
     if target.exists():
         target.unlink()
     with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as archive:
