@@ -6,6 +6,7 @@ node_modules/
 .idea/
 *.log
 *.spmod
+preview/ai_studio_code*.html
 __pycache__/
 *.pyc
 .DS_Store
