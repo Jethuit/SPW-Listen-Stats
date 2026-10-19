@@ -4,6 +4,7 @@
 
 ## 最新：v0.1.2 已正式发布
 
+- 用户提供新的三张实际效果图，README 改用 `docs/screenshots/v0.1.2/` 中的概览、时长分布、排行图；按用户要求移除 README 中的更新日志，更新日志保留在 Release。
 - 用户在 dev.2 验收后明确要求正式发布，发布暂停已解除。v0.1.2 已正式公开并设为 Latest：[Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.2)，Release ID `417473230`。
 - 源码及 README 已同步到 `main` 与工作分支；标签目标为 `e1b6406fd25c24dda1253062cb62f5ed032e845a`。Release 沿用 [releases/v0.1.2.md](releases/v0.1.2.md) 的两条简短日志。
 - 附件仅 `SPW-Stats-v0.1.2.spmod`，17,193,719 字节；无效果图、无 SHA256SUMS.txt。GitHub 返回的摘要与本地一致，发布回执保存在本机 `build/releases/published-v0.1.2.json`。
