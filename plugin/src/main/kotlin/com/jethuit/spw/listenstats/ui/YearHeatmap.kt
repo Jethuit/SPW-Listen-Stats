@@ -43,7 +43,8 @@ fun YearHeatmap(
     today: LocalDate,
     selectedDate: LocalDate?,
     onDaySelected: (LocalDate) -> Unit,
-    onWeekSelected: (LocalDate, LocalDate) -> Unit
+    onWeekSelected: (LocalDate, LocalDate) -> Unit,
+    viewportRevision: Int = 0
 ) {
     val colors = LocalStatsColors.current
     val measurer = rememberTextMeasurer()
@@ -52,7 +53,6 @@ fun YearHeatmap(
     val weeks = remember(data, grid, today, weekly) {
         if (weekly) StatsCalculations.weeklyCells(data, grid, today) else emptyList()
     }
-    val viewportRevision = LocalViewportRevision.current
     var tooltip by remember(year, weekly, viewportRevision, data) { mutableStateOf<TooltipData?>(null) }
     var hoverWeek by remember(year, weekly, viewportRevision) { mutableStateOf<Int?>(null) }
     var hoverRow by remember(year, weekly, viewportRevision) { mutableStateOf<Int?>(null) }

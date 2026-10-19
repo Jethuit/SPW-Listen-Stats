@@ -1,16 +1,24 @@
 # 新聊天交接
 
+> 给接手 GPT 的单一入口文档见 [`GPT-HANDOFF.md`](GPT-HANDOFF.md)；本文件保留逐版本修订记录。
+
+## 最新：0.1.22 封面/日期/底部/顶部入口验证
+
+- 封面：后台按 44dp 显示尺寸生成方形缩略图（Skia raster 强制解码）、12MiB LRU、并发 3、相同请求合并、稳定行 key、自身 30 秒重试；移除全局滚动重组源，图表各自读滚动 bucket。**未做宿主帧率/内存实测**。
+- 日期：新增页面内 Compose `DateRangeDialog`，去掉 Swing `JOptionPane`/Windows 标题栏；预填当前范围、框内错误、Enter/Esc、取消不变更；`SelectBox` 统一主题菜单和选中态。
+- 排行：删除标题下“共…第 x–y 首”和留白；底部固定“共 xx 首 · 听满单曲 50% 计一次”，数量随筛选；单页/空结果也显示。
+- 顶部入口：源码级验证 `MainTitleBar` 无 action slot，`MainTitleBarContent` 内部构建；afterComposable 无法插入内部 Row，replace 无原实现委托，appendContent 不是任意 lambda。**未实现占位，也未用固定坐标 overlay。**
+- 详见 [UI-0.1.22.md](UI-0.1.22.md)。
+
 ## 最新：0.1.21 控件底色和字体
 
 浅色控件底色轻微加深；显式读取宿主字体策略，加载宿主内置 MiSans 或自定义字体，再传入插件 SaltTheme。修复 0.1.20 只继承插件样式、未接到宿主字体的问题。细节与验证见 [UI-0.1.21.md](UI-0.1.21.md)。
 
-## 最新：0.1.20 审查修复
+## 0.1.20 审查修复
 
 已修复会话恢复误合并、时钟校正导致备份失败、内嵌滚动悬停未清理、文字样式丢失字体继承、搜索丢失原排名、测试依赖运行日期。细节与验证范围见 [BUGFIX-0.1.20.md](BUGFIX-0.1.20.md)。以下版本记录是历史，不覆盖此节。
 
-> 给接手 GPT 的单一入口文档见 [`GPT-HANDOFF.md`](GPT-HANDOFF.md)；本文件保留逐版本修订记录。
-
-## 最新：0.1.19 排行行底色
+## 0.1.19 排行行底色
 
 - 0.1.18 只改了页面根 Surface，排行 `SongRow` 仍用 `colors.background`（白/深色），所以列表看起来没变。
 - 0.1.19 把 `SongRow` 常态背景改为 `colors.pageBackground`（#F8F8F8 / #232323），悬停仍 `subtle`；表头透明，跟随页面。

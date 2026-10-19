@@ -42,13 +42,13 @@ fun TrendChart(
     buckets: List<ChartBucket>,
     chartType: ChartType,
     showAverage: Boolean,
-    hourly: Boolean = false
+    hourly: Boolean = false,
+    viewportRevision: Int = 0
 ) {
     val colors = LocalStatsColors.current
     val measurer = rememberTextMeasurer()
     val hostFont = LocalTextStyle.current.fontFamily
     val axisStyle = AppType.tiny.copy(fontFamily = hostFont)
-    val viewportRevision = LocalViewportRevision.current
     var tooltip by remember(buckets, chartType, viewportRevision) { mutableStateOf<TooltipData?>(null) }
     var hoverIndex by remember(buckets, chartType, viewportRevision) { mutableStateOf<Int?>(null) }
     val widestLabel = remember(buckets, hostFont) {

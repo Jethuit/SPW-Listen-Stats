@@ -16,13 +16,12 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Surface
 import com.moriafly.salt.ui.Card as SaltCard
 import com.jethuit.spw.listenstats.ui.StatsText as Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.ui.semantics.semantics
@@ -53,8 +52,6 @@ data class SegmentOption(
 
 private val ControlHeight = 34.dp
 
-val LocalViewportRevision = staticCompositionLocalOf { 0 }
-
 @Composable
 fun HoverColor(
     normal: Color,
@@ -62,7 +59,7 @@ fun HoverColor(
     tooltip: String? = null,
     content: @Composable (Color) -> Unit
 ) {
-    var hovered by remember(LocalViewportRevision.current) { mutableStateOf(false) }
+    var hovered by remember { mutableStateOf(false) }
     Box(
         Modifier
             .onPointerEvent(PointerEventType.Enter) { hovered = true }
@@ -196,6 +193,7 @@ fun SegmentedControl(
 fun SelectBox(
     label: String,
     options: List<Pair<String, String>>,
+    selected: String? = null,
     onSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
     minWidth: Dp = 0.dp
@@ -221,20 +219,49 @@ fun SelectBox(
                 AppIcon(IconPaths.ExpandMore, colors.muted, iconSize = 16.dp)
             }
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEach { (value, text) ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text,
-                            style = AppType.bodySmall.copy(color = colors.text)
-                        )
-                    },
-                    onClick = {
-                        expanded = false
-                        onSelected(value)
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.widthIn(min = 160.dp),
+            shape = AppShape(8.dp),
+            containerColor = colors.background,
+            tonalElevation = 0.dp,
+            shadowElevation = 4.dp
+        ) {
+            Column(
+                Modifier.padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                options.forEach { (value, text) ->
+                    val isSelected = value == selected
+                    HoverColor(
+                        if (isSelected) colors.controlBackground else Color.Transparent,
+                        colors.hover
+                    ) { background ->
+                        Surface(
+                            onClick = {
+                                expanded = false
+                                onSelected(value)
+                            },
+                            modifier = Modifier.fillMaxWidth().height(32.dp),
+                            shape = AppShape(5.dp),
+                            color = background
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 11.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text,
+                                    modifier = Modifier.weight(1f),
+                                    style = AppType.bodySmall.copy(
+                                        color = if (isSelected) colors.accent else colors.text
+                                    )
+                                )
+                            }
+                        }
                     }
-                )
+                }
             }
         }
     }

@@ -16,10 +16,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.Surface
-import com.jethuit.spw.listenstats.ui.StatsText as Text
 import androidx.compose.runtime.Composable
+import com.jethuit.spw.listenstats.ui.StatsText as Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,7 +57,6 @@ import java.awt.BorderLayout
 import java.awt.Color as AwtColor
 import java.awt.Frame
 import java.awt.GraphicsEnvironment
-import java.awt.GridLayout
 import java.awt.KeyboardFocusManager
 import java.awt.Rectangle
 import java.awt.Window
@@ -66,10 +64,7 @@ import java.awt.event.KeyEvent
 import java.time.LocalDate
 import javax.swing.JComponent
 import javax.swing.JDialog
-import javax.swing.JLabel
-import javax.swing.JOptionPane
 import javax.swing.JPanel
-import javax.swing.JTextField
 import javax.swing.KeyStroke
 import javax.swing.SwingUtilities
 import kotlin.math.min
@@ -117,8 +112,6 @@ object StatsWindow {
         scrollPane.verticalScrollBar.unitIncrement = 48
         var contentHeightPx = frame.height
         var lastPage: StatsPage? = null
-        var viewportRevision by mutableStateOf(0)
-        scrollPane.viewport.addChangeListener { viewportRevision++ }
         fun applyContentSize() {
             val viewportWidth = scrollPane.viewport.width.coerceAtLeast(1)
             val viewportHeight = scrollPane.viewport.height.coerceAtLeast(1)
@@ -130,7 +123,6 @@ object StatsWindow {
             scrollPane.revalidate()
         }
         panel.setContent {
-            CompositionLocalProvider(LocalViewportRevision provides viewportRevision) {
             ListenStatsApp(
                 onClose = { frame.dispose() },
                 onScrollTop = { SwingUtilities.invokeLater { scrollPane.verticalScrollBar.value = 0 } },
@@ -143,7 +135,6 @@ object StatsWindow {
                     SwingUtilities.invokeLater { applyContentSize() }
                 }
             )
-            }
         }
         scrollPane.viewport.addComponentListener(object : java.awt.event.ComponentAdapter() {
             override fun componentResized(e: java.awt.event.ComponentEvent?) {
@@ -257,6 +248,7 @@ fun ListenStatsApp(
     var query by remember { mutableStateOf("") }
     var rankPage by remember { mutableStateOf(1) }
     var reloadTick by remember { mutableStateOf(0) }
+    var dateDialogOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         Prefs.initialize()
@@ -294,8 +286,6 @@ fun ListenStatsApp(
     }
     LaunchedEffect(query) { rankPage = 1 }
 
-    CompositionLocalProvider(LocalViewportRevision provides
-        (if (embedded) scrollState.value else LocalViewportRevision.current)) {
     StatsTheme(themeMode) {
         val colors = LocalStatsColors.current
         val font = LocalHostFontFamily.current
@@ -439,14 +429,7 @@ fun ListenStatsApp(
                                         selectedDate?.let { Prefs.putString("selectedDate", it.toString()) }
                                     },
                                     onCustomRange = {
-                                        chooseDateRange(customStart, customEnd)?.let { (start, end) ->
-                                            customStart = start
-                                            customEnd = end
-                                            rangePreset = RangePreset.Custom
-                                            Prefs.putString("range", rangePreset.storage)
-                                            Prefs.putString("customStart", start.toString())
-                                            Prefs.putString("customEnd", end.toString())
-                                        }
+                                        dateDialogOpen = true
                                     },
                                     onChartType = {
                                         chartType = it
@@ -455,7 +438,8 @@ fun ListenStatsApp(
                                     onGranularity = {
                                         userGranularity = it
                                         Prefs.putString("granularity", it.storage)
-                                    }
+                                    },
+                                    scrollState = if (embedded) scrollState else null
                                 )
                                 StatsPage.Ranking -> RankingPage(
                                     data = snapshot,
@@ -479,8 +463,30 @@ fun ListenStatsApp(
                         tooltip = null
                     )
                 }
+                if (dateDialogOpen) {
+                    val dateRange = StatsCalculations.range(
+                        rangePreset,
+                        today,
+                        selectedDate,
+                        customStart,
+                        customEnd
+                    )
+                    DateRangeDialog(
+                        initialStart = dateRange.start,
+                        initialEnd = dateRange.endInclusive,
+                        onCancel = { dateDialogOpen = false },
+                        onConfirm = { start, end ->
+                            customStart = start
+                            customEnd = end
+                            rangePreset = RangePreset.Custom
+                            Prefs.putString("range", rangePreset.storage)
+                            Prefs.putString("customStart", start.toString())
+                            Prefs.putString("customEnd", end.toString())
+                            dateDialogOpen = false
+                        }
+                    )
+                }
             }
-        }
         }
     }
 
@@ -659,39 +665,4 @@ private fun LoadingPage(onClose: () -> Unit) {
 
 private fun filteredRankCount(data: StatsData, query: String): Int {
     return data.rankedTracks(query).size
-}
-
-private fun chooseDateRange(start: LocalDate?, end: LocalDate?): Pair<LocalDate, LocalDate>? {
-    val startField = JTextField(start?.toString() ?: "")
-    val endField = JTextField(end?.toString() ?: "")
-    val panel = JPanel(GridLayout(0, 1, 0, 6))
-    panel.add(JLabel("开始日期（YYYY-MM-DD）"))
-    panel.add(startField)
-    panel.add(JLabel("结束日期（YYYY-MM-DD）"))
-    panel.add(endField)
-    while (true) {
-        val result = JOptionPane.showConfirmDialog(
-            null,
-            panel,
-            "自定义日期范围",
-            JOptionPane.OK_CANCEL_OPTION,
-            JOptionPane.PLAIN_MESSAGE
-        )
-        if (result != JOptionPane.OK_OPTION) return null
-        try {
-            val parsedStart = LocalDate.parse(startField.text.trim())
-            val parsedEnd = LocalDate.parse(endField.text.trim())
-            if (parsedEnd.isBefore(parsedStart)) {
-                throw IllegalArgumentException("结束日期不能早于开始日期")
-            }
-            return parsedStart to parsedEnd
-        } catch (failure: Throwable) {
-            JOptionPane.showMessageDialog(
-                null,
-                failure.message ?: "请输入有效日期",
-                "日期格式不正确",
-                JOptionPane.WARNING_MESSAGE
-            )
-        }
-    }
 }

@@ -27,6 +27,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -38,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -47,6 +50,7 @@ import com.jethuit.spw.listenstats.data.StatsData
 import com.jethuit.spw.listenstats.data.TrackRank
 import com.jethuit.spw.listenstats.util.formatNumber
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 const val RANKING_PAGE_SIZE = 25
@@ -130,21 +134,11 @@ fun RankingPage(
                 }
             }
         }
-        Box(Modifier.height(15.dp))
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                pageSummary(filtered.size, from, to),
-                style = AppType.tiny.copy(color = colors.muted)
-            )
-        }
-        Box(Modifier.height(8.dp))
         SongTableHeader()
         rows.forEach { rank ->
-            SongRow(rank.value, rank.position, data.loadedAt)
+            key(rank.value.track.id) {
+                SongRow(rank.value, rank.position)
+            }
         }
         if (rows.isEmpty()) {
             Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
@@ -154,32 +148,21 @@ fun RankingPage(
                 )
             }
         }
-        if (totalPages > 1) {
-            Box(Modifier.height(16.dp))
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "听满单曲 50% 计一次",
-                    style = AppType.tiny.copy(color = colors.muted)
-                )
+        Box(Modifier.height(16.dp))
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "共 ${formatNumber(filtered.size.toLong())} 首 · 听满单曲 50% 计一次",
+                style = AppType.tiny.copy(color = colors.muted)
+            )
+            if (totalPages > 1) {
                 Box(Modifier.weight(1f))
                 Pagination(currentPage, totalPages, onPageChange)
             }
-        } else if (rows.isNotEmpty()) {
-            Box(Modifier.height(16.dp))
-            Text(
-                "听满单曲 50% 计一次",
-                style = AppType.tiny.copy(color = colors.muted)
-            )
         }
     }
-}
-
-private fun pageSummary(total: Int, from: Int, to: Int): String {
-    if (total <= 0) return "暂无歌曲"
-    return "共 ${formatNumber(total.toLong())} 首 · 第 ${from + 1}–${to} 首"
 }
 
 @Composable
@@ -221,7 +204,7 @@ private fun SongTableHeader() {
 }
 
 @Composable
-private fun SongRow(rank: TrackRank, position: Int, coverRevision: Long) {
+private fun SongRow(rank: TrackRank, position: Int) {
     val colors = LocalStatsColors.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val widths = tableWidths(maxWidth)
@@ -245,7 +228,7 @@ private fun SongRow(rank: TrackRank, position: Int, coverRevision: Long) {
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Cover(rank.track.id, coverRevision)
+                        Cover(rank.track.id)
                         Column {
                             Text(
                                 rank.track.title,
@@ -300,11 +283,17 @@ private fun SongRow(rank: TrackRank, position: Int, coverRevision: Long) {
 }
 
 @Composable
-private fun Cover(trackId: String, retryKey: Long) {
+private fun Cover(trackId: String) {
     val colors = LocalStatsColors.current
-    var image by remember(trackId) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(trackId, retryKey) {
-        if (image == null) image = withContext(Dispatchers.IO) { CoverStore.load(trackId) }
+    val targetPx = with(LocalDensity.current) { 44.dp.roundToPx() }
+    var image by remember(trackId, targetPx) { mutableStateOf<ImageBitmap?>(null) }
+    var retry by remember(trackId, targetPx) { mutableIntStateOf(0) }
+    LaunchedEffect(trackId, targetPx, retry) {
+        image = withContext(Dispatchers.IO) { CoverStore.load(trackId, targetPx) }
+        if (image == null && retry == 0) {
+            delay(30_000)
+            retry++
+        }
     }
     Surface(
         modifier = Modifier.size(44.dp),

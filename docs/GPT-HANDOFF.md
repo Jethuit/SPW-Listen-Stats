@@ -1,23 +1,33 @@
 # GPT 交接文档：SPW-Listen Stats
 
-> **最新源码 0.1.21：** 控件底色及宿主字体接入见 [UI-0.1.21.md](UI-0.1.21.md)。用户实机反馈已证明 0.1.20 的字体继承不足；当前通过读取宿主字体策略和实际字体资源修正，视觉待用户核对。
+> **最新源码 0.1.22：** 封面缩略图/LRU/并发合并、日期弹窗和统一菜单、排行底栏、顶部入口可行性验证。详见 [UI-0.1.22.md](UI-0.1.22.md)。**封面性能未做宿主帧率/内存实测；顶部入口因无安全 slot 未实现。**
+>
+> **2026-10-19 更新：当前源码 0.1.21。** 控件底色及宿主字体接入见 [UI-0.1.21.md](UI-0.1.21.md)。用户实机反馈已证明 0.1.20 的字体继承不足；当前通过读取宿主字体策略和实际字体资源修正，视觉待用户核对。
 
-> **2026-10-19 更新：当前源码 0.1.20。** 已处理审查发现的六项问题，当前变更及验证状态以 [BUGFIX-0.1.20.md](BUGFIX-0.1.20.md) 为准；下文 0.1.19 版本、提交和检查数字保留为上一轮背景。仍不能把离线回归视为真实播放或宿主字体/交互验收。
+> **2026-10-19 更新：0.1.20。** 已处理审查发现的六项问题，当前变更及验证状态以 [BUGFIX-0.1.20.md](BUGFIX-0.1.20.md) 为准；下文 0.1.19 版本、提交和检查数字保留为上一轮背景。仍不能把离线回归视为真实播放或宿主字体/交互验收。
 
-> 这是给接手 GPT 的**单一入口文档**。先读本文件，再按需读 `docs/NATIVE-IMPLEMENTATION.md`、`docs/HANDOFF.md`、`docs/UI-FIXES.md`。
-> 最后更新：2026-10-19；源码版本 **0.1.19**；分支 `codex/listening-stats`。
+> 这是给接手 GPT 的**单一入口文档**。先读本文件，再按需读 `docs/NATIVE-IMPLEMENTATION.md`、`docs/HANDOFF.md`、`docs/UI-0.1.22.md`。
+> 最后更新：2026-10-19；源码版本 **0.1.22**；分支 `codex/listening-stats`。
 
 ## 0. 一句话状态
 
 一个给 Salt Player for Windows（SPW）1.19.0 用的听歌统计模组，已经完成：宿主内容区内嵌页、真实听歌数据读取、50% 计次、跨日/跨小时分配、持久化、封面、导入导出、SalT UI 接入、主题跟随 SPW。当前进入**用户视觉验收和收尾阶段**，真实播放/暂停/seek 仍需在正常 Steam 启动中做最终验收。
 
+## 0.1.22 当前增量（优先于下文旧状态）
+
+- **封面性能**：后台生成 44dp 方形缩略图、12MiB LRU、并发 3、相同请求合并、稳定行 key、组件自身 30 秒重试；移除全局滚动重组源。代码完成，**未做宿主帧率/内存实测**，不能声称“不卡顿已解决”。
+- **日期/菜单**：`DateRangeDialog` 页面内 Compose 弹窗，无 Windows 标题栏；预填当前范围、框内错误、Enter/Esc、取消不变更。`SelectBox` 统一主题菜单、选中/悬停/圆角。
+- **排行底栏**：删除标题下摘要；底部固定“共 xx 首 · 听满单曲 50% 计一次”，数量随筛选；右侧分页。
+- **顶部入口**：验证结论为**当前无安全插入点**。`MainTitleBar` 只有 `(MainTitleBarType, PlaybackChromeVisibilityState, MusicVideoPlaybackUiState, Modifier)`，内部 `MainTitleBarContent` 构建操作区；afterComposable 不能插入内部 Row，replace 无原调用委托，appendContent 不是任意 lambda。未做固定坐标 overlay。
+- 详细：`docs/UI-0.1.22.md`。
+
 ## 1. 项目位置与产物
 
 - 仓库：<https://github.com/Jethuit/SPW-Listen-Stats>
 - 分支：`codex/listening-stats`
-- 最新代码提交：`d73356b`（0.1.19；本文档提交在其后）
-- 构建产物：`build/libs/plugin-com.jethuit.spw.listenstats-0.1.19.spmod`
-- 产物约 17 MB，`.spmod` 内 110 项；`lib/` 含：
+- 最新代码提交：本文档随后提交（0.1.22；上一提交 `1387748` 是 0.1.21）
+- 构建产物：`build/libs/plugin-com.jethuit.spw.listenstats-0.1.22.spmod`
+- 产物约 17.12 MB，`.spmod` 内 125 项；`lib/` 含：
   - `sqlite-jdbc.jar`
   - `salt-ui-desktop-3.0.0-beta02.jar`
   - `salt-core-desktop-3.0.0-beta02.jar`

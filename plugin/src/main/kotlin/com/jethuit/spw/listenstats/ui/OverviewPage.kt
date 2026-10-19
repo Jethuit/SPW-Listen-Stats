@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import com.jethuit.spw.listenstats.ui.StatsText as Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +32,7 @@ import com.jethuit.spw.listenstats.util.formatDay
 import com.jethuit.spw.listenstats.util.formatDuration
 import com.jethuit.spw.listenstats.util.formatHourRange
 import com.jethuit.spw.listenstats.util.formatMonthDay
+import com.moriafly.salt.ui.ScrollState
 import java.time.LocalDate
 
 @Composable
@@ -53,7 +55,8 @@ fun OverviewPage(
     onRangePreset: (RangePreset) -> Unit,
     onCustomRange: () -> Unit,
     onChartType: (ChartType) -> Unit,
-    onGranularity: (Granularity) -> Unit
+    onGranularity: (Granularity) -> Unit,
+    scrollState: ScrollState? = null
 ) {
     val colors = LocalStatsColors.current
     val years = remember(data, today) { StatsCalculations.years(data, today) }
@@ -98,20 +101,24 @@ fun OverviewPage(
             SelectBox(
                 label = "${year}年",
                 options = years.map { it.toString() to "${it}年" },
+                selected = year.toString(),
                 onSelected = { onYearSelected(it.toIntOrNull() ?: year) },
                 minWidth = 78.dp
             )
         }
         Box(Modifier.height(23.dp))
-        YearHeatmap(
-            data = data,
-            year = year,
-            weekly = weekly,
-            today = today,
-            selectedDate = selectedDate,
-            onDaySelected = onDaySelected,
-            onWeekSelected = onWeekSelected
-        )
+        ViewportRevisionSource(scrollState) { viewportRevision ->
+            YearHeatmap(
+                data = data,
+                year = year,
+                weekly = weekly,
+                today = today,
+                selectedDate = selectedDate,
+                onDaySelected = onDaySelected,
+                onWeekSelected = onWeekSelected,
+                viewportRevision = viewportRevision
+            )
+        }
 
         Box(Modifier.height(43.dp))
 
@@ -136,6 +143,7 @@ fun OverviewPage(
             SelectBox(
                 label = rangeLabel(rangePreset, selectedDate, customStart, customEnd),
                 options = rangeOptions(selectedDate),
+                selected = rangePreset.storage,
                 onSelected = { key ->
                     if (key == RangePreset.Custom.storage) {
                         onCustomRange()
@@ -151,6 +159,7 @@ fun OverviewPage(
                         Granularity.Day.storage to "按日",
                         Granularity.Week.storage to "按周"
                     ),
+                    selected = effectiveGranularity.storage,
                     onSelected = { key ->
                         Granularity.entries.firstOrNull { it.storage == key }?.let(onGranularity)
                     }
@@ -163,12 +172,15 @@ fun OverviewPage(
             style = AppType.tiny.copy(color = colors.muted)
         )
         Box(Modifier.height(7.dp))
-        TrendChart(
-            buckets = buckets,
-            chartType = chartType,
-            showAverage = range.days > 1,
-            hourly = range.days == 1
-        )
+        ViewportRevisionSource(scrollState) { viewportRevision ->
+            TrendChart(
+                buckets = buckets,
+                chartType = chartType,
+                showAverage = range.days > 1,
+                hourly = range.days == 1,
+                viewportRevision = viewportRevision
+            )
+        }
 
         Box(Modifier.height(61.dp))
         Row(
@@ -342,4 +354,15 @@ private fun rangeLabel(
         }
         else -> preset.label
     }
+}
+
+@Composable
+private fun ViewportRevisionSource(
+    scrollState: ScrollState?,
+    content: @Composable (Int) -> Unit
+) {
+    val revision by remember(scrollState) {
+        derivedStateOf { scrollState?.value?.div(48) ?: 0 }
+    }
+    content(revision)
 }
