@@ -1,8 +1,8 @@
-# GPT 交接文档：SPW-Listen Stats
+# GPT 交接文档：听歌统计
 
 > **最新准备：v0.1.0 首个公开预发布版。** 用户要求仅创建 GitHub 草稿 Release，暂不公开。基于开发版 0.1.35 整理，不改统计或 UI 逻辑。发布说明见 [releases/v0.1.0.md](releases/v0.1.0.md)，验证与附件见 [releases/PREPARATION-v0.1.0.md](releases/PREPARATION-v0.1.0.md)。
 >
-> 插件显示名称现为 **SPW热力图&排行**；README／Release 使用用户提供的三张实际截图，并推荐“椒盐经典”主题样式。插件 ID 与页面“听歌统计”标题保持。
+> 最终对外名称统一为 **听歌统计**，入口为“打开听歌统计”，安装包为 `听歌统计-v0.1.0.spmod`。三张实际效果图只放 README；Release 简短且不放图，附件仅安装包，不发布 `SHA256SUMS.txt`。保留“椒盐经典”推荐，插件 ID 保持。
 >
 > **0.1.32：** 跳页输入框数字居中、34dp 高，分页按钮/箭头/跳页框统一 8dp 圆角。
 >
@@ -282,7 +282,7 @@ preview/                       用户确认的视觉基准
 可以把下面这段直接作为新会话的起始说明：
 
 ```text
-你在接手 SPW-Listen Stats（Salt Player for Windows 1.19.0 的听歌统计模组）。
+你在接手 听歌统计（Salt Player for Windows 1.19.0 的听歌统计模组）。
 先读 docs/GPT-HANDOFF.md，再读 docs/HANDOFF.md 最新一节和 docs/NATIVE-IMPLEMENTATION.md。
 当前版本 0.1.19，分支 codex/listening-stats，产物 build/libs/plugin-com.jethuit.spw.listenstats-0.1.19.spmod。
 

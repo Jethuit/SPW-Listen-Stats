@@ -1,7 +1,6 @@
-"""Collect the built plugin and its SHA-256 checksum under build/releases/."""
+"""Collect the built plugin under build/releases/."""
 from __future__ import annotations
 
-import hashlib
 import importlib.util
 from pathlib import Path
 import shutil
@@ -25,11 +24,9 @@ def main() -> None:
     output.mkdir(parents=True, exist_ok=True)
     target = output / filename
     shutil.copy2(source, target)
-    with target.open('rb') as stream:
-        digest = hashlib.file_digest(stream, 'sha256').hexdigest()
-    (output / 'SHA256SUMS.txt').write_text(f'{digest}  {filename}\n', encoding='ascii')
+    (output / 'SHA256SUMS.txt').unlink(missing_ok=True)
     print(f'Release assets: {output}')
-    print(f'SHA256 {digest}  {filename}')
+    print(f'Package: {filename}')
 
 if __name__ == '__main__':
     main()

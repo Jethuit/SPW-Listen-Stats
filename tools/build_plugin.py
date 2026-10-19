@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the SPW Listen Stats .spmod package without Gradle.
+"""Build the 听歌统计 .spmod package without Gradle.
 
 The host installation ships its own fat jar (app/ffmpeg-x64.dll).  Compiling
 against exactly that jar keeps Kotlin, Compose and the Workshop API versions in
@@ -28,7 +28,8 @@ PLUGIN_SRC = ROOT / 'plugin' / 'src' / 'main' / 'kotlin'
 RESOURCES = ROOT / 'plugin' / 'src' / 'main' / 'resources'
 PLUGIN_ID = 'com.jethuit.spw.listenstats'
 PLUGIN_VERSION = '0.1.0'
-PACKAGE_FILENAME = f'SPW-Heatmap-Ranking-v{PLUGIN_VERSION}.spmod'
+PLUGIN_NAME = '听歌统计'
+PACKAGE_FILENAME = f'{PLUGIN_NAME}-v{PLUGIN_VERSION}.spmod'
 PLUGIN_CLASS = 'com.jethuit.spw.listenstats.MainPlugin'
 DEFAULT_SPW_DIR = Path(r'E:\SteamLibrary\steamapps\common\Salt Player for Windows')
 
@@ -118,7 +119,7 @@ def manifest_text() -> str:
         ('Plugin-Id', PLUGIN_ID),
         ('Plugin-Version', PLUGIN_VERSION),
         ('Plugin-Provider', 'Jethuit'),
-        ('Plugin-Name', 'SPW热力图&排行'),
+        ('Plugin-Name', PLUGIN_NAME),
         ('Plugin-Description', 'Salt Player for Windows 的听歌时长、年度足迹与歌曲排行统计'),
         ('Plugin-Has-Config', 'true'),
         ('Plugin-Open-Source-Url', 'https://github.com/Jethuit/SPW-Listen-Stats'),

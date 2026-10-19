@@ -35,11 +35,11 @@ class MainPlugin(
         } catch (failure: Throwable) {
             PluginLog.error("AppNavigation hook failed", failure)
             WorkshopApi.ui.toast(
-                "SPW热力图&排行入口加载失败，请在插件配置中打开",
+                "听歌统计入口加载失败，请在插件配置中打开",
                 WorkshopApi.Ui.ToastType.Warning
             )
         }
-        WorkshopApi.ui.toast("SPW热力图&排行已启用", WorkshopApi.Ui.ToastType.Success)
+        WorkshopApi.ui.toast("听歌统计已启用", WorkshopApi.Ui.ToastType.Success)
     }
 
     override fun stop() {
