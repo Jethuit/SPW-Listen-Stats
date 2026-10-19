@@ -38,11 +38,17 @@ def main() -> None:
             'classes/META-INF/extensions.idx',
             'classes/preference_config.json',
             'lib/sqlite-jdbc.jar',
+            'classes/META-INF/LICENSE',
+            'classes/META-INF/NOTICE',
+            'classes/META-INF/licenses/Apache-2.0.txt',
+            'classes/META-INF/licenses/sqlite-jdbc-zentus.txt',
         }
         missing = required - names
         assert not missing, f'missing entries: {sorted(missing)}'
         class_entry = 'classes/' + PLUGIN_CLASS.replace('.', '/') + '.class'
         assert class_entry in names, f'missing plugin class: {class_entry}'
+        assert not any(n.endswith(('spw-host.jar', '.db', '.db-wal', '.db-shm'))
+                       or '/jdk25/' in n or '/.references/' in n for n in names), 'private or host files in package'
 
         manifest = archive.read('classes/META-INF/MANIFEST.MF').decode('utf-8')
         fields = {}

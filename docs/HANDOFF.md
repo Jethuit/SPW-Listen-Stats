@@ -2,7 +2,13 @@
 
 > 给接手 GPT 的单一入口文档见 [`GPT-HANDOFF.md`](GPT-HANDOFF.md)；本文件保留逐版本修订记录。
 
-## 最新：0.1.35 API 取消后的封面重试
+## 最新：v0.1.0 首次公开预发布准备
+
+- 用户选择首版编号 `v0.1.0`，仅创建 GitHub 草稿 Release，不公开发布。基于开发版 0.1.35 整理，历史记录保留。
+- 对外正文见 [releases/v0.1.0.md](releases/v0.1.0.md)，材料与验证记录见 [releases/PREPARATION-v0.1.0.md](releases/PREPARATION-v0.1.0.md)。
+- 安装包加入项目与第三方许可证；`tools/prepare_release.py` 整理安装包及 SHA-256。源码仍在 `codex/listening-stats`，本轮不合并 main，不启动 SPW。
+
+## 0.1.35 API 取消后的封面重试
 
 - API future 自己取消时，先检查当前读取协程是否仍有效；仍有效则返回 `null`，进入正常 30 秒失败冷却与行重试流程。真正的调用方取消、最后等待者离开或 clear 仍传播取消。
 - 封面回归新增行加载循环检查，避免仅测试手动重载而漏掉自动重试中断。验证结果见 [BUGFIX-0.1.35.md](BUGFIX-0.1.35.md)。本轮不安装或启动宿主。

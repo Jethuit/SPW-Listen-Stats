@@ -1,86 +1,57 @@
-# SPW-Listen Stats
+# SPW-Listen Stats · 听歌统计
 
-面向 Salt Player for Windows 的听歌统计模组。`preview/` 是已确认的前端基准；正式模组位于 `plugin/`，当前第一版已可构建、安装，并在 SPW 1.19.0 中读取真实听歌记录，显示听歌概览与排行。
+为 Salt Player for Windows 提供本地听歌概览与歌曲排行。
 
-GitHub：<https://github.com/Jethuit/SPW-Listen-Stats>。正式实现说明、构建命令、已验证范围和剩余限制见 [正式模组实现说明](docs/NATIVE-IMPLEMENTATION.md)；需求、交接与 API 核查见 [完整需求](docs/REQUIREMENTS.md)、[新聊天交接](docs/HANDOFF.md)、[GPT 交接](docs/GPT-HANDOFF.md)、[API 可行性](docs/API-FEASIBILITY.md)。
+首个预发布版为 **v0.1.0**，面向 **SPW 1.19.0**。其他宿主版本尚未验证，已知边界见[发布说明](docs/releases/v0.1.0.md)。
 
-## 正式模组
+## 功能
 
-当前 0.1.35 修复宿主 API 取消封面请求后自动重试中断的问题，保留 30 秒失败冷却；0.1.34 的封面共享、日期键盘与滚动修复保持。详见 [0.1.35 修复说明](docs/BUGFIX-0.1.35.md)。
+- 累计听歌时长、听歌天数、最长连续与当前连续天数。
+- 每天／每周热力图，支持按年份或近一年查看。
+- 按小时、日期或每七天汇总的时长分布，支持柱状、折线和平滑曲线。
+- 每首歌曲独立累计有效播放次数，实际听满单曲 50% 计一次；支持歌名／歌手搜索，每页 25 首。
+- 跟随 SPW、浅色、深色三种主题，以及本地备份导入、导出与合并去重。
+
+## 安装与打开
+
+1. 从 [GitHub Releases](https://github.com/Jethuit/SPW-Listen-Stats/releases) 下载 `.spmod` 安装包。
+2. 在 SPW 创意工坊／模组管理中使用本地导入。
+3. 授权 `library-read`（读取曲库）和 `class-transform`（界面 Hook），启用模组。
+4. 在模组配置中点击 **“打开听歌统计”**。
+
+安装包不要求用户额外安装 Java 或 Kotlin。附件 `SHA256SUMS.txt` 可用于核对下载文件。
+
+## 数据与兼容性
+
+统计与备份保存在本机。插件只读宿主数据库中的听歌记录，同时记录启用后观察到的实际收听片段；不根据曲库数量推算过去的历史。
+
+- 宿主旧历史缺少暂停等精细片段，小时分布属于近似；历史可见范围取决于宿主保留的数据。
+- 实时记录与宿主记录仍通过启发式匹配。真实播放、暂停、拖动、循环和落库去重仍需继续实机验收。
+- 曲库删除重建或跨设备后，歌曲 ID 不保证一致；旧 v1 汇总备份采用保守合并，可能少计。
+- 页面入口依赖 SPW 1.19.0 的内部 Hook。封面仅支持 API 可读的内嵌封面；缺失时显示占位图。
+- Acrylic／Mica 等背景暂回退为经典配色。最新日期弹窗的键盘、缩放与滚动仍需实机核对。
+
+完整边界及反馈方式见[首版发布说明](docs/releases/v0.1.0.md)。问题可通过 [Issues](https://github.com/Jethuit/SPW-Listen-Stats/issues) 反馈。
+
+## 开发
+
+正式模组在 `plugin/`，使用 Kotlin、Compose 和 SaltUI。`preview/` 是已确认的 HTML 视觉参考，示例数据和正式统计独立；详情见[预览说明](docs/PREVIEW.md)。
+
+源码构建需要本机 SPW 安装目录，以及下载到 `build/tools/` 的 JDK 25、Kotlin、SaltUI 和 SQLite JDBC；宿主文件与构建缓存不提交。把下面路径替换为自己的 SPW 安装目录：
 
 ```powershell
-python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
-python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
+py -3.12 tools/prepare_toolchain.py --spw-dir "SPW 安装目录"
+py -3.12 tools/build_plugin.py --spw-dir "SPW 安装目录"
+py -3.12 tests/spmod-structure.py
+py -3.12 tools/prepare_release.py
 ```
 
-产物为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.35.spmod`，在 SPW 创意工坊本地导入并授权 `library-read`、`class-transform`。入口在模块管理页的插件配置“打开听歌统计”；不再有主界面浮动入口。
+产物为 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.0.spmod`；发布附件整理到 `build/releases/v0.1.0/`。
 
-当前只读宿主 `spw.db` 的 `Listen` 表，同时通过播放扩展点、单调时钟和实际收听片段保存 `live-sessions.json`；每遍听满 50% 为该歌曲计一次。新版正式备份 v2 按会话身份合并去重，兼容旧 v1 汇总并提示其保守合并可能少计。宿主历史缺少暂停片段，小时分布仍为近似，实时/宿主记录匹配也仍依赖开始时间启发式。封面通过 Workshop API 读取；主题、图表类型和粒度保存在插件配置中。
+已有离线回归可分别运行 `py -3.12 tests/run-data-tests.py data`、`ui`、`cover`，需先构建。离线检查不代替宿主验收。
 
-已知限制：页面通过 `AppNavigation` hook 占住宿主右侧内容区，不是宿主原生导航路由；Hook 目标类名绑定 1.19.0；侧栏仍可点击宿主原页面。真实播放/暂停/seek、宿主落库去重仍需本机验收；页面每 5 秒刷新。SaltUI 已打包 3.0.0-beta02，主题/滚动/文本/卡片已接入；按钮/分段/热力图和固定 dp 的响应式替换尚未完成。封面仅能读取宿主内嵌封面，失败 30 秒后重试；无内嵌封面的曲目保持占位图。0.1.22 的封面性能未做宿主帧率/内存实测；顶部标题栏入口因无安全插入点未实现，入口仍只有配置页。0.1.5 的内嵌截图见 `build/screenshots/`（不提交）。下图来自先前 0.1.0，不代表新版已运行验收。数据检查命令为 `python tests/run-data-tests.py data|ui`，需先构建。详细说明见 [docs/NATIVE-IMPLEMENTATION.md](docs/NATIVE-IMPLEMENTATION.md)。
-
-![正式模组听歌概览](docs/screenshots/overview-light.png)
-
-
-## 查看预览
-
-直接用浏览器打开 `preview/index.html`。不需要安装 JDK、安装依赖或联网加载资源。
-
-页面顶部提供“听歌概览 / 听歌排行”导航：概览展示时长统计、热力图、时长分布图和听歌小结；排行独立展示逐首歌曲播放次数。可使用 `preview/index.html#ranking` 直接打开排行页，切换页面会保留当前导入数据和筛选条件，并支持浏览器前进、后退。
-
-两个页面的顶部标题均保持“听歌统计”。排行页在歌名左侧显示方形专辑封面，同专辑共用封面，缺失时使用默认图。
-
-预览包含：
-
-- 累计听歌时长、听歌天数、最长连续和当前连续，不统计总播放次数。
-- 年度听歌时长热力图，支持“每天 / 每周”切换、年份选择、悬停详情和键盘方向键导航。每周视图用一列最多七个方格表示周时长，高度按所选年份的单周峰值缩放，颜色按峰值的四个区间由浅到深显示；零时长为灰色，沿用每日视图的主题色阶。以周一至周日为一周，跨年周仅计算所选年份内的日期，当周计算到演示日期。
-- 每天、每周均保留左侧“一／三／五／日”标记，底部不显示说明和颜色图例；切换按钮仅保留文字，与时长分布图类型按钮共用分组样式。
-- 两种热力图共用同一年度日期网格，年初、年末跨出本年的位置均留空，可见方格一一对应，平年 365 个、闰年 366 个。
-- 近期、本月、自定义日期范围，以及按日、按周、单日按小时的时长分布图。
-- 日期与汇总方式智能联动：单日固定显示小时分布，2～13 天固定按日，均隐藏汇总菜单；14 天及以上可选“按日／按周”。单日和短范围不会覆盖用户为长范围选择的汇总偏好；热力图选日显示完整日期，自定义范围显示实际起止日期。
-- 时长分布图支持柱状图、折线图、平滑曲线图，通过纯图标分组按钮切换并提供悬停名称提示，默认折线图，并记住本机选择；曲线采用单调插值，避免超过相邻真实数据的极值。
-- 三种时长分布图在按日、按周视图显示平均时长横虚线，平均值标在左侧纵坐标轴，沿用当前小时或分钟单位；与平均值靠近的普通刻度数字自动隐藏，避免重叠。平均值包含零收听时段；单日按小时视图隐藏平均线；全零数据保留空状态。
-- 横轴标签统一居中对齐到对应数据，柱状图位于柱子正下方，首尾标签预留空间，窄屏自动减少标签。小时视图共 24 个区间，00:00 表示 00:00–01:00，23:00 表示 23:00–24:00；刻度使用同一套坐标，间距与实际时间跨度成比例。缩放后的悬停位置换算为 SVG 坐标，保持标签、图形与提示对齐。
-
-- 点击热力图某一天，联动查看当天的小时分布；点击某一周，查看该周的每日分布。
-- 独立的听歌排行页，按歌曲 ID 独立累计播放次数，固定按播放次数从高到低排列，并显示排名序号；支持按歌名或歌手搜索，筛选后保留原排名。同名歌曲也各自保留。
-- 排行固定每页 50 首，仅渲染当前页歌曲与封面；多页时在列表上、下方提供页码和上一页／下一页。搜索覆盖全部歌曲并回到第一页，导入新数据也回到第一页；不足一页时隐藏翻页按钮。
-- 主题使用同一位置的纯图标按钮，按“跟随系统 → 浅色 → 深色”循环切换；首次默认跟随系统，记住本机选择，跟随系统时实时响应系统主题变化。
-- 听歌小结与顶部统计共用整条圆角边框、居中数值和分隔线布局，每列两行：第一行展示时长或时段；第二行分别为“听得最多 · 日期”“每日平均收听”“最常听歌时段”。每日平均仍按有收听记录的日期计算，悬停该数值可查看口径；时长采用大数字、小单位；窄屏在同一边框内纵向排列。
-- 页面导航、区块标题、操作按钮与日期选择使用统一的 Google Material Symbols 本地 SVG；主题按钮分别显示 Routine（跟随系统）、太阳（浅色）、月亮（深色）。
-- 预览数据的 JSON 导入导出。
-
-## 示例数据
-
-所有数字均为示例数据，歌曲、歌手和专辑名称为虚构，演示日期固定为 **2026-10-18**。导入只替换当前页面内存中的预览数据，刷新页面会恢复示例记录；不写入播放器，不读取用户的音乐文件。
-
-专辑封面为本地原创 SVG 示意图，按示例歌手与专辑匹配；其他导入专辑显示默认封面。当前 JSON 不包含图片，正式接入播放器时再读取真实专辑封面。
-
-热力图和时长分布图仅展示听歌时长。歌曲列表展示每首歌的累计有效播放次数，不受上方年份与日期筛选影响，不计算跨歌曲的总次数。
-
-当前导出格式为版本 2，逐日时长 `records` 与逐首次数 `tracks` 分开保存。旧版预览文件可以导入收听时长，但其每日总次数无法还原到每首歌曲，因此不会生成或推算逐首次数。
-
-预览 JSON 是独立的演示格式，不能当作正式模组备份。后续真实统计按“同一次播放实际听满歌曲时长的 50% 为该歌曲计一次”实现；暂停和跳过的进度不计入听歌时长。
-
-## 目录
-
-坐标回归检查可运行 `node tests/chart-geometry.test.cjs`，无需安装依赖。覆盖三种图形、三种粒度、日期预设及跨月／跨年／闰年等自定义边界、窄屏与宽屏、零数据／极小值／均匀数据／稀疏峰值，以及缩放后的悬停位置；实际字体与视觉效果仍需在浏览器预览中核对。
-
-```text
-plugin/        正式 Kotlin / Compose 模组源码与插件资源
-  src/main/kotlin/  生命周期、数据、统计、Compose 页面
-  src/main/resources/ preference_config.json、extensions.idx
-tools/         本地工具链准备与 .spmod 构建脚本
-preview/       无依赖的 HTML / CSS / JavaScript 交互预览（已确认的前端基准）
-  assets/icons/ Google Material Symbols 本地图标、来源说明与许可证
-  assets/covers/ 示例专辑封面和缺失封面占位图
-tests/         预览回归检查与 .spmod 结构检查
-docs/          正式需求、交接、API 核查、正式实现说明
-.references/   上游参考源码，仅在本地保留，不提交 Git
-```
-
-正式页面使用 Compose、SaltUI 和部分 Material3 控件，通过宿主 fat jar 与 SaltUI 3.0.0-beta02 编译，包内包含 SaltUI core/UI。构建缓存、JDK、Kotlin、依赖 jar、宿主文件和真实听歌数据均不提交 Git。
+开发细节见[正式实现](docs/NATIVE-IMPLEMENTATION.md)、[需求](docs/REQUIREMENTS.md)、[交接](docs/HANDOFF.md)及[发布准备记录](docs/releases/PREPARATION-v0.1.0.md)。
 
 ## 许可证
 
-项目原创代码与文档采用 [MIT License](LICENSE)。Google Material Symbols 图标保留其 [Apache-2.0 许可证](preview/assets/icons/LICENSE) 及来源说明；上游播放器、API 和其他依赖的权利声明分别保留。
+项目原创代码与文档采用 [MIT License](LICENSE)。SaltUI、sqlite-jdbc 与 Material Symbols 的来源和声明见[第三方组件](docs/THIRD-PARTY.md)，安装包内同时保留许可证及 NOTICE。

@@ -8,6 +8,21 @@
 - 用途：宿主内嵌页的 `SaltTheme`、`verticalScroll` 等；jar 放在 `.spmod` 的 `lib/`，由 `tools/prepare_toolchain.py` 下载到 `build/tools/saltui/`，不提交 Git。
 - 宿主显示 Salt UI 3.0.0-SNAPSHOT / CMP 1.12.1；这里使用 Maven 上对应的 3.0.0-beta02 发布版。
 
-## 其他
+## SQLite JDBC
 
-- Kotlin、Compose Multiplatform、sqlite-jdbc、PF4J 等通过宿主安装或构建工具链使用；构建缓存不提交。
+- 项目：<https://github.com/xerial/sqlite-jdbc>
+- 打包版本：`org.xerial:sqlite-jdbc:3.50.3.0`。
+- 许可证：Apache License 2.0，保留原始 Zentus BSD 风格声明；上游 jar 内的原始许可证保持不变。
+
+## Google Material Symbols
+
+- 项目：<https://github.com/google/material-design-icons>
+- 许可证：Apache License 2.0。正式模组将图标路径表示为 Kotlin 字符串供本地绘制，预览来源见 `preview/assets/icons/README.md`。
+
+## 随包声明
+
+项目 MIT、Apache 2.0、SQLite JDBC Zentus 声明及第三方 NOTICE 位于 `.spmod` 的 `classes/META-INF/`；源码对应 `plugin/src/main/resources/META-INF/`。
+
+## 宿主与构建依赖
+
+- Kotlin、Compose Multiplatform、PF4J 和 Workshop API 通过宿主或构建工具链使用；播放器安装、宿主 jar、JDK 与编译器不随模组分发，构建缓存不提交。

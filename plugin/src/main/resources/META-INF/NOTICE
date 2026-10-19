@@ -1,0 +1,28 @@
+SPW Listen Stats / 听歌统计
+Original project code and documentation: MIT License, Copyright (c) 2026 Jet8.
+See META-INF/LICENSE.
+
+Bundled components:
+
+SaltUI (salt-ui-desktop and salt-core-desktop), version 3.0.0-beta02
+Project: https://github.com/Moriafly/SaltUI
+Author: Moriafly and contributors
+License: Apache License 2.0; see META-INF/licenses/Apache-2.0.txt.
+The upstream JARs are included without modification in lib/.
+
+sqlite-jdbc, version 3.50.3.0
+Project: https://github.com/xerial/sqlite-jdbc
+License: Apache License 2.0, with the original Zentus BSD-style license.
+See META-INF/licenses/Apache-2.0.txt and META-INF/licenses/sqlite-jdbc-zentus.txt.
+The upstream JAR retains its own license files under
+META-INF/maven/org.xerial/sqlite-jdbc/ and is included without modification.
+
+Google Material Symbols / Material Design Icons
+Project: https://github.com/google/material-design-icons
+Copyright belongs to Google and its contributors.
+License: Apache License 2.0; see META-INF/licenses/Apache-2.0.txt.
+Icon paths are represented as Kotlin strings for local rendering.
+
+Salt Player for Windows, its Workshop API, Kotlin, Compose and PF4J are provided
+by the host or used as build dependencies. The host payload, player installation,
+JDK and compiler are not included in this plugin package.
