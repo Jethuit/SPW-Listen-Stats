@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+@file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class, com.moriafly.salt.ui.UnstableSaltUiApi::class)
 
 package com.jethuit.spw.listenstats.ui
 
@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,6 +27,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
@@ -45,7 +48,8 @@ import com.jethuit.spw.listenstats.util.formatDay
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
-import kotlin.math.min
+import com.moriafly.salt.ui.rememberScrollState
+import com.moriafly.salt.ui.verticalScroll
 
 private val WeekdayLabels = listOf("一", "二", "三", "四", "五", "六", "日")
 
@@ -86,9 +90,10 @@ fun DateRangeDialog(
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val dialogWidth = minOf(600.dp, maxWidth - 32.dp).coerceAtLeast(280.dp)
+        val dialogMaxHeight = (maxHeight - 32.dp).coerceAtLeast(0.dp)
         Surface(
             onClick = onCancel,
-            modifier = Modifier.fillMaxSize().focusRequester(rootFocus),
+            modifier = Modifier.fillMaxSize().focusProperties { canFocus = false },
             color = Color.Black.copy(alpha = 0.28f)
         ) {}
         Box(
@@ -101,17 +106,22 @@ fun DateRangeDialog(
                             onCancel()
                             true
                         }
-                        Key.Enter -> {
-                            submit()
-                            true
-                        }
                         else -> false
                     }
                 },
             contentAlignment = Alignment.Center
         ) {
             Box(
-                Modifier.width(dialogWidth)
+                Modifier
+                    .width(dialogWidth)
+                    .heightIn(max = dialogMaxHeight)
+                    // A non-focusable focus target groups the dialog's children.
+                    // The host does not expose foundation.focusGroup to Kotlin.
+                    .focusProperties {
+                        canFocus = false
+                        onExit = { cancelFocusChange() }
+                    }
+                    .focusTarget()
             ) {
                 Surface(
                     modifier = Modifier.matchParentSize(),
@@ -126,7 +136,7 @@ fun DateRangeDialog(
                             event.changes.forEach { it.consume() }
                         }
                 )
-                Column(Modifier.padding(20.dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp)) {
                     Text(
                         "自定义日期范围",
                         style = AppType.sectionTitle.copy(color = colors.text)
@@ -215,7 +225,10 @@ fun DateRangeDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            DialogButton("取消", colors.controlBackground, colors.text, true, onCancel)
+                            DialogButton(
+                                "取消", colors.controlBackground, colors.text, true, onCancel,
+                                modifier = Modifier.focusRequester(rootFocus)
+                            )
                             DialogButton(
                                 "确定",
                                 if (rangeValid) colors.accent else colors.controlBackground,
@@ -401,10 +414,13 @@ private fun DialogButton(
     background: Color,
     foreground: Color,
     enabled: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Surface(
-        onClick = { if (enabled) onClick() },
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier,
         shape = AppShape(8.dp),
         color = if (enabled) background else background.copy(alpha = 0.55f)
     ) {

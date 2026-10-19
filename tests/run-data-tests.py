@@ -11,8 +11,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 suite = sys.argv[1] if len(sys.argv) > 1 else 'data'
-assert suite in ('data', 'ui'), 'suite must be data or ui'
-test_name = 'UiRegressionTest' if suite == 'ui' else 'DataRegressionTest'
+assert suite in ('data', 'ui', 'cover'), 'suite must be data, ui or cover'
+test_name = {'data': 'DataRegressionTest', 'ui': 'UiRegressionTest', 'cover': 'CoverRegressionTest'}[suite]
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)

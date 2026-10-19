@@ -28,7 +28,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -300,19 +299,17 @@ private fun Cover(trackId: String) {
     val colors = LocalStatsColors.current
     val targetPx = with(LocalDensity.current) { 44.dp.roundToPx() }
     var image by remember(trackId, targetPx) { mutableStateOf<ImageBitmap?>(null) }
-    var retry by remember(trackId, targetPx) { mutableIntStateOf(0) }
-    LaunchedEffect(trackId, targetPx, retry) {
-        val started = System.nanoTime()
-        image = CoverStore.load(trackId, targetPx)
-        CoverDiagnostics.display(
-            trackId,
-            targetPx,
-            (System.nanoTime() - started) / 1_000_000,
-            image != null
-        )
-        if (image == null && retry == 0) {
-            delay(30_000)
-            retry++
+    LaunchedEffect(trackId, targetPx) {
+        while (image == null) {
+            val started = System.nanoTime()
+            image = CoverStore.load(trackId, targetPx)
+            CoverDiagnostics.display(
+                trackId,
+                targetPx,
+                (System.nanoTime() - started) / 1_000_000,
+                image != null
+            )
+            if (image == null) delay(30_000)
         }
     }
     Surface(
