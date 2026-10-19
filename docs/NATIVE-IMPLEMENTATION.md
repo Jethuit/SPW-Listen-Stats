@@ -1,6 +1,6 @@
 # 正式模组实现说明
 
-更新时间：2026-10-19。当前源码版本 0.1.32；视觉基准仍为 `preview/`。0.1.32 统一底栏圆角并居中跳页数字；0.1.31 分页居中/底部保持等继续有效。
+更新时间：2026-10-19。当前源码版本 0.1.33；视觉基准仍为 `preview/`。0.1.33 将分页箭头改为透明底色；0.1.32 跳页居中/圆角等继续有效。
 
 ![0.1.0 历史运行截图](screenshots/overview-light.png)
 
@@ -11,7 +11,7 @@ python tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\Sa
 python tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.32.spmod`。在 SPW 创意工坊“本地导入”，启用并授权 `library-read` 和 `class-transform`。使用宿主 1.19.0 的 fat jar 作编译类路径；JDK 25 / Kotlin 2.4.20 / sqlite-jdbc / SaltUI 3.0.0-beta02 与宿主包缓存在 `build/tools/`，均不提交。
+产物 `build/libs/plugin-com.jethuit.spw.listenstats-0.1.33.spmod`。在 SPW 创意工坊“本地导入”，启用并授权 `library-read` 和 `class-transform`。使用宿主 1.19.0 的 fat jar 作编译类路径；JDK 25 / Kotlin 2.4.20 / sqlite-jdbc / SaltUI 3.0.0-beta02 与宿主包缓存在 `build/tools/`，均不提交。
 
 入口只在模块管理页插件配置的“打开听歌统计”。页面通过 `AppNavigation` 的 `afterComposable` hook 注入宿主内容区，不创建 `JDialog` 或 `Popup`；宿主侧栏和底部播放栏保留。当前关闭/返回按钮位于内容区左上角，样式待确认。
 

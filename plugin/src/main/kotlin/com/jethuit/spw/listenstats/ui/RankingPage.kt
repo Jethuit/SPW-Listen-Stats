@@ -466,7 +466,7 @@ private fun PageArrowButton(
             onClick = { if (enabled) onClick() },
             modifier = Modifier.semantics { contentDescription = description },
             shape = AppShape(8.dp),
-            color = colors.controlBackground
+            color = Color.Transparent
         ) {
             Box(
                 Modifier.size(34.dp),
