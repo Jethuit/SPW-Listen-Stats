@@ -8,7 +8,9 @@ import com.xuncorp.voxzen.util.AppConfig
  */
 data class HostAppearance(
     val windowStyle: String? = null,
-    val dark: Boolean? = null
+    val dark: Boolean? = null,
+    val fontStrategy: String? = null,
+    val customFontPath: String? = null
 )
 
 object HostAppearanceReader {
@@ -20,7 +22,9 @@ object HostAppearanceReader {
                     "Light" -> false
                     "Dark" -> true
                     else -> null
-                }
+                },
+                fontStrategy = runCatching { AppConfig.fontStrategy.name }.getOrNull(),
+                customFontPath = runCatching { AppConfig.customFontFilePath }.getOrNull()
             )
         } catch (failure: Throwable) {
             HostAppearance()

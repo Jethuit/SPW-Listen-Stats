@@ -137,7 +137,7 @@ fun SegmentedControl(
     CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
     Surface(
         modifier = Modifier.height(ControlHeight),
-        color = colors.subtle,
+        color = colors.controlBackground,
         shape = AppShape(8.dp)
     ) {
         Row(
@@ -207,7 +207,7 @@ fun SelectBox(
             onClick = { expanded = true },
             modifier = Modifier.height(ControlHeight),
             shape = AppShape(8.dp),
-            color = colors.subtle
+            color = colors.controlBackground
         ) {
             Row(
                 Modifier

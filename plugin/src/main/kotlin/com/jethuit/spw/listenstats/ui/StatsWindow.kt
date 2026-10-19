@@ -298,7 +298,14 @@ fun ListenStatsApp(
         (if (embedded) scrollState.value else LocalViewportRevision.current)) {
     StatsTheme(themeMode) {
         val colors = LocalStatsColors.current
-        SaltTheme(configs = saltConfigs(colors.isDark)) {
+        val font = LocalHostFontFamily.current
+        val inheritedText = SaltTheme.textStyles
+        SaltTheme(configs = saltConfigs(colors.isDark), textStyles = inheritedText.copy(
+            main = inheritedText.main.copy(fontFamily = font),
+            sub = inheritedText.sub.copy(fontFamily = font),
+            paragraph = inheritedText.paragraph.copy(fontFamily = font),
+            largeTitle = inheritedText.largeTitle.copy(fontFamily = font)
+        )) {
         val snapshot = data
         if (snapshot == null) {
             Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {

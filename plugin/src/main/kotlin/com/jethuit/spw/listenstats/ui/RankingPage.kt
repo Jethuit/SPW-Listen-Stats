@@ -91,7 +91,7 @@ fun RankingPage(
             Surface(
                 modifier = Modifier.width(190.dp).height(34.dp),
                 shape = AppShape(8.dp),
-                color = colors.subtle
+                color = colors.controlBackground
             ) {
                 Row(
                     Modifier.fillMaxSize().padding(horizontal = 10.dp),
@@ -356,7 +356,7 @@ private fun Pagination(
     val colors = LocalStatsColors.current
     Surface(
         shape = AppShape(8.dp),
-        color = colors.subtle
+        color = colors.controlBackground
     ) {
         Row(
             Modifier.height(34.dp).padding(3.dp),

@@ -3,8 +3,27 @@ import com.jethuit.spw.listenstats.ui.rankingSafePage
 import com.jethuit.spw.listenstats.ui.rankingTotalPages
 import com.jethuit.spw.listenstats.data.*
 import java.time.LocalDate
+import java.nio.file.Files
+import java.nio.file.Path
+import com.jethuit.spw.listenstats.ui.HostFont
+import androidx.compose.ui.text.font.FontFamily
 
-fun main() {
+fun main(args: Array<String>) {
+    val fontBytes = HostFont.readBytes("MiSansRegular", null)!!
+    val fontDir = Path.of(args.single()).resolve("fonts")
+    Files.createDirectories(fontDir)
+    val custom = fontDir.resolve("custom.ttf")
+    Files.write(custom, fontBytes)
+    val fontName = java.awt.Font.createFont(java.awt.Font.TRUETYPE_FONT, custom.toFile())
+        .getFamily(java.util.Locale.ROOT)
+    check(fontName.contains("MiSans", ignoreCase = true)) { "Unexpected host font: $fontName" }
+    check(HostFont.load("MiSansRegular", null) != FontFamily.Default)
+    check(HostFont.load("Custom", custom.toString()) != FontFamily.Default)
+    check(HostFont.load("FollowSystem", custom.toString()) == FontFamily.Default)
+    Files.writeString(custom, "invalid font")
+    check(HostFont.load("Custom", custom.toString()) == FontFamily.Default)
+    check(HostFont.load("Custom", fontDir.resolve("missing.ttf").toString()) == FontFamily.Default)
+    println("PASS host MiSans resource, custom font, system selection and invalid-file fallback")
     check(rankingTotalPages(72) == 3) { "72 tracks must use three 25-row pages" }
     check(rankingSafePage(72, 3) == 3) { "page three must survive the host clamp" }
     check(rankingSafePage(72, 4) == 3) { "out-of-range page should clamp to the last page" }
@@ -40,5 +59,5 @@ fun main() {
     val hours = StatsCalculations.chartBuckets(data, DateRange(today, today), Granularity.Day)
     check(hours.size == 24 && hours.last().longLabel.endsWith("23:00–24:00"))
     println("PASS midnight interval ends at 24:00")
-    println("5 UI regression groups passed; rendered UI still requires user review")
+    println("6 UI regression groups passed; rendered UI still requires user review")
 }

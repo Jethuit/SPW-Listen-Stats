@@ -317,7 +317,7 @@ fun TrendChart(
                     if (empty) {
                         val layout = measurer.measure(
                             "这段时间还没有听歌记录",
-                            AppType.bodySmall.copy(color = colors.muted)
+                            AppType.bodySmall.copy(color = colors.muted, fontFamily = hostFont)
                         )
                         drawText(
                             layout,

@@ -47,7 +47,8 @@ data class StatsColors(
     val tooltipBackground: Color,
     val tooltipText: Color,
     val danger: Color,
-    val pageBackground: Color = background
+    val pageBackground: Color = background,
+    val controlBackground: Color = subtle
 )
 
 val LightStatsColors = StatsColors(
@@ -70,7 +71,8 @@ val LightStatsColors = StatsColors(
     tooltipBackground = Color(0xFF25272B),
     tooltipText = Color(0xFFFFFFFF),
     danger = Color(0xFFCF4545),
-    pageBackground = Color(0xFFF8F8F8)
+    pageBackground = Color(0xFFF8F8F8),
+    controlBackground = Color(0xFFEDEEF1)
 )
 
 val DarkStatsColors = StatsColors(
@@ -102,6 +104,12 @@ val LocalStatsColors = staticCompositionLocalOf { LightStatsColors }
 fun StatsTheme(mode: ThemeMode, content: @Composable () -> Unit) {
     var hostAppearance by remember { mutableStateOf(HostAppearance()) }
     var systemDark by remember { mutableStateOf(false) }
+    var hostFont by remember { mutableStateOf<androidx.compose.ui.text.font.FontFamily>(androidx.compose.ui.text.font.FontFamily.Default) }
+    LaunchedEffect(hostAppearance.fontStrategy, hostAppearance.customFontPath) {
+        hostFont = withContext(Dispatchers.IO) {
+            HostFont.load(hostAppearance.fontStrategy, hostAppearance.customFontPath)
+        }
+    }
     LaunchedEffect(Unit) {
         while (true) {
             val appearance = withContext(Dispatchers.IO) { HostAppearanceReader.read() }
@@ -146,7 +154,7 @@ fun StatsTheme(mode: ThemeMode, content: @Composable () -> Unit) {
             error = colors.danger
         )
     }
-    CompositionLocalProvider(LocalStatsColors provides colors) {
+    CompositionLocalProvider(LocalStatsColors provides colors, LocalHostFontFamily provides hostFont) {
         MaterialTheme(colorScheme = scheme, content = content)
     }
 }
