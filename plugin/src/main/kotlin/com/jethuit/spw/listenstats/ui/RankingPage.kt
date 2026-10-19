@@ -362,7 +362,7 @@ private fun Pagination(
         horizontalArrangement = Arrangement.spacedBy(7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        PageArrowButton("‹", "上一页", current > 1) { onPage(current - 1) }
+        PageArrowButton(90f, "上一页", current > 1) { onPage(current - 1) }
         Surface(
             shape = AppShape(8.dp),
             color = colors.controlBackground
@@ -385,13 +385,13 @@ private fun Pagination(
                 }
             }
         }
-        PageArrowButton("›", "下一页", current < total) { onPage(current + 1) }
+        PageArrowButton(-90f, "下一页", current < total) { onPage(current + 1) }
     }
 }
 
 @Composable
 private fun PageArrowButton(
-    text: String,
+    rotationDegrees: Float,
     description: String,
     enabled: Boolean,
     onClick: () -> Unit
@@ -408,11 +408,11 @@ private fun PageArrowButton(
                 Modifier.size(34.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text,
-                    style = AppType.bodySmall.copy(
-                        color = if (enabled) colors.text else colors.muted.copy(alpha = 0.45f)
-                    )
+                AppIcon(
+                    IconPaths.ExpandMore,
+                    if (enabled) colors.muted else colors.muted.copy(alpha = 0.45f),
+                    iconSize = 16.dp,
+                    rotationDegrees = rotationDegrees
                 )
             }
         }

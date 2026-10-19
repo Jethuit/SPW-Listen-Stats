@@ -78,7 +78,8 @@ fun AppIcon(
     pathData: String,
     tint: Color,
     modifier: Modifier = Modifier,
-    iconSize: Dp = 18.dp
+    iconSize: Dp = 18.dp,
+    rotationDegrees: Float = 0f
 ) {
     val path = remember(pathData) {
         try {
@@ -91,6 +92,9 @@ fun AppIcon(
         val scale = minOf(size.width, size.height) / 960f
         if (scale <= 0f) return@drawWith
         withTransform({
+            if (rotationDegrees != 0f) {
+                rotate(rotationDegrees, pivot = Offset(size.width / 2f, size.height / 2f))
+            }
             translate(0f, size.height)
             scale(scale, scale, pivot = Offset.Zero)
         }) {

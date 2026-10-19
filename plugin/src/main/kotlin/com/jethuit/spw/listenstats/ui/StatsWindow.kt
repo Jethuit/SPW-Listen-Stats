@@ -449,7 +449,7 @@ fun ListenStatsApp(
                                     query = query,
                                     onQueryChange = { query = it },
                                     page = safePage,
-                                    onPageChange = { rankPage = it; scrollTop() }
+                                    onPageChange = { rankPage = it }
                                 )
                             }
                             if (page == StatsPage.Overview) PageFooter(snapshot)

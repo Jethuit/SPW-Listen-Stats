@@ -1,5 +1,11 @@
 # UI 修订
 
+## 0.1.28 分页不跳顶/箭头统一
+
+- 排行切页不再 `scrollTop()`。
+- 日期上下月、分页前后箭头使用同一 chevron 路径旋转 ±90°，16dp/muted/34dp。
+- 详见 [UI-0.1.28.md](UI-0.1.28.md)。
+
 ## 0.1.27 日期弹窗 hover/箭头高度
 
 - 去掉卡片 clickable Surface 的 hover 层和日格 HoverColor；透明层只拦截空白点击。

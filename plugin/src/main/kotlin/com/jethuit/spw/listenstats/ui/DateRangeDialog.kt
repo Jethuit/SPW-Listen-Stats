@@ -260,7 +260,7 @@ private fun DateCard(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                CalendarNavButton("‹", "上个月") { onMonthChange(month.minusMonths(1)) }
+                CalendarNavButton(90f, "上个月") { onMonthChange(month.minusMonths(1)) }
                 SelectBox(
                     label = "${month.year}年",
                     options = years,
@@ -281,7 +281,7 @@ private fun DateCard(
                     modifier = Modifier.padding(horizontal = 3.dp),
                     minWidth = 58.dp
                 )
-                CalendarNavButton("›", "下个月") { onMonthChange(month.plusMonths(1)) }
+                CalendarNavButton(-90f, "下个月") { onMonthChange(month.plusMonths(1)) }
             }
             MonthGrid(
                 month = month,
@@ -372,7 +372,7 @@ private fun CalendarDay(
 }
 
 @Composable
-private fun CalendarNavButton(label: String, description: String, onClick: () -> Unit) {
+private fun CalendarNavButton(rotationDegrees: Float, description: String, onClick: () -> Unit) {
     val colors = LocalStatsColors.current
     Surface(
         onClick = onClick,
@@ -384,7 +384,12 @@ private fun CalendarNavButton(label: String, description: String, onClick: () ->
         color = colors.controlBackground
     ) {
         Box(Modifier.padding(horizontal = 6.dp), contentAlignment = Alignment.Center) {
-            Text(label, style = AppType.bodySmall.copy(color = colors.text))
+            AppIcon(
+                IconPaths.ExpandMore,
+                colors.muted,
+                iconSize = 16.dp,
+                rotationDegrees = rotationDegrees
+            )
         }
     }
 }

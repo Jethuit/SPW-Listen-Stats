@@ -2,7 +2,13 @@
 
 > 给接手 GPT 的单一入口文档见 [`GPT-HANDOFF.md`](GPT-HANDOFF.md)；本文件保留逐版本修订记录。
 
-## 最新：0.1.27 日期弹窗 hover/箭头高度
+## 最新：0.1.28 分页不跳顶/箭头统一
+
+- 排行切页不再 `scrollTop()`；页面切换（概览/排行）仍回顶。
+- 日期上下月、分页前后箭头改用与下拉菜单同一 `ExpandMore` 路径，分别旋转 ±90°；16dp、muted、按钮 34dp/8dp。
+- 截图 `build/screenshots/arrow_consistency.png`。详见 [UI-0.1.28.md](UI-0.1.28.md)。
+
+## 0.1.27 日期弹窗 hover/箭头高度
 
 - 去掉白色卡片的 clickable Surface hover 层和日期格 HoverColor；透明点击拦截层只消费空白点击，不显示悬停色。
 - 年月与箭头统一 34dp 高、8dp 圆角。
