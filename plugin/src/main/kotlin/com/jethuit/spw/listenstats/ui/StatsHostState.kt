@@ -16,4 +16,10 @@ object StatsHostState {
     fun close() {
         visible = false
     }
+
+    fun consumeBack(): Boolean {
+        if (!visible) return false
+        close()
+        return true
+    }
 }

@@ -8,11 +8,13 @@ import com.xuncorp.spw.workshop.api.SpwPlugin
 import com.xuncorp.spw.workshop.api.UnstableSpwWorkshopApi
 import com.xuncorp.spw.workshop.api.WorkshopApi
 import com.jethuit.spw.listenstats.ui.StatsOverlay
+import com.jethuit.spw.listenstats.ui.StatsNavigationHooks
 
 class MainPlugin(
     pluginContext: PluginContext
 ) : SpwPlugin(pluginContext) {
     private var hookHandle: AutoCloseable? = null
+    private var navigationHandle: AutoCloseable? = null
 
     override fun start() {
         PluginState.pluginPath = pluginContext.pluginPath
@@ -21,9 +23,16 @@ class MainPlugin(
         PluginLog.info("start plugin ${pluginContext.pluginVersion} for SPW ${pluginContext.spwVersion}")
         com.jethuit.spw.listenstats.data.StatsStore.initialize(pluginContext.pluginPath)
         com.jethuit.spw.listenstats.data.PlaybackTracker.initialize()
-        hookHandle?.close()
-        hookHandle = null
+        closeHooks()
         try {
+            navigationHandle = StatsNavigationHooks.register { method, parameters, callback ->
+                WorkshopApi.hookRegistrar.hookMethod(
+                    className = StatsNavigationHooks.NAVIGATOR_CLASS,
+                    methodName = method,
+                    parameterTypes = parameters,
+                    callback = callback
+                )
+            }
             hookHandle = WorkshopApi.hookRegistrar.afterComposable(
                 className = "com.xuncorp.voxzen.ui.navigation.AppNavigationKt",
                 methodName = "AppNavigation",
@@ -31,8 +40,9 @@ class MainPlugin(
             ) { _ ->
                 StatsOverlay()
             }
-            PluginLog.info("AppNavigation hook registered")
+            PluginLog.info("AppNavigation and Navigator hooks registered")
         } catch (failure: Throwable) {
+            closeHooks()
             PluginLog.error("AppNavigation hook failed", failure)
             WorkshopApi.ui.toast(
                 "听歌统计入口加载失败，请在插件配置中打开",
@@ -45,9 +55,8 @@ class MainPlugin(
     override fun stop() {
         PluginLog.info("stop plugin")
         try {
-            hookHandle?.close()
+            closeHooks()
         } finally {
-            hookHandle = null
             com.jethuit.spw.listenstats.data.PlaybackTracker.shutdown()
             javax.swing.SwingUtilities.invokeLater {
                 com.jethuit.spw.listenstats.ui.StatsHostState.close()
@@ -63,6 +72,17 @@ class MainPlugin(
 
     override fun update() {
         PluginLog.info("update plugin")
+    }
+
+    private fun closeHooks() {
+        val pending = listOfNotNull(hookHandle, navigationHandle)
+        hookHandle = null
+        navigationHandle = null
+        for (handle in pending) {
+            runCatching { handle.close() }.onFailure {
+                PluginLog.error("removing UI/navigation hooks failed", it)
+            }
+        }
     }
 
     companion object {
