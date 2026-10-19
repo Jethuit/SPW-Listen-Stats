@@ -4,7 +4,7 @@
 
 ## 最新调查：顶部统计入口
 
-- 用户选择窗口最上方、头像附近。新调查找到 `CaptionButtons` 内 `QuickCaptionButton` 的独立调用点，可尝试在其后、Steam 头像之前追加按钮，详见 [TOPBAR-ENTRY.md](TOPBAR-ENTRY.md)。这修正了早期仅检查整个标题栏后得出的“无安全插入点”结论。
+- 用户最新指定彩色快捷按钮左侧的红框。候选改为 `CaptionButtons` 内 `DebugCaptionButton` 调用之后、Quick 之前；原 Quick 之后位置保留为备选，详见 [TOPBAR-ENTRY.md](TOPBAR-ENTRY.md)。这修正了早期仅检查整个标题栏后得出的“无安全插入点”结论。
 - 一轮只读探针通过：宿主 UI Hook 解析器接受目标；整个调用类仅一处匹配；调用位于按钮 Row 内。尚未注册、渲染或进行真实窗口点击验收。
 - 生产源码、版本与已发布 v0.1.1 均未改动；检查脚本在 `tests/probe-titlebar-hook.py`。
 
