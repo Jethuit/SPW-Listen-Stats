@@ -1,6 +1,6 @@
 # GPT 交接文档：听歌统计
 
-> **最新准备：v0.1.0 首个公开预发布版。** 用户要求仅创建 GitHub 草稿 Release，暂不公开。基于开发版 0.1.35 整理，不改统计或 UI 逻辑。发布说明见 [releases/v0.1.0.md](releases/v0.1.0.md)，验证与附件见 [releases/PREPARATION-v0.1.0.md](releases/PREPARATION-v0.1.0.md)。
+> **最新发布：v0.1.0 首个公开预发布版。** 用户于 2026-10-19 授权公开，[Release 已发布](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.0)，保持 `prerelease=true`。`main` 已快进同步发布源码与最新 README，仓库 topic 为 `salt-player-for-windows`。基于开发版 0.1.35 整理，不改统计或 UI 逻辑。发布说明见 [releases/v0.1.0.md](releases/v0.1.0.md)，验证与附件见 [releases/PREPARATION-v0.1.0.md](releases/PREPARATION-v0.1.0.md)。
 >
 > 最终对外名称统一为 **听歌统计**，入口为“打开听歌统计”，安装包为 `SPW-Stats-v0.1.0.spmod`。三张实际效果图只放 README；Release 简短且不放图，附件仅安装包，不发布 `SHA256SUMS.txt`。保留“椒盐经典”推荐，插件 ID 保持。
 >

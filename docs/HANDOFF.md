@@ -2,13 +2,13 @@
 
 > 给接手 GPT 的单一入口文档见 [`GPT-HANDOFF.md`](GPT-HANDOFF.md)；本文件保留逐版本修订记录。
 
-## 最新：v0.1.0 首次公开预发布准备
+## 最新：v0.1.0 首次公开预发布
 
 - 最终名称统一为 **听歌统计**，入口为“打开听歌统计”，安装包为 `SPW-Stats-v0.1.0.spmod`；不再发布 `SHA256SUMS.txt`。三张实际效果图只放 README，Release 保持简短；推荐使用 SPW“椒盐经典”主题样式。插件 ID 保持。
 
-- 用户选择首版编号 `v0.1.0`，仅创建 GitHub 草稿 Release，不公开发布。基于开发版 0.1.35 整理，历史记录保留。
+- 用户于 2026-10-19 授权公开，`v0.1.0` 已从草稿发布为公开预发布版：[Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.0)。基于开发版 0.1.35 整理，历史记录保留。
 - 对外正文见 [releases/v0.1.0.md](releases/v0.1.0.md)，材料与验证记录见 [releases/PREPARATION-v0.1.0.md](releases/PREPARATION-v0.1.0.md)。
-- 安装包加入项目与第三方许可证；`tools/prepare_release.py` 只整理安装包。源码仍在 `codex/listening-stats`，本轮不合并 main，不启动 SPW。
+- 安装包加入项目与第三方许可证；`tools/prepare_release.py` 只整理安装包。`main` 已快进同步发布源码与最新 README；发布标签对应 `88de79f`，仓库 topic 为 `salt-player-for-windows`。此次仅核对发布材料与远端状态，未启动 SPW。
 
 ## 0.1.35 API 取消后的封面重试
 
