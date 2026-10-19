@@ -387,7 +387,7 @@ private fun CalendarNavButton(pathData: String, description: String, onClick: ()
             AppIcon(
                 pathData,
                 colors.muted,
-                iconSize = 18.dp,
+                iconSize = 24.dp,
                 viewBoxSize = 24f,
                 positiveCoordinates = true
             )
