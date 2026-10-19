@@ -1,4 +1,4 @@
-# v0.1.1：未发布修复合集
+# v0.1.1：修复与发布记录
 
 日期：2026-10-19。用户实机反馈：打开统计页后，点击侧栏“歌曲”“曲风”等栏目不能看到目标页面，鼠标侧键也不能退出统计页。
 
@@ -30,7 +30,7 @@
 
 渲染检查使用模拟文字和统计数字，不启动宿主、不读取真实曲库。命令为 `py -3.12 tests/render-back-button.py --layout`，产物仅保存在 `build/screenshots/responsive-v0.1.1/`。
 
-本地修复包：`build/releases/v0.1.1/SPW-Stats-v0.1.1.spmod`，同一路径随未发布修复更新。v0.1.0 公开 Release 保持现状，本次尚未发布新 Release。旧临时 v0.1.2 安装包已移到本机 `build/releases/archive/v0.1.2/`，不作为当前分发包。
+用户于 2026-10-19 授权后，[v0.1.1 已正式发布](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.1)，`draft=false`、`prerelease=false`，设为 Latest。正文采用用户提供的四条更新日志，README 与 main 已同步。附件仅 `SPW-Stats-v0.1.1.spmod`，17,180,687 字节，远端摘要与本地最终包一致，标签对应 `9547491dda859cc193d60e572cd870b6dc61ca6e`。本地包在 `build/releases/v0.1.1/`；回执在 `build/releases/published-v0.1.1.json`。v0.1.0 Release 保留，旧临时 v0.1.2 安装包归档，不作为当前分发包。
 
 未启动或安装到用户的 SPW，未用实体鼠标验证；用户需本地导入修复包后检查：
 

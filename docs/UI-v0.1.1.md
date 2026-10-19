@@ -37,4 +37,4 @@
 - 检查入口：`py -3.12 tests/render-back-button.py --reference <用户提供的完整宿主截图>`。参考截图和离屏产物保留在本机临时目录／`build/`，不提交用户截图。
 - 离屏运行使用宿主 Skiko 原生库路径，JNA 临时目录在 `build/tests/back-button/native-temp/`。
 
-当前本地安装包统一为 `build/releases/v0.1.1/SPW-Stats-v0.1.1.spmod`。当前公开 Release 仍为 v0.1.0，未自动发布。用户需本地导入后核对完整页面及交互。
+当前安装包为 `SPW-Stats-v0.1.1.spmod`。用户于 2026-10-19 授权后，[v0.1.1 已正式发布](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.1) 并设为 Latest。完整宿主页面及交互仍以用户实机反馈为准。

@@ -1,10 +1,10 @@
 # GPT 交接文档：听歌统计
 
-> **最新修订：全部统一为 v0.1.1，尚未公开发布。** 用户明确导航、返回箭头与响应式修复均归入同一未发布版本。返回按钮采用 SaltUI 原生控件和独立 56dp 导航行；正文不再按宽度缩减顶部留白，滚动不会覆盖返回键；常听时段与排行底部适配窄屏。热力图缩放逻辑保持。本地包 `build/releases/v0.1.1/SPW-Stats-v0.1.1.spmod`，当前公开 Release 仍为 v0.1.0。见 [UI-v0.1.1.md](UI-v0.1.1.md) 和 [BUGFIX-0.1.1.md](BUGFIX-0.1.1.md)。
+> **最新发布：v0.1.1，已正式公开并设为 Latest。** 用户于 2026-10-19 授权更新 GitHub，[Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.1) 采用其提供的四条更新日志。源码与 README 已同步 main；附件仅 `SPW-Stats-v0.1.1.spmod`，17,180,687 字节；标签对应 `9547491dda859cc193d60e572cd870b6dc61ca6e`。导航、返回箭头、自定义日期按钮与窄屏布局修复统一纳入此版本。技术说明见 [UI-v0.1.1.md](UI-v0.1.1.md) 和 [BUGFIX-0.1.1.md](BUGFIX-0.1.1.md)。
 
-> **最新修复：v0.1.1，尚未公开发布。** 侧栏切页时关闭统计页；返回事件在统计页可见时只退出本层。针对 SPW 1.19.0 `Navigator` 注册与清理钩子，36 文件构建、7 组导航回归及包结构检查通过。修复包 `build/releases/v0.1.1/SPW-Stats-v0.1.1.spmod`；实体鼠标侧键与宿主交互待用户核对。见 [BUGFIX-0.1.1.md](BUGFIX-0.1.1.md)。下方 v0.1.0 是当前公开 Release。
+> **v0.1.1 验证边界：** 构建、导航回归、离屏尺寸与渲染、安装包结构检查通过；完整宿主交互的实机检查仍以用户反馈为准，发布状态不代表所有宿主场景均已实测。
 
-> **最新发布：v0.1.0 首个正式版。** 用户于 2026-10-19 授权公开，随后明确转为正式版。[Release 已正式发布](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.0)，`prerelease=false`，设为 Latest。`main` 已同步发布源码与最新 README，仓库 topic 为 `salt-player-for-windows`，已补充简短简介。基于开发版 0.1.35 整理，不改统计或 UI 逻辑。发布说明见 [releases/v0.1.0.md](releases/v0.1.0.md)，验证与附件见 [releases/PREPARATION-v0.1.0.md](releases/PREPARATION-v0.1.0.md)。
+> **首发记录：v0.1.0。** 用户于 2026-10-19 授权公开，随后明确转为正式版。[首发 Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.0) 保留；当前 Latest 为上方 v0.1.1。仓库 topic 为 `salt-player-for-windows`，已补充简短简介。首发基于开发版 0.1.35 整理。发布说明见 [releases/v0.1.0.md](releases/v0.1.0.md)，验证与附件见 [releases/PREPARATION-v0.1.0.md](releases/PREPARATION-v0.1.0.md)。
 >
 > 最终对外名称统一为 **听歌统计**，入口为“打开听歌统计”，安装包为 `SPW-Stats-v0.1.0.spmod`。三张实际效果图只放 README；Release 简短且不放图，附件仅安装包，不发布 `SHA256SUMS.txt`。保留“椒盐经典”推荐，插件 ID 保持。
 >

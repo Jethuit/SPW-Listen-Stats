@@ -2,9 +2,10 @@
 
 > 给接手 GPT 的单一入口文档见 [`GPT-HANDOFF.md`](GPT-HANDOFF.md)；本文件保留逐版本修订记录。
 
-## 最新：v0.1.1 未发布修复合集
+## 最新：v0.1.1 已正式发布
 
-- 用户明确尚未发布的修复全部统一为 v0.1.1。本地包为 `build/releases/v0.1.1/SPW-Stats-v0.1.1.spmod`，当前公开 Release 仍为 v0.1.0。
+- 用户于 2026-10-19 授权更新 GitHub，v0.1.1 已正式发布并设为 Latest：[Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.1)。源码和 README 已同步到 main，正文采用用户提供的四条更新日志。
+- 附件仅 `SPW-Stats-v0.1.1.spmod`，17,180,687 字节；标签对应提交 `9547491dda859cc193d60e572cd870b6dc61ca6e`。发布回执在本机 `build/releases/published-v0.1.1.json`。
 - 最新修正自定义日期年月导航：左右月箭头固定 34×34dp，年份 92dp、月份 76dp，避免右侧按钮挤压；新增实际卡片宽度下的四组年月渲染检查。
 - 导航联动、鼠标返回与 SaltUI 原生返回箭头修复均保留。箭头使用宿主 56dp 标题行、12dp 左边距和垂直居中。
 - 移除正文顶部留白的宽度断点；返回行独立于正文滚动区域，正文裁切在其下方。热力图缩放逻辑保持。
