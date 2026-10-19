@@ -12,6 +12,7 @@ parser.add_argument('--reference', type=Path)
 parser.add_argument('--spw-dir', type=Path)
 parser.add_argument('--layout', action='store_true', help='render responsive frame and footer checks')
 parser.add_argument('--calendar', action='store_true', help='check fixed month-navigation controls')
+parser.add_argument('--colors', action='store_true', help='render sampled card and tooltip colors')
 args = parser.parse_args()
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
@@ -23,7 +24,7 @@ scratch.mkdir(parents=True, exist_ok=True)
 classpath = os.pathsep.join(map(str, [kotlin / 'lib/kotlin-stdlib.jar', ROOT / 'build/plugin-classes',
     *builder.saltui_jars(), ROOT / 'build/tools/spw-host.jar']))
 java = str(jdk / 'bin/java.exe')
-test_name = ('CalendarNavigationVisualCheck' if args.calendar else
+test_name = ('CardColorsVisualCheck' if args.colors else 'CalendarNavigationVisualCheck' if args.calendar else
              'ResponsiveLayoutVisualCheck' if args.layout else 'BackButtonVisualCheck')
 subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
     '-no-stdlib', '-classpath', classpath,
@@ -37,6 +38,8 @@ if args.layout:
     output = ROOT / 'build/screenshots' / f'responsive-v{builder.PLUGIN_VERSION}'
 if args.calendar:
     output = ROOT / 'build/screenshots' / f'calendar-v{builder.PLUGIN_VERSION}'
+if args.colors:
+    output = ROOT / 'build/screenshots' / f'card-colors-v{builder.PLUGIN_VERSION}'
 native_dir = (args.spw_dir or builder.DEFAULT_SPW_DIR) / 'app'
 native_temp = scratch / 'native-temp'
 native_temp.mkdir(exist_ok=True)
@@ -44,7 +47,16 @@ subprocess.run([java, f'-Dskiko.library.path={native_dir}', f'-Djna.tmpdir={nati
     f'-Djava.io.tmpdir={native_temp}', '--enable-native-access=ALL-UNNAMED',
     '-cp', str(scratch) + os.pathsep + classpath,
     test_name + 'Kt', str(output)], check=True, env=environment)
-if args.calendar:
+if args.colors:
+    from collections import Counter
+    for theme, expected in [('light', (252, 252, 252)), ('dark', (42, 42, 42))]:
+        rendered = Image.open(output / f'cards-{theme}.png').convert('RGB')
+        card_colors = Counter(rendered.crop((25, 25, 625, 140)).getdata())
+        tooltip_colors = Counter(rendered.crop((0, 175, 650, 400)).getdata())
+        assert card_colors[expected] > 40_000, (theme, card_colors.most_common(3))
+        assert tooltip_colors[expected] > 8_000, (theme, tooltip_colors.most_common(3))
+        print(f'PASS {theme}: card and popup render the sampled #{expected[0]:02X}{expected[1]:02X}{expected[2]:02X} fill')
+elif args.calendar:
     widths = []
     for file in sorted(output.glob('month-*.png')):
         im = Image.open(file).convert('RGB')

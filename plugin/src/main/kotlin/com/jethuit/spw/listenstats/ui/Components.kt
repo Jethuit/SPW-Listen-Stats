@@ -420,7 +420,7 @@ fun SummaryStrip(
         SaltCard(
             modifier = Modifier.fillMaxWidth(),
             shape = AppShape(15.dp),
-            color = colors.background,
+            color = colors.cardBackground,
             border = BorderStroke(1.dp, SolidColor(colors.line))
         ) {
             Box(

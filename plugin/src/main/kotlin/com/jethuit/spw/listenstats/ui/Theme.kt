@@ -48,8 +48,13 @@ data class StatsColors(
     val tooltipText: Color,
     val danger: Color,
     val pageBackground: Color = background,
-    val controlBackground: Color = subtle
+    val controlBackground: Color = subtle,
+    val cardBackground: Color = background
 )
+
+// Sampled from the official SPW classic settings cards, for both theme modes.
+private val ClassicLightCardBackground = Color(0xFFFCFCFC)
+private val ClassicDarkCardBackground = Color(0xFF2A2A2A)
 
 val LightStatsColors = StatsColors(
     isDark = false,
@@ -68,11 +73,12 @@ val LightStatsColors = StatsColors(
         Color(0xFF559EEC),
         Color(0xFF1769BD)
     ),
-    tooltipBackground = Color(0xFF25272B),
-    tooltipText = Color(0xFFFFFFFF),
+    tooltipBackground = ClassicLightCardBackground,
+    tooltipText = Color(0xFF25272B),
     danger = Color(0xFFCF4545),
     pageBackground = Color(0xFFF8F8F8),
-    controlBackground = Color(0xFFEDEEF1)
+    controlBackground = Color(0xFFEDEEF1),
+    cardBackground = ClassicLightCardBackground
 )
 
 val DarkStatsColors = StatsColors(
@@ -92,10 +98,11 @@ val DarkStatsColors = StatsColors(
         Color(0xFF599BDB),
         Color(0xFF8AC5FF)
     ),
-    tooltipBackground = Color(0xFFEEEEEF),
-    tooltipText = Color(0xFF202124),
+    tooltipBackground = ClassicDarkCardBackground,
+    tooltipText = Color(0xFFEDEDEE),
     danger = Color(0xFFFF8A8A),
-    pageBackground = Color(0xFF232323)
+    pageBackground = Color(0xFF232323),
+    cardBackground = ClassicDarkCardBackground
 )
 
 val LocalStatsColors = staticCompositionLocalOf { LightStatsColors }
