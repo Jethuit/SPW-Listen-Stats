@@ -6,6 +6,10 @@ import androidx.compose.runtime.setValue
 
 /** Host-composed statistics page. No separate AWT window and no floating overlay. */
 object StatsHostState {
+    // True only while the optional host-content wrapper is actually in the composition.
+    var materialBridgeAvailable by mutableStateOf(false)
+        internal set
+
     var visible by mutableStateOf(false)
         private set
 

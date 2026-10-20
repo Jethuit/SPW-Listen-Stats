@@ -1,5 +1,9 @@
 import com.jethuit.spw.listenstats.ui.UiGeometry
 import com.jethuit.spw.listenstats.ui.TrendAxis
+import com.jethuit.spw.listenstats.ui.ThemeMode
+import com.jethuit.spw.listenstats.ui.LightStatsColors
+import com.jethuit.spw.listenstats.ui.DarkStatsColors
+import com.jethuit.spw.listenstats.ui.materialStatsColors
 import com.jethuit.spw.listenstats.ui.rankingSafePage
 import com.jethuit.spw.listenstats.ui.rankingTotalPages
 import com.jethuit.spw.listenstats.data.*
@@ -74,5 +78,20 @@ fun main(args: Array<String>) {
     val hours = StatsCalculations.chartBuckets(data, DateRange(today, today), Granularity.Day)
     check(hours.size == 24 && hours.last().longLabel.endsWith("23:00–24:00"))
     println("PASS midnight interval ends at 24:00")
-    println("7 UI regression groups passed; rendered UI still requires user review")
+    for (base in listOf(LightStatsColors, DarkStatsColors)) {
+        for (style in listOf("WindowsAcrylic", "WindowsMica", "WindowsMicaAlt")) {
+            val material = materialStatsColors(base, ThemeMode.System, style, true)
+            check(material.pageBackground.alpha == 0f && material.cardBackground.alpha in 0.1f..0.99f)
+            check(material.text == base.text && material.tooltipBackground.alpha == 1f)
+            for (mode in listOf(ThemeMode.Light, ThemeMode.Dark)) {
+                check(materialStatsColors(base, mode, style, true) === base)
+            }
+            check(materialStatsColors(base, ThemeMode.System, style, false) === base)
+        }
+        for (style in listOf(null, "None", "UnknownStyle")) {
+            check(materialStatsColors(base, ThemeMode.System, style, true) === base)
+        }
+    }
+    println("PASS material follows the host only with an active wrapper; manual and unsupported styles remain opaque")
+    println("8 UI regression groups passed; rendered UI still requires user review")
 }

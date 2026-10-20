@@ -14,6 +14,7 @@ parser.add_argument('--layout', action='store_true', help='render responsive fra
 parser.add_argument('--calendar', action='store_true', help='check fixed month-navigation controls')
 parser.add_argument('--colors', action='store_true', help='render sampled card and tooltip colors')
 parser.add_argument('--ranking', action='store_true', help='render three ranking modes at narrow and wide widths')
+parser.add_argument('--material', action='store_true', help='check retained host composition and material background isolation')
 args = parser.parse_args()
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
@@ -25,7 +26,7 @@ scratch.mkdir(parents=True, exist_ok=True)
 classpath = os.pathsep.join(map(str, [kotlin / 'lib/kotlin-stdlib.jar', ROOT / 'build/plugin-classes',
     *builder.saltui_jars(), ROOT / 'build/tools/spw-host.jar']))
 java = str(jdk / 'bin/java.exe')
-test_name = ('RankingModesVisualCheck' if args.ranking else 'CardColorsVisualCheck' if args.colors else 'CalendarNavigationVisualCheck' if args.calendar else
+test_name = ('MaterialLayerVisualCheck' if args.material else 'RankingModesVisualCheck' if args.ranking else 'CardColorsVisualCheck' if args.colors else 'CalendarNavigationVisualCheck' if args.calendar else
              'ResponsiveLayoutVisualCheck' if args.layout else 'BackButtonVisualCheck')
 subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
     '-no-stdlib', '-classpath', classpath,
@@ -43,6 +44,8 @@ if args.colors:
     output = ROOT / 'build/screenshots' / f'card-colors-v{builder.PLUGIN_VERSION}'
 if args.ranking:
     output = ROOT / 'build/screenshots' / f'ranking-v{builder.PLUGIN_VERSION}'
+if args.material:
+    output = ROOT / 'build/screenshots' / f'material-v{builder.PLUGIN_VERSION}'
 native_dir = (args.spw_dir or builder.DEFAULT_SPW_DIR) / 'app'
 native_temp = scratch / 'native-temp'
 native_temp.mkdir(exist_ok=True)
@@ -50,7 +53,13 @@ subprocess.run([java, f'-Dskiko.library.path={native_dir}', f'-Djna.tmpdir={nati
     f'-Djava.io.tmpdir={native_temp}', '--enable-native-access=ALL-UNNAMED',
     '-cp', str(scratch) + os.pathsep + classpath,
     test_name + 'Kt', str(output)], check=True, env=environment)
-if args.ranking:
+if args.material:
+    for name, expected in [('before.png', (187, 34, 68)), ('hidden.png', (39, 107, 86)),
+                           ('restored.png', (187, 34, 68))]:
+        actual = Image.open(output / name).convert('RGB').getpixel((200, 150))
+        assert actual == expected, (name, actual, expected)
+    print('PASS transparent page reveals the synthetic backdrop, never the hidden host page')
+elif args.ranking:
     files = sorted(output.glob('*-*-*.png'))
     assert len(files) == 12, len(files)
     for file in files:

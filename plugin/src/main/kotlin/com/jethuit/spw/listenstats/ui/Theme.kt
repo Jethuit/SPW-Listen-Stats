@@ -107,8 +107,22 @@ val DarkStatsColors = StatsColors(
 
 val LocalStatsColors = staticCompositionLocalOf { LightStatsColors }
 
+/** DWM belongs to the host window. Transparent page paint is safe only behind an active wrapper. */
+fun materialStatsColors(base: StatsColors, mode: ThemeMode, windowStyle: String?,
+                        inheritMaterial: Boolean): StatsColors {
+    if (!inheritMaterial || mode != ThemeMode.System ||
+        windowStyle !in setOf("WindowsAcrylic", "WindowsMica", "WindowsMicaAlt")) return base
+    return base.copy(
+        pageBackground = Color.Transparent,
+        cardBackground = base.cardBackground.copy(alpha = 0.72f),
+        controlBackground = base.controlBackground.copy(alpha = 0.72f),
+        subtle = base.subtle.copy(alpha = 0.55f),
+        hover = base.hover.copy(alpha = 0.65f)
+    )
+}
+
 @Composable
-fun StatsTheme(mode: ThemeMode, content: @Composable () -> Unit) {
+fun StatsTheme(mode: ThemeMode, inheritMaterial: Boolean = false, content: @Composable () -> Unit) {
     var hostAppearance by remember { mutableStateOf(HostAppearance()) }
     var systemDark by remember { mutableStateOf(false) }
     var hostFont by remember { mutableStateOf<androidx.compose.ui.text.font.FontFamily>(androidx.compose.ui.text.font.FontFamily.Default) }
@@ -133,7 +147,7 @@ fun StatsTheme(mode: ThemeMode, content: @Composable () -> Unit) {
         ThemeMode.Dark -> true
     }
     val baseColors = if (dark) DarkStatsColors else LightStatsColors
-    val colors = baseColors
+    val colors = materialStatsColors(baseColors, mode, hostAppearance.windowStyle, inheritMaterial)
     val scheme = if (dark) {
         darkColorScheme(
             primary = colors.accent,

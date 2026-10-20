@@ -300,7 +300,7 @@ fun ListenStatsApp(
         }
     }
 
-    StatsTheme(themeMode) {
+    StatsTheme(themeMode, inheritMaterial = embedded && StatsHostState.materialBridgeAvailable) {
         val colors = LocalStatsColors.current
         val font = LocalHostFontFamily.current
         val inheritedText = SaltTheme.textStyles

@@ -10,6 +10,7 @@ import com.xuncorp.spw.workshop.api.WorkshopApi
 import com.jethuit.spw.listenstats.ui.StatsOverlay
 import com.jethuit.spw.listenstats.ui.StatsNavigationHooks
 import com.jethuit.spw.listenstats.ui.StatsTitlebarEntry
+import com.jethuit.spw.listenstats.ui.HostMaterialLayer
 
 class MainPlugin(
     pluginContext: PluginContext
@@ -17,6 +18,7 @@ class MainPlugin(
     private var hookHandle: AutoCloseable? = null
     private var navigationHandle: AutoCloseable? = null
     private var titlebarHandle: AutoCloseable? = null
+    private var materialHandle: AutoCloseable? = null
 
     override fun start() {
         PluginState.pluginPath = pluginContext.pluginPath
@@ -52,6 +54,16 @@ class MainPlugin(
             )
         }
         if (hookHandle != null) {
+            try {
+                materialHandle = WorkshopApi.hookRegistrar.replaceComposable(
+                    className = "com.xuncorp.voxzen.ui.navigation.AppNavigationKt",
+                    methodName = "AppNavigation",
+                    inClass = "androidx.compose.ui.ۄ"
+                ) { _ -> HostMaterialLayer() }
+                PluginLog.info("Optional native material layer registered")
+            } catch (failure: Throwable) {
+                PluginLog.error("Native material layer unavailable; retaining opaque page background", failure)
+            }
             try {
                 titlebarHandle = StatsTitlebarEntry.register { target, method, caller, parameters, content ->
                     WorkshopApi.hookRegistrar.afterComposable(
@@ -98,10 +110,11 @@ class MainPlugin(
     }
 
     private fun closeHooks() {
-        val pending = listOfNotNull(titlebarHandle, hookHandle, navigationHandle)
+        val pending = listOfNotNull(titlebarHandle, hookHandle, materialHandle, navigationHandle)
         titlebarHandle = null
         hookHandle = null
         navigationHandle = null
+        materialHandle = null
         for (handle in pending) {
             runCatching { handle.close() }.onFailure {
                 PluginLog.error("removing UI/navigation hooks failed", it)

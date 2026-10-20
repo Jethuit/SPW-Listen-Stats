@@ -1,6 +1,8 @@
 # GPT 交接文档：听歌统计
 
-> **当前源码：v0.1.4-dev.1，未上传、未发布。** 已按用户转来的两项 P2 报告复现并修复：观察到短暂 B 即结束旧 A 会话，再单独判断位置采样；本地身份判断覆盖主 ID 与宿主别名，避免连续导入旧备份后丢失曲库归属。旧版二进制已复现两例；修复后 39 文件构建、18 组数据＋11 组完整性＋7 组排行共 36 组回归及包结构检查通过。包 `build/libs/SPW-Stats-v0.1.4-dev.1.spmod`（17,233,781 字节）。使用模拟宿主，未运行真实 SPW，未操作真实数据；不自动拆分缺少可靠分界的旧版历史。详情见 [BUGFIX-v0.1.4.md](BUGFIX-v0.1.4.md)。
+> **当前源码：v0.1.4-dev.2，未上传、未发布。** 用户确认材质只在“跟随 SPW”时启用，手动浅／深保留纯色。新增可选原导航包装层，底层页面保留组合但隐藏放置；透明背景及半透明卡片继承宿主窗口材质。Hook 或主题不可用时保留经典背景。40 文件构建、8 组 UI、7 组导航、原生层点击隔离及状态保留检查通过；包结构通过（17,246,483 字节）。真实 Windows DWM／SPW 观感仍待用户验收，不能将模拟渲染当作真实材质效果。包 `build/libs/SPW-Stats-v0.1.4-dev.2.spmod`；继续包含 dev.1 两项数据修复。详情见 [MATERIAL-v0.1.4.md](MATERIAL-v0.1.4.md)。
+
+> **v0.1.4-dev.1 数据修复记录。** 已按用户转来的两项 P2 报告复现并修复：观察到短暂 B 即结束旧 A 会话，再单独判断位置采样；本地身份判断覆盖主 ID 与宿主别名，避免连续导入旧备份后丢失曲库归属。旧版二进制已复现两例；修复后 39 文件构建、18 组数据＋11 组完整性＋7 组排行共 36 组回归及包结构检查通过。包 `build/libs/SPW-Stats-v0.1.4-dev.1.spmod`（17,233,781 字节）。使用模拟宿主，未运行真实 SPW，未操作真实数据；不自动拆分缺少可靠分界的旧版历史。详情见 [BUGFIX-v0.1.4.md](BUGFIX-v0.1.4.md)。
 
 > **最新发布：v0.1.3，已正式公开并设为 Latest。** [Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.3)（ID `417903045`）已按用户授权发布，标签目标 `e2600782f59b215ded1fb66942daa84509edc8d4`；源码与 README 已同步 `main` 和工作分支。附件仅 `SPW-Stats-v0.1.3.spmod`，17,233,390 字节，GitHub 摘要与本地一致。正式包与 dev.4 逐项比对，只有插件版本描述变化，代码、资源、依赖相同。README 不放更新日志或开发信息；简短日志见 [releases/v0.1.3.md](releases/v0.1.3.md)。发布回执为本机 `build/releases/published-v0.1.3.json`。
 
@@ -85,7 +87,7 @@
 | SaltUI 接入 | 部分完成 | 主题/滚动/Text/Card 已接；按钮/分段/热力图未全迁 |
 | 主题跟随 SPW | 已实现但未系统验收 | `AppConfig.lightDarkTheme`；Light/Dark 直接跟随，FollowSystem 回退系统 |
 | 椒盐经典页底色 | 已实现 | 页面根 #F8F8F8 / #232323；排行行跟随 |
-| Acrylic/Mica/云母 Alt | 未实现 | 回退经典色；见限制 |
+| Acrylic/Mica/云母 Alt | dev.2 初步接入，待实机 | 仅跟随 SPW，手动浅深保留经典色；见 MATERIAL-v0.1.4.md |
 | 真实播放/暂停/seek | 未验收 | 必须正常 Steam 启动中测试 |
 | 每页 25 首 + 第 3 页 | 已修复 | 共享 `RANKING_PAGE_SIZE=25` / `rankingTotalPages` / `rankingSafePage` |
 
