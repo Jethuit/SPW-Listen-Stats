@@ -142,7 +142,7 @@ fun RankingPage(
             }
         }
         // One closing rule separates the current page's records from its footer.
-        Box(Modifier.fillMaxWidth().height(1.dp).drawWith { drawRect(colors.line) })
+        Box(Modifier.fillMaxWidth().height(1.dp).drawWith { drawRect(colors.separatorLine) })
         Box(Modifier.height(16.dp))
         RankingFooter(filtered.size, currentPage, totalPages, onPageChange, mode)
     }
@@ -285,7 +285,7 @@ private fun SongTableHeader(mode: RankingMode) {
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .drawWith { drawRect(color = colors.line) }
+                .drawWith { drawRect(color = colors.separatorLine) }
         )
     }
 }

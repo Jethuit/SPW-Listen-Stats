@@ -528,7 +528,7 @@ private fun PageNav(page: StatsPage, onPage: (StatsPage) -> Unit) {
                 onPage(StatsPage.Ranking)
             }
         }
-        Box(Modifier.fillMaxWidth().height(1.dp).drawWith { drawRect(color = colors.line) })
+        Box(Modifier.fillMaxWidth().height(1.dp).drawWith { drawRect(color = colors.separatorLine) })
     }
     Box(Modifier.height(if (page == StatsPage.Ranking) 0.dp else 30.dp))
 }
@@ -577,7 +577,7 @@ private fun PageFooter(data: StatsData) {
     val colors = LocalStatsColors.current
     Column {
         Box(Modifier.height(36.dp))
-        Box(Modifier.fillMaxWidth().height(1.dp).drawWith { drawRect(color = colors.line) })
+        Box(Modifier.fillMaxWidth().height(1.dp).drawWith { drawRect(color = colors.separatorLine) })
         Box(Modifier.height(18.dp))
         Row(
             Modifier.fillMaxWidth(),

@@ -34,7 +34,8 @@ data class StatsColors(
     val controlBackground: Color = subtle,
     val cardBackground: Color = background,
     val selectedControlBackground: Color = background,
-    val rankingRowHover: Color = subtle
+    val rankingRowHover: Color = subtle,
+    val separatorLine: Color = line
 )
 
 // Sampled from the official SPW classic settings cards, for both theme modes.
@@ -109,6 +110,7 @@ fun materialStatsColors(base: StatsColors, windowStyle: String?,
             cardBackground = Color.White.copy(alpha = 0.16f),
             // Fitted against native focused borders and the #C7C7C7 inactive border.
             line = Color(0xFF808080).copy(alpha = 0.28f),
+            separatorLine = Color(0xFF808080).copy(alpha = 0.28f),
             controlBackground = Color.Black.copy(alpha = 0.045f),
             selectedControlBackground = Color.White.copy(alpha = 0.60f),
             subtle = Color.Black.copy(alpha = 0.04f),
@@ -124,7 +126,11 @@ fun materialStatsColors(base: StatsColors, windowStyle: String?,
         controlBackground = base.controlBackground.copy(alpha = 0.72f),
         subtle = base.subtle.copy(alpha = 0.55f),
         hover = base.hover.copy(alpha = 0.65f),
-        rankingRowHover = base.subtle.copy(alpha = 0.55f)
+        rankingRowHover = base.subtle.copy(alpha = 0.55f),
+        // User selected the native drop-target outline gray, rather than the
+        // lighter card border. Keep layout separators independent of borders.
+        separatorLine = if (windowStyle == "WindowsMica" && !base.isDark)
+            Color(0xFFB1B1B1) else base.line
     )
 }
 
