@@ -49,7 +49,8 @@ data class StatsColors(
     val danger: Color,
     val pageBackground: Color = background,
     val controlBackground: Color = subtle,
-    val cardBackground: Color = background
+    val cardBackground: Color = background,
+    val selectedControlBackground: Color = background
 )
 
 // Sampled from the official SPW classic settings cards, for both theme modes.
@@ -112,6 +113,25 @@ fun materialStatsColors(base: StatsColors, mode: ThemeMode, windowStyle: String?
                         inheritMaterial: Boolean): StatsColors {
     if (!inheritMaterial || mode != ThemeMode.System ||
         windowStyle !in setOf("WindowsAcrylic", "WindowsMica", "WindowsMicaAlt")) return base
+    // The supplied light Acrylic captures have a #DDDDDD inactive backdrop and
+    // #E2E2E2 card interiors. A light tint preserves the native focused backdrop
+    // as well; never replace DWM's focus-dependent background with a fixed RGB.
+    // Dark Acrylic has no reference capture yet and retains the dev.2 palette.
+    if (windowStyle == "WindowsAcrylic" && !base.isDark) {
+        return base.copy(
+            pageBackground = Color.Transparent,
+            text = Color(0xFF1E1715),
+            muted = Color.Black.copy(alpha = 0.56f),
+            cardBackground = Color.White.copy(alpha = 0.16f),
+            // Fitted against native focused borders and the #C7C7C7 inactive border.
+            line = Color(0xFF808080).copy(alpha = 0.28f),
+            controlBackground = Color.Black.copy(alpha = 0.045f),
+            selectedControlBackground = Color.White.copy(alpha = 0.60f),
+            subtle = Color.Black.copy(alpha = 0.04f),
+            hover = Color.Black.copy(alpha = 0.075f),
+            cells = listOf(Color.Black.copy(alpha = 0.055f)) + base.cells.drop(1)
+        )
+    }
     return base.copy(
         pageBackground = Color.Transparent,
         cardBackground = base.cardBackground.copy(alpha = 0.72f),

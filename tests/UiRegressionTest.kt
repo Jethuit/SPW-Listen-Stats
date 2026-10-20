@@ -82,7 +82,14 @@ fun main(args: Array<String>) {
         for (style in listOf("WindowsAcrylic", "WindowsMica", "WindowsMicaAlt")) {
             val material = materialStatsColors(base, ThemeMode.System, style, true)
             check(material.pageBackground.alpha == 0f && material.cardBackground.alpha in 0.1f..0.99f)
-            check(material.text == base.text && material.tooltipBackground.alpha == 1f)
+            check(material.text.alpha == 1f && material.tooltipBackground == base.tooltipBackground)
+            check(material.background == base.background && material.tooltipText == base.tooltipText)
+            if (style != "WindowsAcrylic" || base.isDark) {
+                check(material == base.copy(pageBackground = androidx.compose.ui.graphics.Color.Transparent,
+                    cardBackground = base.cardBackground.copy(alpha = 0.72f),
+                    controlBackground = base.controlBackground.copy(alpha = 0.72f),
+                    subtle = base.subtle.copy(alpha = 0.55f), hover = base.hover.copy(alpha = 0.65f)))
+            }
             for (mode in listOf(ThemeMode.Light, ThemeMode.Dark)) {
                 check(materialStatsColors(base, mode, style, true) === base)
             }

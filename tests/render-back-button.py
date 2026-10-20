@@ -15,6 +15,7 @@ parser.add_argument('--calendar', action='store_true', help='check fixed month-n
 parser.add_argument('--colors', action='store_true', help='render sampled card and tooltip colors')
 parser.add_argument('--ranking', action='store_true', help='render three ranking modes at narrow and wide widths')
 parser.add_argument('--material', action='store_true', help='check retained host composition and material background isolation')
+parser.add_argument('--acrylic', action='store_true', help='compare native Acrylic reference colors on sampled flat backdrops')
 args = parser.parse_args()
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
@@ -26,7 +27,7 @@ scratch.mkdir(parents=True, exist_ok=True)
 classpath = os.pathsep.join(map(str, [kotlin / 'lib/kotlin-stdlib.jar', ROOT / 'build/plugin-classes',
     *builder.saltui_jars(), ROOT / 'build/tools/spw-host.jar']))
 java = str(jdk / 'bin/java.exe')
-test_name = ('MaterialLayerVisualCheck' if args.material else 'RankingModesVisualCheck' if args.ranking else 'CardColorsVisualCheck' if args.colors else 'CalendarNavigationVisualCheck' if args.calendar else
+test_name = ('AcrylicColorsVisualCheck' if args.acrylic else 'MaterialLayerVisualCheck' if args.material else 'RankingModesVisualCheck' if args.ranking else 'CardColorsVisualCheck' if args.colors else 'CalendarNavigationVisualCheck' if args.calendar else
              'ResponsiveLayoutVisualCheck' if args.layout else 'BackButtonVisualCheck')
 subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
     '-no-stdlib', '-classpath', classpath,
@@ -46,6 +47,8 @@ if args.ranking:
     output = ROOT / 'build/screenshots' / f'ranking-v{builder.PLUGIN_VERSION}'
 if args.material:
     output = ROOT / 'build/screenshots' / f'material-v{builder.PLUGIN_VERSION}'
+if args.acrylic:
+    output = ROOT / 'build/screenshots' / f'acrylic-v{builder.PLUGIN_VERSION}'
 native_dir = (args.spw_dir or builder.DEFAULT_SPW_DIR) / 'app'
 native_temp = scratch / 'native-temp'
 native_temp.mkdir(exist_ok=True)
@@ -53,7 +56,27 @@ subprocess.run([java, f'-Dskiko.library.path={native_dir}', f'-Djna.tmpdir={nati
     f'-Djava.io.tmpdir={native_temp}', '--enable-native-access=ALL-UNNAMED',
     '-cp', str(scratch) + os.pathsep + classpath,
     test_name + 'Kt', str(output)], check=True, env=environment)
-if args.material:
+if args.acrylic:
+    from collections import Counter
+    # Native focused card samples vary with the backdrop. Inactive reference:
+    # background #DDDDDD, card #E2E2E2, outline #C7C7C7.
+    for name, backdrop, expected in [('focused', (195, 219, 238), (205, 224, 240)),
+                                     ('focused-blue', (167, 214, 254), (183, 221, 254)),
+                                     ('unfocused', (221, 221, 221), (226, 226, 226))]:
+        rendered = Image.open(output / f'acrylic-{name}.png').convert('RGB')
+        assert rendered.getpixel((5, 5)) == backdrop
+        actual = Counter(rendered.crop((40, 35, 760, 125)).getdata()).most_common(1)[0][0]
+        tolerance = 1 if name == 'unfocused' else 2
+        assert max(abs(a-b) for a, b in zip(actual, expected)) <= tolerance, (name, actual, expected)
+        if name == 'unfocused':
+            border = rendered.getpixel((400, 25))
+            assert max(abs(channel-199) for channel in border) <= 1, border
+            heatmap = Counter(rendered.crop((70, 295, 770, 400)).getdata())
+            assert heatmap[(209, 209, 209)] > 500, heatmap.most_common(8)
+            assert heatmap[(240, 241, 243)] == 0, 'Opaque classic empty cells leaked into Acrylic'
+        print(f'PASS {name}: rendered card {actual} matches native sample {expected} within {tolerance} levels')
+    print('PASS inactive outline and translucent heatmap cells; synthetic compositing only, DWM requires user review')
+elif args.material:
     for name, expected in [('before.png', (187, 34, 68)), ('hidden.png', (39, 107, 86)),
                            ('restored.png', (187, 34, 68))]:
         actual = Image.open(output / name).convert('RGB').getpixel((200, 150))

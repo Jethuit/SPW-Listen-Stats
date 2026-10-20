@@ -589,7 +589,7 @@ private fun PageButton(
         Surface(
             onClick = { if (enabled) onClick() },
             shape = AppShape(8.dp),
-            color = if (active) colors.background else Color.Transparent
+            color = if (active) colors.selectedControlBackground else Color.Transparent
         ) {
             Box(
                 Modifier.height(28.dp).padding(horizontal = if (compact) 4.dp else 7.dp)

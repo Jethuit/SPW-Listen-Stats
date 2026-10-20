@@ -155,8 +155,8 @@ fun SegmentedControl(
             options.forEach { option ->
                 val active = option.key == selected
                 HoverColor(
-                    if (active) colors.background else Color.Transparent,
-                    if (active) colors.background else colors.hover,
+                    if (active) colors.selectedControlBackground else Color.Transparent,
+                    if (active) colors.selectedControlBackground else colors.hover,
                     tooltip = null
                 ) { background ->
                     Surface(
