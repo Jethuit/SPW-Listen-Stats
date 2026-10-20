@@ -20,6 +20,7 @@ class PlaybackAccumulator(
     private var nano = 0L
     private var wall = 0L
     private var recoveryAvailable = true
+    private val lifecycleId = UUID.randomUUID().toString()
 
     fun playing(value: Boolean) {
         if (playing != value) resetBaseline()
@@ -62,16 +63,19 @@ class PlaybackAccumulator(
                 position = nextPosition
                 nano = nowNano
                 wall = nowWall
+                resumed.lastPositionMs = nextPosition
                 return
             }
             session = LiveSession(UUID.randomUUID().toString(), track.id,
                 nowWall - nextPosition.coerceAtLeast(0), 0,
                 track.title, track.artist, track.album, track.albumArtist, track.durationMs, false,
-                spans = mutableListOf())
+                spans = mutableListOf(), firstPositionMs = nextPosition,
+                lastPositionMs = nextPosition, lifecycleId = lifecycleId)
             current = session
         }
         session!!
         if (track.durationMs > 0) session.trackDurationMs = track.durationMs
+        session.lastPositionMs = nextPosition
         val elapsed = (nowNano - nano) / 1_000_000
         val delta = nextPosition - position
         // Position confirms progress; monotonic time caps actual listening. Discard sleep and seeks.

@@ -1,5 +1,7 @@
 # GPT 交接文档：听歌统计
 
+> **最新开发版 v0.1.5-dev.1，禁止把本轮修复视为已发布。** 用户转交 Astra 四项反例，已修复并在本地构建。Lord Howe 分桶恢复严格前进；崩溃恢复同会话精确片段求并集并保存 preciseSpans；宿主关联重新评估并撤销错误 aliases／防 stale upsert 复活；暂停后生命周期分片利用持久化播放位置、生命周期 ID 与兼容推断匹配。41 文件编译、新增 9 组及既有 18+11+7 共 45 组通过，包结构通过。包 `build/libs/SPW-Stats-v0.1.5-dev.1.spmod`（17,253,807 字节、162 项）。未安装、未读取真实历史、未上传／发布。详见 [BUGFIX-v0.1.5.md](BUGFIX-v0.1.5.md) 和 `tests/AstraRegressionTest.kt`；公开版仍为 v0.1.4，离线身份不明及已丢原始证据的旧错误备份不能保证自动修复。
+
 > **v0.1.4 已正式发布并设为 Latest。** [发布页面](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.4)，Release ID `418260534`，标签目标 `de9d8522e9b784e64fda920c002c65d5142d70cf`，GitHub `main` 与工作分支已同步。唯一附件 `SPW-Stats-v0.1.4.spmod`（17,242,562 字节），GitHub SHA-256 与本地一致，回执 `build/releases/published-v0.1.4.json`；无需再执行下方发布准备。未重新操作真实宿主。
 
 > **v0.1.4 正式发布准备完成。** 用户授权发布；正式包 `build/releases/v0.1.4/SPW-Stats-v0.1.4.spmod`（17,242,562 字节、159 项）。41 文件编译、包结构／ZIP 检查通过，逐项比对 dev.11 仅 manifest 版本不同，沿用既有验证。README 与发布说明已更新。发布目标为 GitHub 正式 Latest，公开结果以回执 `build/releases/published-v0.1.4.json` 为准。

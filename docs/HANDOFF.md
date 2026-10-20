@@ -2,6 +2,12 @@
 
 > 给接手 GPT 的单一入口文档见 [`GPT-HANDOFF.md`](GPT-HANDOFF.md)；本文件保留逐版本修订记录。
 
+## 最新开发源码与包：v0.1.5-dev.1（未上传、未发布）
+
+- 按用户转交的 Astra 审查修复一项 P1、三项 P2：半小时 DST 回拨死循环、崩溃恢复分叉后备份丢精确片段、新播放错误绑定近期宿主行、暂停后生命周期分片重复累计。实现、格式兼容、反例和能力边界见 [BUGFIX-v0.1.5.md](BUGFIX-v0.1.5.md)。
+- Instant 分桶在时区过渡处拆分；精确事件区间并集与宿主近似快照分开，备份保留可选 preciseSpans 证据；宿主映射重评并清理错误别名、持久化否定关系；实时文件保留播放位置及生命周期证据，不扩大匹配时间范围。
+- 集中验证：41 文件编译、新增 Astra 9 组、既有数据 18／完整性 11／排行 7 共 45 组通过，包结构通过。包 `build/libs/SPW-Stats-v0.1.5-dev.1.spmod`（17,253,807 字节、162 项）。仅本地合成检查，未安装真实 SPW、未改真实历史、未推送或操作 GitHub Release。公开最新版仍为 v0.1.4。
+
 ## 最新正式发布：v0.1.4
 
 - 已正式公开并设为 Latest：[v0.1.4 Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.4)，Release ID `418260534`，标签目标 `de9d8522e9b784e64fda920c002c65d5142d70cf`；源码、README 和说明已同步 GitHub `main` 与工作分支。唯一附件为 `SPW-Stats-v0.1.4.spmod`，GitHub 大小及 SHA-256 与本地一致。发布回执 `build/releases/published-v0.1.4.json`。未重新安装或运行真实宿主。

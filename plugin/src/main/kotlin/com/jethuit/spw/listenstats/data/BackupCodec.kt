@@ -56,23 +56,28 @@ object BackupCodec {
             val library = obj.string("library")
             java.util.UUID.fromString(library)
             val track = parseTrack(obj["track"]!!.jsonObject)
-            val spans = obj["spans"]!!.jsonArray.map {
-                val pair = it.jsonArray
-                require(pair.size == 2)
-                val start = pair[0].jsonPrimitive.long
-                val duration = pair[1].jsonPrimitive.long
-                require(start in 0..MAX_TIME && duration in 1..604_800_000L && start <= MAX_TIME - duration) {
-                    "收听片段时间不合法"
+            fun parseSpans(array: JsonArray): List<ListeningSpan> {
+                require(array.size <= 100_000)
+                val spans = array.map {
+                    val pair = it.jsonArray
+                    require(pair.size == 2)
+                    val start = pair[0].jsonPrimitive.long
+                    val duration = pair[1].jsonPrimitive.long
+                    require(start in 0..MAX_TIME && duration in 1..604_800_000L && start <= MAX_TIME - duration) {
+                        "收听片段时间不合法"
+                    }
+                    ListeningSpan(start, duration)
                 }
-                ListeningSpan(start, duration)
+                require(spans.zipWithNext().all { (a, b) -> a.startMs + a.durationMs <= b.startMs }) {
+                    "同一会话的收听片段重叠或顺序错误"
+                }
+                return spans
             }
-            require(spans.size <= 100_000)
-            require(spans.zipWithNext().all { (a, b) -> a.startMs + a.durationMs <= b.startMs }) {
-                "同一会话的收听片段重叠或顺序错误"
-            }
+            val spans = parseSpans(obj["spans"]!!.jsonArray)
+            val precise = obj["preciseSpans"]?.jsonArray?.let { parseSpans(it) }
             val aliases = obj["aliases"]!!.jsonArray.map { it.jsonPrimitive.content }.toSet()
             require(aliases.size <= 100 && aliases.all { it.isNotBlank() && it.length <= 500 })
-            ListeningEvent(id, track, spans, aliases, obj["approximate"]!!.jsonPrimitive.boolean, library)
+            ListeningEvent(id, track, spans, aliases, obj["approximate"]!!.jsonPrimitive.boolean, library, precise)
         }
         val legacy = payload["legacy"]!!.jsonObject
         return BackupBundle(parsed, parseLegacy(legacy["records"]!!.jsonArray, legacy["tracks"]!!.jsonArray))
@@ -88,6 +93,11 @@ object BackupCodec {
                     put("spans", buildJsonArray { event.spans.forEach {
                         add(buildJsonArray { add(JsonPrimitive(it.startMs)); add(JsonPrimitive(it.durationMs)) })
                     } })
+                    event.preciseSpans?.let { spans ->
+                        put("preciseSpans", buildJsonArray { spans.forEach {
+                            add(buildJsonArray { add(JsonPrimitive(it.startMs)); add(JsonPrimitive(it.durationMs)) })
+                        } })
+                    }
                 })
             } })
             put("legacy", buildJsonObject {

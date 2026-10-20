@@ -12,9 +12,12 @@ data class ListeningEvent(
     val spans: List<ListeningSpan>,
     val aliases: Set<String> = emptySet(),
     val approximate: Boolean = false,
-    val libraryId: String = DataFiles.sourceId()
+    val libraryId: String = DataFiles.sourceId(),
+    // Retain precise evidence even when a longer approximate host snapshot is displayed.
+    val preciseSpans: List<ListeningSpan>? = null
 ) {
     val durationMs: Long get() = spans.sumOf { it.durationMs }
+    fun observedSpans(): List<ListeningSpan> = preciseSpans ?: if (approximate) emptyList() else spans
 }
 
 object ListeningEvents {
@@ -31,7 +34,19 @@ object ListeningEvents {
         )
     }
 
-    /** Repeated snapshots share an identity; only the most complete snapshot contributes. */
+    fun unionSpans(input: List<ListeningSpan>): List<ListeningSpan> {
+        val result = mutableListOf<ListeningSpan>()
+        input.filter { it.durationMs > 0 }.sortedBy { it.startMs }.forEach { span ->
+            val last = result.lastOrNull()
+            if (last != null && span.startMs <= last.startMs + last.durationMs) {
+                result[result.lastIndex] = last.copy(durationMs =
+                    maxOf(last.startMs + last.durationMs, span.startMs + span.durationMs) - last.startMs)
+            } else result.add(span)
+        }
+        return result
+    }
+
+    /** Exact branches of one confirmed play form a union; approximate snapshots remain alternatives. */
     fun union(events: List<ListeningEvent>): List<ListeningEvent> {
         val groups = LinkedHashMap<String, ListeningEvent>()
         val owners = HashMap<String, String>()
@@ -41,7 +56,7 @@ object ListeningEvents {
             val matches = keys.mapNotNull { owners[it] }.distinct()
             val candidates = matches.mapNotNull { groups.remove(it) } + event
             val chosen = candidates.maxWithOrNull(
-                compareBy<ListeningEvent> { it.durationMs }.thenBy { !it.approximate }
+                compareBy<ListeningEvent> { it.durationMs }.thenBy { !it.approximate }.thenBy { it.id }
             )!!
             val allKeys = candidates.flatMap { it.aliases + it.id }.toSet()
             // A verified local host alias can reconnect a backup made before identity repair.
@@ -51,7 +66,13 @@ object ListeningEvents {
             } ?: chosen
             val metadata = candidates.filter { it.track.id == identity.track.id }
                 .fold(identity.track) { known, candidate -> mergeTrack(known, candidate.track) }
-            val merged = chosen.copy(track = metadata, libraryId = identity.libraryId, aliases = allKeys - chosen.id)
+            val precise = unionSpans(candidates.flatMap { it.observedSpans() })
+            val usePrecise = precise.sumOf { it.durationMs } >= chosen.durationMs
+            val merged = chosen.copy(track = metadata, libraryId = identity.libraryId,
+                aliases = allKeys - chosen.id,
+                spans = if (usePrecise) precise else chosen.spans,
+                approximate = if (usePrecise) false else chosen.approximate,
+                preciseSpans = if (usePrecise || precise.isEmpty()) null else precise)
             groups[merged.id] = merged
             allKeys.forEach { owners[it] = merged.id }
         }
