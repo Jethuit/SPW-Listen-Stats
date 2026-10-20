@@ -1,5 +1,7 @@
 # GPT 交接文档：听歌统计
 
+> **当前正式版 v0.1.5 已发布并设为 Latest。** [发布页面](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.5)，Release ID `418360748`，标签目标 `51265cc88460384049745709ec2085543c329b48`。唯一附件 `SPW-Stats-v0.1.5.spmod`（17,253,804 字节），GitHub 摘要与本地一致。main／工作分支和 README 已同步，回执 `build/releases/published-v0.1.5.json`。已确认原 v0.1.4 保持用户设置的预发布状态，标签与原附件均未替换；下方禁止发布／待发布均为历史记录。未运行真实 SPW。
+
 > **v0.1.5 正式发布准备完成。** 用户最终决定独立升至 v0.1.5，不替换原 v0.1.4；GitHub v0.1.4 原标签／附件／预发布状态均应保留。正式包 `build/releases/v0.1.5/SPW-Stats-v0.1.5.spmod`（17,253,804 字节、162 项），41 文件编译、包结构／ZIP 完整性通过，与已通过 45 组回归的 dev.1 仅 manifest 版本不同。README 和发布说明已更新，公开结果以 `build/releases/published-v0.1.5.json` 为准。
 
 > **最新开发版 v0.1.5-dev.1，禁止把本轮修复视为已发布。** 用户转交 Astra 四项反例，已修复并在本地构建。Lord Howe 分桶恢复严格前进；崩溃恢复同会话精确片段求并集并保存 preciseSpans；宿主关联重新评估并撤销错误 aliases／防 stale upsert 复活；暂停后生命周期分片利用持久化播放位置、生命周期 ID 与兼容推断匹配。41 文件编译、新增 9 组及既有 18+11+7 共 45 组通过，包结构通过。包 `build/libs/SPW-Stats-v0.1.5-dev.1.spmod`（17,253,807 字节、162 项）。未安装、未读取真实历史、未上传／发布。详见 [BUGFIX-v0.1.5.md](BUGFIX-v0.1.5.md) 和 `tests/AstraRegressionTest.kt`；公开版仍为 v0.1.4，离线身份不明及已丢原始证据的旧错误备份不能保证自动修复。

@@ -2,7 +2,10 @@
 
 > 给接手 GPT 的单一入口文档见 [`GPT-HANDOFF.md`](GPT-HANDOFF.md)；本文件保留逐版本修订记录。
 
-## v0.1.5 正式发布准备
+## 最新正式发布：v0.1.5
+
+- 已发布为正式 Latest：[v0.1.5 Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.5)，Release ID `418360748`，标签目标 `51265cc88460384049745709ec2085543c329b48`。唯一附件 `SPW-Stats-v0.1.5.spmod` 大小及 GitHub SHA-256 与本地一致；源码、README、说明已同步 main 和工作分支。回执 `build/releases/published-v0.1.5.json`。
+- 发布后确认 v0.1.4 仍为预发布、原 Release ID／附件 ID／摘要／标签目标未改变。未操作真实 SPW 或用户历史。
 
 - 用户最终确认升为独立 v0.1.5，避免已下载 v0.1.4 的用户遇到同版本替换问题。保留 GitHub v0.1.4 原标签、附件和用户设置的预发布状态；此前替换 v0.1.4 的计划在远端写入前已取消，原本地包亦已恢复。
 - 正式包 `build/releases/v0.1.5/SPW-Stats-v0.1.5.spmod`（17,253,804 字节、162 项），41 文件编译、包结构／ZIP 完整性与 dev.1 逐项比对通过；仅 manifest 版本变化，沿用已通过的 45 组修复回归。README 版本更新为 v0.1.5，发布说明为 [releases/v0.1.5.md](releases/v0.1.5.md)。公开结果以 `build/releases/published-v0.1.5.json` 为准。
