@@ -223,6 +223,9 @@ fun ListenStatsApp(
         }
     }
     var data by remember { mutableStateOf<StatsData?>(null) }
+    var dailyHighMillis by remember {
+        mutableStateOf(com.jethuit.spw.listenstats.data.HeatmapScale.DEFAULT_HIGH_MILLIS)
+    }
     var today by remember { mutableStateOf(LocalDate.now()) }
     var page by remember {
         mutableStateOf(
@@ -270,7 +273,10 @@ fun ListenStatsApp(
             customEnd = today
         }
         while (true) {
-            val loaded = withContext(Dispatchers.IO) { StatsStore.load() }
+            val (loaded, highMillis) = withContext(Dispatchers.IO) {
+                StatsStore.load() to Prefs.dailyHighMillis()
+            }
+            dailyHighMillis = highMillis
             data = loaded
             today = LocalDate.now()
             delay(5_000)
@@ -373,6 +379,7 @@ fun ListenStatsApp(
                                     year = heatmapYear,
                                     weekly = heatmapWeekly,
                                     heatmapRolling = heatmapRolling,
+                                    dailyHighMillis = dailyHighMillis,
                                     onYearSelected = { heatmapYear = it },
                                     onHeatmapRollingSelected = { heatmapRolling = it },
                                     onWeeklySelected = { heatmapWeekly = it },

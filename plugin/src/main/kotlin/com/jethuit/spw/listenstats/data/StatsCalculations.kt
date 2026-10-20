@@ -168,16 +168,10 @@ object StatsCalculations {
         return HeatmapGrid(year, start, weeks, first, last, rolling)
     }
 
-    fun dayLevel(millis: Long, today: LocalDate, date: LocalDate): Int {
+    fun dayLevel(millis: Long, today: LocalDate, date: LocalDate,
+                 highMillis: Long = HeatmapScale.DEFAULT_HIGH_MILLIS): Int {
         if (date.isAfter(today)) return 0
-        val minutes = millis / 60_000
-        return when {
-            millis <= 0 -> 0
-            minutes < 30 -> 1
-            minutes < 75 -> 2
-            minutes < 135 -> 3
-            else -> 4
-        }
+        return HeatmapScale.level(millis, highMillis)
     }
 
     fun weeklyCells(data: StatsData, grid: HeatmapGrid, today: LocalDate = LocalDate.now()): List<WeeklyCell> {

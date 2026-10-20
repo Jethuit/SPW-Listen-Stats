@@ -19,6 +19,7 @@ parser.add_argument('--acrylic', action='store_true', help='compare native Acryl
 parser.add_argument('--acrylic-ranking', action='store_true', help='render actual Acrylic rows and pointer hover')
 parser.add_argument('--material-ranking', action='store_true', help='check separator-free ranking across all four styles')
 parser.add_argument('--dark-materials', action='store_true', help='compare actual dark material components against native screenshot colors')
+parser.add_argument('--heatmap-scale', action='store_true', help='check actual daily heatmap recoloring after changing its duration threshold')
 args = parser.parse_args()
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
@@ -30,7 +31,7 @@ scratch.mkdir(parents=True, exist_ok=True)
 classpath = os.pathsep.join(map(str, [kotlin / 'lib/kotlin-stdlib.jar', ROOT / 'build/plugin-classes',
     *builder.saltui_jars(), ROOT / 'build/tools/spw-host.jar']))
 java = str(jdk / 'bin/java.exe')
-test_name = ('AcrylicColorsVisualCheck' if args.acrylic or args.dark_materials else 'MaterialLayerVisualCheck' if args.material else 'RankingModesVisualCheck' if args.ranking or args.acrylic_ranking or args.material_ranking else 'CardColorsVisualCheck' if args.colors else 'CalendarNavigationVisualCheck' if args.calendar else
+test_name = ('HeatmapScaleVisualCheck' if args.heatmap_scale else 'AcrylicColorsVisualCheck' if args.acrylic or args.dark_materials else 'MaterialLayerVisualCheck' if args.material else 'RankingModesVisualCheck' if args.ranking or args.acrylic_ranking or args.material_ranking else 'CardColorsVisualCheck' if args.colors else 'CalendarNavigationVisualCheck' if args.calendar else
              'ResponsiveLayoutVisualCheck' if args.layout else 'BackButtonVisualCheck')
 subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
     '-no-stdlib', '-classpath', classpath,
@@ -58,6 +59,8 @@ if args.material_ranking:
     output = ROOT / 'build/screenshots' / f'material-ranking-v{builder.PLUGIN_VERSION}'
 if args.dark_materials:
     output = ROOT / 'build/screenshots' / f'dark-materials-v{builder.PLUGIN_VERSION}'
+if args.heatmap_scale:
+    output = ROOT / 'build/screenshots' / f'heatmap-scale-v{builder.PLUGIN_VERSION}'
 native_dir = (args.spw_dir or builder.DEFAULT_SPW_DIR) / 'app'
 native_temp = scratch / 'native-temp'
 native_temp.mkdir(exist_ok=True)
@@ -65,7 +68,16 @@ subprocess.run([java, f'-Dskiko.library.path={native_dir}', f'-Djna.tmpdir={nati
     f'-Djava.io.tmpdir={native_temp}', '--enable-native-access=ALL-UNNAMED',
     '-cp', str(scratch) + os.pathsep + classpath,
     test_name + 'Kt', str(output), *(['dark'] if args.dark_materials else ['materials'] if args.material_ranking else ['acrylic'] if args.acrylic_ranking else [])], check=True, env=environment)
-if args.dark_materials:
+if args.heatmap_scale:
+    from collections import Counter
+    default = Counter(Image.open(output / 'heatmap-default.png').convert('RGB').getdata())
+    custom = Counter(Image.open(output / 'heatmap-six-hours.png').convert('RGB').getdata())
+    levels = [(215, 233, 253), (156, 201, 251), (85, 158, 236), (23, 105, 189)]
+    assert default[levels[0]] == 0, 'The default 22.5-minute first boundary should put 30 minutes in tier two'
+    assert all(custom[color] > 15 for color in levels), [custom[color] for color in levels]
+    assert default[levels[-1]] > custom[levels[-1]] * 1.8, 'Changing the setting did not recolor the same heatmap'
+    print('PASS actual heatmap recomposes from 2.25-hour to 6-hour threshold, with all four tiers rendered')
+elif args.dark_materials:
     from collections import Counter
     for name, background, card, border in [
             ('dark-acrylic', (80, 80, 80), (95, 95, 95), (115, 115, 117)),

@@ -24,6 +24,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jethuit.spw.listenstats.data.HeatmapGrid
+import com.jethuit.spw.listenstats.data.HeatmapScale
 import com.jethuit.spw.listenstats.data.StatsCalculations
 import com.jethuit.spw.listenstats.data.StatsData
 import com.jethuit.spw.listenstats.data.WeeklyCell
@@ -45,7 +46,8 @@ fun YearHeatmap(
     onDaySelected: (LocalDate) -> Unit,
     onWeekSelected: (LocalDate, LocalDate) -> Unit,
     viewportRevision: Int = 0,
-    rolling: Boolean = false
+    rolling: Boolean = false,
+    dailyHighMillis: Long = HeatmapScale.DEFAULT_HIGH_MILLIS
 ) {
     val colors = LocalStatsColors.current
     val measurer = rememberTextMeasurer()
@@ -214,7 +216,7 @@ fun YearHeatmap(
                                 val x = cellX(week)
                                 val y = cellY(row)
                                 val millis = data.millisOn(date)
-                                val level = StatsCalculations.dayLevel(millis, today, date)
+                                val level = StatsCalculations.dayLevel(millis, today, date, dailyHighMillis)
                                 val alpha = if (date.isAfter(today)) 0.35f else 1f
                                 val radius = CornerRadius(min(radiusPx, cell / 2f))
                                 drawRoundRect(

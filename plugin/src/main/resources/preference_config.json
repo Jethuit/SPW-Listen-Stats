@@ -12,6 +12,13 @@
           "on_click": "com.jethuit.spw.listenstats.MainPlugin.openStats"
         },
         {
+          "key": "dailyHighHours",
+          "type": "edittext",
+          "title": "每天听多久算多（小时）",
+          "summary": "设置每日热力图最高档时长，支持小数，如1.5表示1小时30分钟。请输入大于0且不超过24的小时数，默认2.25；无效输入按默认值计算。",
+          "default_value": "2.25"
+        },
+        {
           "type": "button",
           "title": "写入诊断日志",
           "summary": "在插件数据目录记录当前状态，便于排查宿主兼容问题",

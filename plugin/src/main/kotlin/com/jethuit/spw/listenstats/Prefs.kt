@@ -3,11 +3,13 @@ package com.jethuit.spw.listenstats
 import com.xuncorp.spw.workshop.api.UnstableSpwWorkshopApi
 import com.xuncorp.spw.workshop.api.WorkshopApi
 import com.xuncorp.spw.workshop.api.config.ConfigHelper
+import com.jethuit.spw.listenstats.data.HeatmapScale
 
 @OptIn(UnstableSpwWorkshopApi::class)
 object Prefs {
     private var helper: ConfigHelper? = null
 
+    @Synchronized
     fun initialize() {
         helper = try {
             WorkshopApi.manager.createConfigManager().getConfig("config.json").also { it.reload() }
@@ -17,6 +19,7 @@ object Prefs {
         }
     }
 
+    @Synchronized
     fun getString(key: String, fallback: String): String {
         return try {
             helper?.get(key, fallback) ?: fallback
@@ -25,10 +28,29 @@ object Prefs {
         }
     }
 
+    /** Host preference controls may save through another cached ConfigHelper. */
+    @Synchronized
+    fun dailyHighMillis(): Long {
+        try {
+            helper?.reload()
+        } catch (failure: Throwable) {
+            PluginLog.error("reloading heatmap preference failed", failure)
+        }
+        return HeatmapScale.parseHours(getString(HeatmapScale.PREFERENCE_KEY, HeatmapScale.DEFAULT_HOURS))
+    }
+
+    @Synchronized
     fun putString(key: String, value: String) {
         try {
-            helper?.set(key, value)
-            helper?.save()
+            val config = helper ?: return
+            // Merge our UI selection into the latest settings rather than writing
+            // an older snapshot over the user's new heatmap threshold.
+            if (!config.reload()) {
+                PluginLog.error("reloading preferences before saving $key failed")
+                return
+            }
+            config.set(key, value)
+            config.save()
         } catch (failure: Throwable) {
             PluginLog.error("saving preference $key failed", failure)
         }
