@@ -141,8 +141,7 @@ fun RankingPage(
                 )
             }
         }
-        // One closing rule separates the current page's records from its footer.
-        Box(Modifier.fillMaxWidth().height(1.dp).drawWith { drawRect(colors.separatorLine) })
+        Box(Modifier.height(1.dp))
         Box(Modifier.height(16.dp))
         RankingFooter(filtered.size, currentPage, totalPages, onPageChange, mode)
     }
@@ -281,12 +280,7 @@ private fun SongTableHeader(mode: RankingMode) {
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .drawWith { drawRect(color = colors.separatorLine) }
-        )
+        Box(Modifier.height(1.dp))
     }
 }
 

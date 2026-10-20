@@ -427,18 +427,6 @@ fun SummaryStrip(
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 4.dp, vertical = 23.dp)
-                    .drawWith {
-                        val step = size.width / columnCount
-                        for (index in 1 until columnCount) {
-                            val x = step * index
-                            drawLine(
-                                color = colors.separatorLine,
-                                start = androidx.compose.ui.geometry.Offset(x, 4f),
-                                end = androidx.compose.ui.geometry.Offset(x, size.height - 4f),
-                                strokeWidth = 1f
-                            )
-                        }
-                    }
             ) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     content(itemWidth)

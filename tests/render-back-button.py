@@ -17,7 +17,7 @@ parser.add_argument('--ranking', action='store_true', help='render three ranking
 parser.add_argument('--material', action='store_true', help='check retained host composition and material background isolation')
 parser.add_argument('--acrylic', action='store_true', help='compare native Acrylic reference colors on sampled flat backdrops')
 parser.add_argument('--acrylic-ranking', action='store_true', help='render actual Acrylic rows and pointer hover')
-parser.add_argument('--material-ranking', action='store_true', help='check no row dividers and one closing line across all four styles')
+parser.add_argument('--material-ranking', action='store_true', help='check separator-free ranking across all four styles')
 args = parser.parse_args()
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
@@ -73,15 +73,10 @@ if args.material_ranking:
         assert cover_rows, file.name
         dark, classic = file.name.startswith('dark-'), '-classic-' in file.name
         background = (35, 35, 35) if dark else (248, 248, 248) if classic else (221, 221, 221)
-        light_mica = file.name.startswith('light-mica-')
-        line = ((55, 57, 62) if dark else (177, 177, 177) if light_mica else
-                (195, 195, 195) if '-acrylic-' in file.name else (233, 234, 237))
-        for y in range(min(cover_rows), max(cover_rows)+8):
+        # Include the former table-header and closing-rule positions as well.
+        for y in range(min(cover_rows)-18, max(cover_rows)+35):
             assert pixels[10, y] == background, (file.name, y, pixels[10, y])
-        closing = [y for y in range(max(cover_rows)+8, max(cover_rows)+35)
-                   if pixels[10, y] == line and pixels[rendered.width-10, y] == line]
-        assert 1 <= len(closing) <= 2, (file.name, closing)
-    print('PASS all 24 layouts: no internal row dividers and exactly one full-width closing line before footer')
+    print('PASS all 24 layouts: no table-header, internal-row or closing separators')
 elif args.acrylic_ranking:
     for mode in ['song', 'artist', 'album']:
         normal = Image.open(output / f'acrylic-{mode}-760.png').convert('RGB')
