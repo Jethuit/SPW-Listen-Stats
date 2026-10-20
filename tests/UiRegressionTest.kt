@@ -85,13 +85,13 @@ fun main(args: Array<String>) {
             check(material.text.alpha == 1f && material.tooltipBackground == base.tooltipBackground)
             check(material.background == base.background && material.tooltipText == base.tooltipText)
             // All dark materials and light Acrylic use calibrated fills.
-            // Light Mica / Mica Alt retain the original material palette.
+            // Light Mica / Mica Alt retain their surfaces, with a native darkening hover.
             if (!base.isDark && style != "WindowsAcrylic") {
                 check(material == base.copy(pageBackground = androidx.compose.ui.graphics.Color.Transparent,
                     cardBackground = base.cardBackground.copy(alpha = 0.72f),
                     controlBackground = base.controlBackground.copy(alpha = 0.72f),
                     subtle = base.subtle.copy(alpha = 0.55f), hover = base.hover.copy(alpha = 0.65f),
-                    rankingRowHover = base.subtle.copy(alpha = 0.55f)))
+                    rankingRowHover = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.08f)))
             }
             check(materialStatsColors(base, style, false) === base)
         }

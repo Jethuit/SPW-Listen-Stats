@@ -144,7 +144,8 @@ fun materialStatsColors(base: StatsColors, windowStyle: String?,
         controlBackground = base.controlBackground.copy(alpha = 0.72f),
         subtle = base.subtle.copy(alpha = 0.55f),
         hover = base.hover.copy(alpha = 0.65f),
-        rankingRowHover = base.subtle.copy(alpha = 0.55f)
+        // Native light Mica: #F5F5F5 -> #E1E1E1; Mica Alt: #EDEDED -> #DADADA.
+        rankingRowHover = Color.Black.copy(alpha = 0.08f)
     )
 }
 

@@ -248,7 +248,6 @@ fun TrendChart(
                             drawPath(path, color = colors.accent, style = Stroke(width = 2f))
                             if (buckets.size == 1) {
                                 val point = points.single()
-                                drawCircle(color = colors.background, radius = 3.2f, center = point)
                                 drawCircle(
                                     color = colors.accent,
                                     radius = 2f,
@@ -301,7 +300,6 @@ fun TrendChart(
                             )
                         )
                         val point = Offset(x, yAt(buckets[hovered].millis))
-                        drawCircle(color = colors.background, radius = 5.5f, center = point)
                         drawCircle(
                             color = colors.accent,
                             radius = 4f,
