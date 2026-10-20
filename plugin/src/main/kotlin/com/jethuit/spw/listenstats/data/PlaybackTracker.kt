@@ -35,6 +35,13 @@ class PlaybackAccumulator(
 
     fun suspendSampling() = resetBaseline()
 
+    /** Metadata can close an old play even when the accompanying position cannot be accepted. */
+    fun observeTrack(track: TrackMeta?) {
+        if (track != null && track.id.isNotBlank() && current?.let { it.trackId != track.id } == true) {
+            finish()
+        }
+    }
+
     fun sample(track: TrackMeta?, nextPosition: Long, nowWall: Long, nowNano: Long) {
         if (track == null || track.id.isBlank() || !playing) {
             resetBaseline()
@@ -211,6 +218,9 @@ object PlaybackTracker {
                             return@execute
                         }
                         observedTrack = track
+                        // Track changes and position acceptance are separate decisions. A brief B
+                        // observation must close A even if B never gets a second, stable sample.
+                        accumulator.observeTrack(track)
                         // The API has no atomic track+position snapshot. Only accept a position
                         // bracketed by matching metadata observations, with no queued transition.
                         // The first/uncertain observation is used to establish identity, not a play.

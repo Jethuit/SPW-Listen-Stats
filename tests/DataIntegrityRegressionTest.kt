@@ -185,6 +185,77 @@ fun main(args: Array<String>) {
             check(LiveStore.merge(hostB).events.count { it.track.id == "b" } == 1)
         } finally { release.countDown(); PlaybackTracker.shutdown() }
     }
+    test("one observed B between two qualified A plays ends the old session before rejecting B's position") {
+        isolate(root, "single-observation-switch")
+        fun media(id: String) = PlaybackExtensionPoint.MediaItem("Song $id", "", "", "", "",
+            id, 0, "", 0, 4_000, false, true)
+        val current = AtomicReference(media("a"))
+        val playback = Proxy.newProxyInstance(WorkshopApi.Playback::class.java.classLoader,
+            arrayOf(WorkshopApi.Playback::class.java)) { _, method, _ ->
+            if (method.name == "getCurrentMediaItem") current.get() else null
+        }
+        WorkshopApi.instance = Proxy.newProxyInstance(WorkshopApi::class.java.classLoader,
+            arrayOf(WorkshopApi::class.java)) { _, method, _ -> if (method.name == "getPlayback") playback else null } as WorkshopApi
+        PlaybackTracker.initialize()
+        fun position(value: Long) { PlaybackTracker.onPositionUpdated(value); flushTracker() }
+        fun qualifiedPlay() {
+            position(0)
+            Thread.sleep(1_200); position(1_200)
+            Thread.sleep(1_200); position(2_400)
+        }
+        try {
+            PlaybackTracker.onIsPlayingChanged(true); flushTracker()
+            position(0) // Initial metadata observation, no position accepted yet.
+            qualifiedPlay()
+            val first = LiveStore.snapshot().single()
+            current.set(media("b")); position(0) // B is observed exactly once, never sampled.
+            val firstClosed = LiveStore.snapshot().single().finalized
+            current.set(media("a")); position(0)
+            val secondStart = System.currentTimeMillis()
+            qualifiedPlay()
+            val live = LiveStore.merge(StatsData.empty())
+            val expected = total(live)
+            val bothHost = StatsData.empty().copy(
+                tracks = mapOf("a" to song.copy(id = "a", durationMs = 4_000)),
+                listens = listOf(ListenEntry("a-first", "a", first.startTimeMs, first.durationMs),
+                    ListenEntry("a-second", "a", secondStart, expected - first.durationMs)))
+            val synced = LiveStore.merge(bothHost)
+            check(firstClosed && live.playCount("a") == 2 && synced.playCount("a") == 2 &&
+                total(synced) == expected && live.events.none { it.track.id == "b" }) {
+                "closed=$firstClosed; live=${live.playCount("a")}/${expected}ms; " +
+                    "synced=${synced.playCount("a")}/${total(synced)}ms"
+            }
+        } finally { PlaybackTracker.shutdown() }
+    }
+    test("current local identity survives a live-primary alias, longer old imports, roundtrip and another play") {
+        isolate(root, "live-primary-migration")
+        val oldSource = DataFiles.sourceId()
+        LiveStore.upsert(piece("known", START, 150_000))
+        val old = LiveStore.merge(host(140_000)).events.single()
+            .copy(spans = listOf(ListeningSpan(START, 160_000)))
+        val oldBackup = BackupCodec.decode(BackupCodec.encode(BackupBundle(listOf(old))))
+        val replacement = UUID.randomUUID().toString()
+        Files.writeString(DataFiles.directory().resolve("source-id.txt"), replacement)
+        val migrated = LiveStore.merge(host(140_000))
+        val primary = migrated.events.single()
+        check(primary.id.startsWith("live:") && primary.libraryId == replacement)
+        check("host:$replacement:row" in primary.aliases && migrated.playCount(song.id) == 1)
+        val imported = BackupCodec.apply(migrated, oldBackup)
+        val roundtrip = BackupCodec.decode(BackupCodec.encode(BackupBundle(imported.events)))
+        val reimported = BackupCodec.apply(imported, roundtrip)
+        val next = ListeningEvent("live:next", song,
+            listOf(ListeningSpan(START + 300_000, 150_000)), libraryId = replacement)
+        val again = ListeningEvents.aggregate(StatsData.empty(), reimported.events + next)
+        // A foreign event alone is not promoted just because it mentions a local-looking alias.
+        val unverified = old.copy(aliases = old.aliases + "host:$replacement:row")
+        check(ListeningEvents.union(listOf(unverified)).single().libraryId == oldSource)
+        check(imported.events.single().libraryId == replacement && imported.playCount(song.id) == 1 &&
+            total(imported) == 160_000L && reimported.events.single().libraryId == replacement &&
+            again.playCount(song.id) == 2 && again.tracks.size == 1) {
+            "library=${imported.events.single().libraryId}; imported count=${imported.playCount(song.id)}; " +
+                "next count=${again.playCount(song.id)}, rows=${again.tracks.size}"
+        }
+    }
     check(failed == 0) { "$failed/$cases integrity regressions failed" }
     println("$cases integrity regression groups passed")
 }

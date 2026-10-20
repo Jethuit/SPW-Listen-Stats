@@ -46,7 +46,8 @@ object ListeningEvents {
             val allKeys = candidates.flatMap { it.aliases + it.id }.toSet()
             // A verified local host alias can reconnect a backup made before identity repair.
             val identity = candidates.firstOrNull {
-                it.libraryId == localLibrary && it.id.startsWith("host:$localLibrary:")
+                it.libraryId == localLibrary && (it.id.startsWith("host:$localLibrary:") ||
+                    it.aliases.any { alias -> alias.startsWith("host:$localLibrary:") })
             } ?: chosen
             val metadata = candidates.filter { it.track.id == identity.track.id }
                 .fold(identity.track) { known, candidate -> mergeTrack(known, candidate.track) }
