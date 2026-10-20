@@ -251,8 +251,7 @@ fun TrendChart(
                                 drawCircle(
                                     color = colors.accent,
                                     radius = 2f,
-                                    center = point,
-                                    style = Stroke(width = 1.4f)
+                                    center = point
                                 )
                             }
                         }
@@ -303,8 +302,7 @@ fun TrendChart(
                         drawCircle(
                             color = colors.accent,
                             radius = 4f,
-                            center = point,
-                            style = Stroke(width = 2f)
+                            center = point
                         )
                     }
 

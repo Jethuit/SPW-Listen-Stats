@@ -63,7 +63,8 @@ val LightStatsColors = StatsColors(
     danger = Color(0xFFCF4545),
     pageBackground = Color(0xFFF8F8F8),
     controlBackground = Color(0xFFEDEEF1),
-    cardBackground = ClassicLightCardBackground
+    cardBackground = ClassicLightCardBackground,
+    rankingRowHover = Color(0xFFE8E8E8)
 )
 
 val DarkStatsColors = StatsColors(
@@ -87,7 +88,8 @@ val DarkStatsColors = StatsColors(
     tooltipText = Color(0xFFEDEDEE),
     danger = Color(0xFFFF8A8A),
     pageBackground = Color(0xFF232323),
-    cardBackground = ClassicDarkCardBackground
+    cardBackground = ClassicDarkCardBackground,
+    rankingRowHover = Color(0xFF363637)
 )
 
 val LocalStatsColors = staticCompositionLocalOf { LightStatsColors }
