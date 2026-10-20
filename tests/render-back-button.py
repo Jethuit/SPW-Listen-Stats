@@ -18,6 +18,7 @@ parser.add_argument('--material', action='store_true', help='check retained host
 parser.add_argument('--acrylic', action='store_true', help='compare native Acrylic reference colors on sampled flat backdrops')
 parser.add_argument('--acrylic-ranking', action='store_true', help='render actual Acrylic rows and pointer hover')
 parser.add_argument('--material-ranking', action='store_true', help='check separator-free ranking across all four styles')
+parser.add_argument('--dark-materials', action='store_true', help='compare actual dark material components against native screenshot colors')
 args = parser.parse_args()
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
@@ -29,7 +30,7 @@ scratch.mkdir(parents=True, exist_ok=True)
 classpath = os.pathsep.join(map(str, [kotlin / 'lib/kotlin-stdlib.jar', ROOT / 'build/plugin-classes',
     *builder.saltui_jars(), ROOT / 'build/tools/spw-host.jar']))
 java = str(jdk / 'bin/java.exe')
-test_name = ('AcrylicColorsVisualCheck' if args.acrylic else 'MaterialLayerVisualCheck' if args.material else 'RankingModesVisualCheck' if args.ranking or args.acrylic_ranking or args.material_ranking else 'CardColorsVisualCheck' if args.colors else 'CalendarNavigationVisualCheck' if args.calendar else
+test_name = ('AcrylicColorsVisualCheck' if args.acrylic or args.dark_materials else 'MaterialLayerVisualCheck' if args.material else 'RankingModesVisualCheck' if args.ranking or args.acrylic_ranking or args.material_ranking else 'CardColorsVisualCheck' if args.colors else 'CalendarNavigationVisualCheck' if args.calendar else
              'ResponsiveLayoutVisualCheck' if args.layout else 'BackButtonVisualCheck')
 subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
     '-no-stdlib', '-classpath', classpath,
@@ -55,15 +56,30 @@ if args.acrylic_ranking:
     output = ROOT / 'build/screenshots' / f'acrylic-ranking-v{builder.PLUGIN_VERSION}'
 if args.material_ranking:
     output = ROOT / 'build/screenshots' / f'material-ranking-v{builder.PLUGIN_VERSION}'
+if args.dark_materials:
+    output = ROOT / 'build/screenshots' / f'dark-materials-v{builder.PLUGIN_VERSION}'
 native_dir = (args.spw_dir or builder.DEFAULT_SPW_DIR) / 'app'
 native_temp = scratch / 'native-temp'
 native_temp.mkdir(exist_ok=True)
 subprocess.run([java, f'-Dskiko.library.path={native_dir}', f'-Djna.tmpdir={native_temp}',
     f'-Djava.io.tmpdir={native_temp}', '--enable-native-access=ALL-UNNAMED',
     '-cp', str(scratch) + os.pathsep + classpath,
-    test_name + 'Kt', str(output), *(['materials'] if args.material_ranking else ['acrylic'] if args.acrylic_ranking else [])], check=True, env=environment)
-if args.material_ranking:
-    files = sorted(output.glob('*.png'))
+    test_name + 'Kt', str(output), *(['dark'] if args.dark_materials else ['materials'] if args.material_ranking else ['acrylic'] if args.acrylic_ranking else [])], check=True, env=environment)
+if args.dark_materials:
+    from collections import Counter
+    for name, background, card, border in [
+            ('dark-acrylic', (80, 80, 80), (95, 95, 95), (115, 115, 117)),
+            ('dark-mica', (39, 39, 39), (68, 68, 68), (97, 97, 99)),
+            ('dark-mica-alt', (39, 39, 39), (68, 68, 68), (97, 97, 99))]:
+        rendered = Image.open(output / f'acrylic-{name}.png').convert('RGB')
+        assert rendered.getpixel((5, 5)) == background
+        actual = Counter(rendered.crop((40, 35, 760, 125)).getdata()).most_common(1)[0][0]
+        outline = rendered.getpixel((400, 25))
+        assert max(abs(a-b) for a,b in zip(actual, card)) <= 1, (name, actual, card)
+        assert max(abs(a-b) for a,b in zip(outline, border)) <= 1, (name, outline, border)
+        print(f'PASS {name}: actual card {actual}, border {outline} match native reference within one level')
+elif args.material_ranking:
+    files = sorted(f for f in output.glob('*.png') if not f.stem.endswith('-hover'))
     assert len(files) == 24, len(files)
     for file in files:
         rendered = Image.open(file).convert('RGB')
@@ -72,11 +88,18 @@ if args.material_ranking:
                       if any(pixels[x, y] == (30, 90, 180) for x in range(50, 125))]
         assert cover_rows, file.name
         dark, classic = file.name.startswith('dark-'), '-classic-' in file.name
-        background = (35, 35, 35) if dark else (248, 248, 248) if classic else (221, 221, 221)
+        background = ((35, 35, 35) if classic else (80, 80, 80) if '-acrylic-' in file.name else (39, 39, 39)) if dark else (248, 248, 248) if classic else (221, 221, 221)
         # Include the former table-header and closing-rule positions as well.
         for y in range(min(cover_rows)-18, max(cover_rows)+35):
             assert pixels[10, y] == background, (file.name, y, pixels[10, y])
+        if dark and not classic:
+            hovered = Image.open(file.with_stem(file.stem + '-hover')).convert('RGB')
+            expected = (103, 103, 105) if '-acrylic-' in file.name else (81, 81, 83)
+            actual = hovered.getpixel((10, 160))
+            assert max(abs(a-b) for a,b in zip(actual, expected)) <= 1, (file.name, actual, expected)
+            assert hovered.getpixel((10, 245)) == background, file.name
     print('PASS all 24 layouts: no table-header, internal-row or closing separators')
+    print('PASS 9 dark material ranking hover captures match native colors and leave adjacent rows unchanged')
 elif args.acrylic_ranking:
     for mode in ['song', 'artist', 'album']:
         normal = Image.open(output / f'acrylic-{mode}-760.png').convert('RGB')

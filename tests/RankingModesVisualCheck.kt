@@ -74,7 +74,8 @@ fun main(args: Array<String>) {
                                 CompositionLocalProvider(LocalStatsColors provides colors) {
                                     Box(Modifier.fillMaxSize().drawWith {
                                         drawRect(if (acrylic || materials && colors.pageBackground.alpha == 0f)
-                                            if (colors.isDark) Color(0xFF232323) else Color(0xFFDDDDDD)
+                                            if (theme == "dark-acrylic") Color(0xFF505050)
+                                            else if (colors.isDark) Color(0xFF272727) else Color(0xFFDDDDDD)
                                             else colors.pageBackground)
                                     }) {
                                         RankingPage(rows, mode, {}, "", {}, 1, {})
@@ -96,7 +97,7 @@ fun main(args: Array<String>) {
                             }
                         }
                     }
-                    if (acrylic) {
+                    if (acrylic || materials && colors.isDark && theme != "dark-classic") {
                         SwingUtilities.invokeAndWait {
                             scene.sendPointerEvent(PointerEventType.Move, Offset(10f, 160f))
                         }

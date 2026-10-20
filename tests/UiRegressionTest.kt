@@ -84,9 +84,9 @@ fun main(args: Array<String>) {
             check(material.pageBackground.alpha == 0f && material.cardBackground.alpha in 0.1f..0.99f)
             check(material.text.alpha == 1f && material.tooltipBackground == base.tooltipBackground)
             check(material.background == base.background && material.tooltipText == base.tooltipText)
-            // Acrylic light/dark and Mica dark use screenshot-calibrated fills.
-            // Mica light and both Mica Alt themes retain the original material palette.
-            if (style == "WindowsMicaAlt" || style == "WindowsMica" && !base.isDark) {
+            // All dark materials and light Acrylic use calibrated fills.
+            // Light Mica / Mica Alt retain the original material palette.
+            if (!base.isDark && style != "WindowsAcrylic") {
                 check(material == base.copy(pageBackground = androidx.compose.ui.graphics.Color.Transparent,
                     cardBackground = base.cardBackground.copy(alpha = 0.72f),
                     controlBackground = base.controlBackground.copy(alpha = 0.72f),

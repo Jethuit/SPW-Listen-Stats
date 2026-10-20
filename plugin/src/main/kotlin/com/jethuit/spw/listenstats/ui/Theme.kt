@@ -117,9 +117,9 @@ fun materialStatsColors(base: StatsColors, windowStyle: String?,
             cells = listOf(Color.Black.copy(alpha = 0.055f)) + base.cells.drop(1)
         )
     }
-    if (base.isDark && windowStyle in setOf("WindowsAcrylic", "WindowsMica")) {
+    if (base.isDark) {
         // Fitted to the user's native dark captures, retaining the real backdrop:
-        // Acrylic #505050 -> card #5F5F5F, Mica #272727 -> card #444444.
+        // Acrylic #505050 -> card #5F5F5F; Mica / Mica Alt #272727 -> #444444.
         val surfaceTint = Color(0xFF7C7C7C).copy(alpha = 0.34f)
         return base.copy(
             pageBackground = Color.Transparent,
