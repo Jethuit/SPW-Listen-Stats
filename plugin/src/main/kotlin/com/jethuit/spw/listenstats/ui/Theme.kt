@@ -100,7 +100,6 @@ fun materialStatsColors(base: StatsColors, windowStyle: String?,
     // The supplied light Acrylic captures have a #DDDDDD inactive backdrop and
     // #E2E2E2 card interiors. A light tint preserves the native focused backdrop
     // as well; never replace DWM's focus-dependent background with a fixed RGB.
-    // Dark Acrylic has no reference capture yet and retains the dev.2 palette.
     if (windowStyle == "WindowsAcrylic" && !base.isDark) {
         return base.copy(
             pageBackground = Color.Transparent,
@@ -116,6 +115,27 @@ fun materialStatsColors(base: StatsColors, windowStyle: String?,
             // Native Acrylic row: #DDDDDD backdrop -> #C2C2C2 on hover.
             rankingRowHover = Color.Black.copy(alpha = 0.12f),
             cells = listOf(Color.Black.copy(alpha = 0.055f)) + base.cells.drop(1)
+        )
+    }
+    if (base.isDark && windowStyle in setOf("WindowsAcrylic", "WindowsMica")) {
+        // Fitted to the user's native dark captures, retaining the real backdrop:
+        // Acrylic #505050 -> card #5F5F5F, Mica #272727 -> card #444444.
+        val surfaceTint = Color(0xFF7C7C7C).copy(alpha = 0.34f)
+        return base.copy(
+            pageBackground = Color.Transparent,
+            text = Color(0xFFEBEEF1),
+            muted = Color(0xFFCCD0D5).copy(alpha = 0.91f),
+            cardBackground = surfaceTint,
+            controlBackground = surfaceTint,
+            selectedControlBackground = Color.White.copy(alpha = 0.10f),
+            // Borders over the card composite to #737375 / #616163.
+            line = Color(0xFF9B9BA1).copy(alpha = 1f / 3f),
+            subtle = Color.White.copy(alpha = 0.08f),
+            hover = Color.White.copy(alpha = 0.08f),
+            // Unlike the former dark fill, native hovered rows become lighter:
+            // Acrylic #676769, Mica #515153 on the supplied backgrounds.
+            rankingRowHover = Color(0xFF828286).copy(alpha = 0.46f),
+            cells = listOf(Color.White.copy(alpha = 0.055f)) + base.cells.drop(1)
         )
     }
     return base.copy(
