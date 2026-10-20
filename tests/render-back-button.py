@@ -50,7 +50,42 @@ subprocess.run([java, f'-Dskiko.library.path={native_dir}', f'-Djna.tmpdir={nati
     f'-Djava.io.tmpdir={native_temp}', '--enable-native-access=ALL-UNNAMED',
     '-cp', str(scratch) + os.pathsep + classpath,
     test_name + 'Kt', str(output)], check=True, env=environment)
-if args.colors:
+if args.ranking:
+    files = sorted(output.glob('*-*-*.png'))
+    assert len(files) == 12, len(files)
+    for file in files:
+        rendered = Image.open(file).convert('RGB')
+        # All synthetic embedded covers share this distinctive blue; no actual library is read.
+        remaining = {(x, y) for y in range(rendered.height) for x in range(rendered.width)
+                     if rendered.getpixel((x, y)) == (30, 90, 180)}
+        bounds = []
+        while remaining:
+            seed = remaining.pop()
+            component, pending = [seed], [seed]
+            while pending:
+                x, y = pending.pop()
+                for point in ((x-1, y), (x+1, y), (x, y-1), (x, y+1)):
+                    if point in remaining:
+                        remaining.remove(point)
+                        pending.append(point)
+                        component.append(point)
+            if len(component) > 500:
+                bounds.append((min(x for x,y in component), min(y for x,y in component),
+                               max(x for x,y in component)+1, max(y for x,y in component)+1))
+        bounds.sort(key=lambda rect: rect[1])
+        assert len(bounds) == (3 if '-song-' in file.name else 2), (file.name, bounds)
+        # The 1dp border covers up to two rasterized pixels on each side at 125%.
+        outline = (55, 57, 62) if file.name.startswith('dark-') else (233, 234, 237)
+        for l, t, r, b in bounds:
+            assert 56 <= r-l <= 60 and 56 <= b-t <= 60, (file.name, bounds)
+            palette = ((30, 90, 180), outline)
+            xs = [x for x in range(l-3, r+3) if rendered.getpixel((x, (t+b)//2)) in palette]
+            ys = [y for y in range(t-3, b+3) if rendered.getpixel(((l+r)//2, y)) in palette]
+            assert max(xs)-min(xs)+1 == 60 and max(ys)-min(ys)+1 == 60, (file.name, bounds)
+        assert all(82 <= following[1]-previous[1] <= 83
+                   for previous, following in zip(bounds, bounds[1:])), (file.name, bounds)
+    print('PASS 12 layouts: 48dp (60px at 125%) covers and approximately 66dp row pitch')
+elif args.colors:
     from collections import Counter
     for theme, expected in [('light', (252, 252, 252)), ('dark', (42, 42, 42))]:
         rendered = Image.open(output / f'cards-{theme}.png').convert('RGB')

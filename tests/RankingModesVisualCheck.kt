@@ -12,12 +12,19 @@ import androidx.compose.ui.unit.dp
 import com.jethuit.spw.listenstats.data.*
 import com.jethuit.spw.listenstats.ui.*
 import com.moriafly.salt.ui.SaltTheme
+import com.xuncorp.spw.workshop.api.WorkshopApi
+import kotlinx.coroutines.runBlocking
 import org.jetbrains.skia.EncodedImageFormat
+import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
+import java.lang.reflect.Proxy
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.CompletableFuture
+import javax.imageio.ImageIO
 import javax.swing.SwingUtilities
 
-/** Synthetic tags/counts only. Null cover IDs keep this fixture independent of the player API. */
+/** Synthetic tags/counts and solid-color embedded covers; the real player API is never used. */
 fun main(args: Array<String>) {
     val output = Path.of(args.single())
     Files.createDirectories(output)
@@ -28,30 +35,56 @@ fun main(args: Array<String>) {
     )
     val data = StatsData.empty().copy(tracks = tracks.associateBy { it.id },
         playCounts = mapOf("demo1" to 5, "demo2" to 3, "demo3" to 2))
-    SwingUtilities.invokeAndWait {
+    val cover = BufferedImage(96, 96, BufferedImage.TYPE_INT_RGB)
+    cover.createGraphics().also { g ->
+        g.color = java.awt.Color(30, 90, 180); g.fillRect(0, 0, 96, 96); g.dispose()
+    }
+    val bytes = ByteArrayOutputStream().also { ImageIO.write(cover, "png", it) }.toByteArray()
+    val library = Proxy.newProxyInstance(WorkshopApi.Library::class.java.classLoader,
+        arrayOf(WorkshopApi.Library::class.java)) { _, method, _ ->
+        check(method.name == "getCoverById")
+        CompletableFuture.completedFuture(bytes)
+    }
+    WorkshopApi.instance = Proxy.newProxyInstance(WorkshopApi::class.java.classLoader,
+        arrayOf(WorkshopApi::class.java)) { _, method, _ ->
+        check(method.name == "getLibrary")
+        library
+    } as WorkshopApi
+    CoverStore.clear()
+    runBlocking { for (track in tracks) check(CoverStore.load(track.id, 60) != null) }
+    try {
         for ((theme, colors) in listOf("light" to LightStatsColors, "dark" to DarkStatsColors)) {
             for (width in listOf(280, 760)) for (mode in RankingMode.entries) {
-                val rows = Rankings.ranked(data, mode).map { it.copy(value = it.value.copy(coverTrackId = null)) }
-                val scene = ImageComposeScene(width * 5 / 4, 570, density = Density(1.25f)) {
-                    SaltTheme {
-                        MaterialTheme(colorScheme = if (colors.isDark) darkColorScheme() else lightColorScheme()) {
-                            CompositionLocalProvider(LocalStatsColors provides colors) {
-                                Box(Modifier.fillMaxSize().drawWith { drawRect(colors.pageBackground) }) {
-                                    RankingPage(rows, mode, {}, "", {}, 1, {})
+                val rows = Rankings.ranked(data, mode)
+                lateinit var scene: ImageComposeScene
+                SwingUtilities.invokeAndWait {
+                    scene = ImageComposeScene(width * 5 / 4, 570, density = Density(1.25f)) {
+                        SaltTheme {
+                            MaterialTheme(colorScheme = if (colors.isDark) darkColorScheme() else lightColorScheme()) {
+                                CompositionLocalProvider(LocalStatsColors provides colors) {
+                                    Box(Modifier.fillMaxSize().drawWith { drawRect(colors.pageBackground) }) {
+                                        RankingPage(rows, mode, {}, "", {}, 1, {})
+                                    }
                                 }
                             }
                         }
                     }
                 }
                 try {
-                    scene.render().use { image ->
-                        image.encodeToData(EncodedImageFormat.PNG)!!.use {
-                            Files.write(output.resolve("$theme-${mode.storage}-$width.png"), it.bytes)
+                    repeat(3) {
+                        SwingUtilities.invokeAndWait { scene.render().close() }
+                        Thread.sleep(20)
+                    }
+                    SwingUtilities.invokeAndWait {
+                        scene.render().use { image ->
+                            image.encodeToData(EncodedImageFormat.PNG)!!.use {
+                                Files.write(output.resolve("$theme-${mode.storage}-$width.png"), it.bytes)
+                            }
                         }
                     }
-                } finally { scene.close() }
+                } finally { SwingUtilities.invokeAndWait { scene.close() } }
             }
         }
-    }
-    println("Rendered 12 real ranking layouts: three modes, two widths and two themes; synthetic data only")
+    } finally { CoverStore.clear() }
+    println("Rendered 12 real ranking layouts with synthetic 60px covers; three modes, two widths and two themes")
 }

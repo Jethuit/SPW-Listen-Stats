@@ -41,6 +41,24 @@ fun main() {
         check(result.first().value.coverTrackId == "2")
         check(Rankings.ranked(d, RankingMode.Album, "C").single().position == 2)
     }
+    test("artist cover follows the highest-total album, not the highest individual song") {
+        val d = data(track("hit", "A", "Single", "A") to 10,
+            track("album1", "A/B", "Album", "A") to 7,
+            track("album2", "A", "Album", "A") to 6,
+            track("other", "A", "Album", "Other") to 2,
+            track("untagged", "A", "", "A") to 20)
+        val result = Rankings.ranked(d, RankingMode.Artist)
+        val a = result.single { it.value.title == "A" }.value
+        check(a.count == 45L && a.coverTrackId == "album1")
+        check(result.single { it.value.title == "B" }.value.coverTrackId == "album1")
+        // Other artist's same-title album must not join the 13-play album above.
+        val separate = data(track("one", "A", "Same", "One") to 8,
+            track("two", "A", "Same", "Two") to 5,
+            track("win", "A", "Winner", "A") to 10)
+        check(Rankings.ranked(separate, RankingMode.Artist).single().value.coverTrackId == "win")
+        val unknown = data(track("1", "A", "", "") to 3, track("2", "A", "", "") to 5)
+        check(Rankings.ranked(unknown, RankingMode.Artist).single().value.coverTrackId == "2")
+    }
     test("missing metadata stays visible without guessing that unknown albums are the same") {
         val d = data(track("1", "", "", "") to 2, track("2", "", "", "") to 3,
             track("3", "A", "One", "Band") to 0)

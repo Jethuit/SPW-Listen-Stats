@@ -38,6 +38,21 @@ object Rankings {
     private fun normalized(value: String) = value.trim().lowercase(Locale.ROOT)
     private val slashBand = Regex("(?i)(?<![\\p{L}\\p{N}])AC/DC(?![\\p{L}\\p{N}])")
 
+    private fun albumKey(track: TrackMeta): RankingKey {
+        val album = track.album.trim()
+        val artist = track.albumArtist.trim().ifBlank { track.artist.trim() }
+        // Untagged albums cannot safely be grouped across unrelated tracks.
+        return RankingKey(RankingMode.Album, normalized(album), normalized(artist),
+            if (album.isBlank()) track.id else null)
+    }
+
+    private fun artistCover(members: List<TrackRank>): String {
+        val tagged = members.filter { it.track.album.isNotBlank() }.ifEmpty { members }
+        // Members already follow the song ranking. For a winning album, use its top song's cover.
+        return tagged.groupBy { albumKey(it.track) }.values
+            .maxBy { album -> album.sumOf { it.count.toLong() } }.first().track.id
+    }
+
     /** SPW exposes a display string, not structured credits. Keep '&' and commas in band names. */
     fun artists(credits: String): List<String> {
         val protected = slashBand.replace(credits) { it.value.replace('/', '\u0000') }
@@ -65,9 +80,7 @@ object Rankings {
                 } else {
                     val album = track.track.album.trim()
                     val artist = track.track.albumArtist.trim().ifBlank { track.track.artist.trim() }
-                    // Without an album tag there is no evidence that unrelated tracks share an album.
-                    val key = RankingKey(mode, normalized(album), normalized(artist),
-                        if (album.isBlank()) track.track.id else null)
+                    val key = albumKey(track.track)
                     groups.getOrPut(key) { mutableListOf() }.add(track)
                     labels.putIfAbsent(key, album.ifBlank { "未知专辑" } to artist.ifBlank { "未知歌手" })
                 }
@@ -77,7 +90,7 @@ object Rankings {
                 val (title, artist) = labels.getValue(key)
                 RankingEntry(key, title, if (mode == RankingMode.Artist) "" else artist,
                     "${members.size} 首", members.sumOf { it.count.toLong() },
-                    if (mode == RankingMode.Album) members.first().track.id else null)
+                    if (mode == RankingMode.Artist) artistCover(members) else members.first().track.id)
             }.sortedWith(compareByDescending<RankingEntry> { it.count }
                 .thenComparator { a, b -> collator.compare(a.title, b.title) }
                 .thenComparator { a, b -> collator.compare(a.subtitle, b.subtitle) })

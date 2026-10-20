@@ -60,6 +60,12 @@ import com.jethuit.spw.listenstats.util.formatNumber
 import kotlinx.coroutines.delay
 
 const val RANKING_PAGE_SIZE = 25
+private val RankingCoverSize = 48.dp
+private val RankingCoverRadius = 4.dp
+// 65dp content plus the existing 1dp rule approximates the host's 66dp row pitch.
+private val RankingRowHeight = 65.dp
+private val RankingRowText = AppType.table.copy(fontSize = 14.sp, lineHeight = 20.sp)
+private val RankingSecondaryText = AppType.tiny.copy(fontSize = 12.sp, lineHeight = 16.sp)
 
 fun rankingTotalPages(count: Int): Int =
     if (count <= 0) 1 else (count + RANKING_PAGE_SIZE - 1) / RANKING_PAGE_SIZE
@@ -292,14 +298,14 @@ private fun SongRow(rank: RankingEntry, position: Int) {
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .height(70.dp)
+                        .height(RankingRowHeight)
                         .drawWith { drawRect(color = background) },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         "$position",
                         modifier = Modifier.width(widths.rank),
-                        style = AppType.table.copy(color = colors.muted),
+                        style = RankingRowText.copy(color = colors.muted),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                     Row(
@@ -313,18 +319,17 @@ private fun SongRow(rank: RankingEntry, position: Int) {
                                 rank.title,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                style = AppType.table.copy(
+                                style = RankingRowText.copy(
                                     color = colors.text,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Normal
                                 )
                             )
                             val subtitle = rank.subtitle.ifEmpty { if (widths.album == 0.dp) rank.detail else "" }
                             if (subtitle.isNotEmpty()) Text(
                                 subtitle,
-                                modifier = Modifier.padding(top = 5.dp),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                style = AppType.tiny.copy(color = colors.muted)
+                                style = RankingSecondaryText.copy(color = colors.muted)
                             )
                         }
                     }
@@ -333,7 +338,7 @@ private fun SongRow(rank: RankingEntry, position: Int) {
                         modifier = Modifier.width(widths.album).padding(end = 16.dp),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        style = AppType.table.copy(color = colors.muted)
+                        style = RankingRowText.copy(color = colors.muted)
                     )
                     Row(
                         Modifier.width(widths.count),
@@ -342,7 +347,7 @@ private fun SongRow(rank: RankingEntry, position: Int) {
                     ) {
                         Text(
                             formatNumber(rank.count),
-                            style = AppType.table.copy(color = colors.text)
+                            style = RankingRowText.copy(color = colors.text)
                         )
                         Text(
                             "次",
@@ -365,7 +370,7 @@ private fun SongRow(rank: RankingEntry, position: Int) {
 @Composable
 private fun ArtistMonogram(name: String) {
     val colors = LocalStatsColors.current
-    Surface(modifier = Modifier.size(44.dp), shape = AppShape(6.dp), color = colors.subtle,
+    Surface(modifier = Modifier.size(RankingCoverSize), shape = AppShape(RankingCoverRadius), color = colors.subtle,
         border = BorderStroke(1.dp, SolidColor(colors.line))) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(name.take(1), style = AppType.sectionTitle.copy(color = colors.muted))
@@ -376,7 +381,7 @@ private fun ArtistMonogram(name: String) {
 @Composable
 private fun Cover(trackId: String) {
     val colors = LocalStatsColors.current
-    val targetPx = with(LocalDensity.current) { 44.dp.roundToPx() }
+    val targetPx = with(LocalDensity.current) { RankingCoverSize.roundToPx() }
     var image by remember(trackId, targetPx) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(trackId, targetPx) {
         while (image == null) {
@@ -392,8 +397,8 @@ private fun Cover(trackId: String) {
         }
     }
     Surface(
-        modifier = Modifier.size(44.dp),
-        shape = AppShape(6.dp),
+        modifier = Modifier.size(RankingCoverSize),
+        shape = AppShape(RankingCoverRadius),
         color = colors.subtle,
         border = BorderStroke(1.dp, SolidColor(colors.line))
     ) {
