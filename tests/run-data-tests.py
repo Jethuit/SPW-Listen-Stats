@@ -11,10 +11,11 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 suite = sys.argv[1] if len(sys.argv) > 1 else 'data'
-assert suite in ('data', 'ui', 'cover', 'navigation', 'integrity', 'ranking', 'heatmap'), 'unknown regression suite'
+assert suite in ('data', 'ui', 'cover', 'navigation', 'integrity', 'ranking', 'heatmap', 'format'), 'unknown regression suite'
 test_name = {'data': 'DataRegressionTest', 'ui': 'UiRegressionTest', 'cover': 'CoverRegressionTest',
              'navigation': 'NavigationRegressionTest', 'integrity': 'DataIntegrityRegressionTest',
-             'ranking': 'RankingRegressionTest', 'heatmap': 'HeatmapScaleRegressionTest'}[suite]
+             'ranking': 'RankingRegressionTest', 'heatmap': 'HeatmapScaleRegressionTest',
+             'format': 'DurationRoundingRegressionTest'}[suite]
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)
@@ -32,7 +33,9 @@ classpath = os.pathsep.join(map(str, [kotlin / 'lib/kotlin-stdlib.jar', classes,
 java = str(jdk / 'bin/java.exe')
 subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
                 '-no-stdlib', '-classpath', classpath, '-jvm-target', '25', '-d', str(scratch),
-                str(ROOT / 'tests' / (test_name + '.kt'))], check=True)
+                str(ROOT / 'tests' / (test_name + '.kt')),
+                *([str(ROOT / 'plugin/src/main/kotlin/com/jethuit/spw/listenstats/util/Format.kt')]
+                  if suite == 'format' else [])], check=True)
 environment = os.environ.copy()
 environment['APPDATA'] = str(state / 'appdata')
 environment['LOCALAPPDATA'] = str(state / 'localappdata')

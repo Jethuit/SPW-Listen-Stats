@@ -4,9 +4,13 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+/** Round the final display total once; stored durations and chart values stay in milliseconds. */
+private fun roundedDisplayMinutes(millis: Long): Long =
+    if (millis <= 0) 0L else millis / 60_000L + if (millis % 60_000L >= 30_000L) 1L else 0L
+
 fun formatDuration(millis: Long): String {
     if (millis <= 0) return "0 分钟"
-    val totalMinutes = millis / 60_000L
+    val totalMinutes = roundedDisplayMinutes(millis)
     val hours = totalMinutes / 60
     val minutes = totalMinutes % 60
     return when {
@@ -18,7 +22,7 @@ fun formatDuration(millis: Long): String {
 
 fun formatDurationCompact(millis: Long): Pair<String, String> {
     if (millis <= 0) return "0" to "分钟"
-    val totalMinutes = millis / 60_000L
+    val totalMinutes = roundedDisplayMinutes(millis)
     val hours = totalMinutes / 60
     val minutes = totalMinutes % 60
     return when {
@@ -32,7 +36,7 @@ data class DurationPart(val value: String, val unit: String)
 
 fun durationParts(millis: Long): List<DurationPart> {
     if (millis <= 0) return listOf(DurationPart("0", "分钟"))
-    val totalMinutes = millis / 60_000L
+    val totalMinutes = roundedDisplayMinutes(millis)
     val hours = totalMinutes / 60
     val minutes = totalMinutes % 60
     if (hours > 0) {
