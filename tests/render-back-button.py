@@ -13,6 +13,7 @@ parser.add_argument('--spw-dir', type=Path)
 parser.add_argument('--layout', action='store_true', help='render responsive frame and footer checks')
 parser.add_argument('--calendar', action='store_true', help='check fixed month-navigation controls')
 parser.add_argument('--colors', action='store_true', help='render sampled card and tooltip colors')
+parser.add_argument('--ranking', action='store_true', help='render three ranking modes at narrow and wide widths')
 args = parser.parse_args()
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
@@ -24,7 +25,7 @@ scratch.mkdir(parents=True, exist_ok=True)
 classpath = os.pathsep.join(map(str, [kotlin / 'lib/kotlin-stdlib.jar', ROOT / 'build/plugin-classes',
     *builder.saltui_jars(), ROOT / 'build/tools/spw-host.jar']))
 java = str(jdk / 'bin/java.exe')
-test_name = ('CardColorsVisualCheck' if args.colors else 'CalendarNavigationVisualCheck' if args.calendar else
+test_name = ('RankingModesVisualCheck' if args.ranking else 'CardColorsVisualCheck' if args.colors else 'CalendarNavigationVisualCheck' if args.calendar else
              'ResponsiveLayoutVisualCheck' if args.layout else 'BackButtonVisualCheck')
 subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
     '-no-stdlib', '-classpath', classpath,
@@ -40,6 +41,8 @@ if args.calendar:
     output = ROOT / 'build/screenshots' / f'calendar-v{builder.PLUGIN_VERSION}'
 if args.colors:
     output = ROOT / 'build/screenshots' / f'card-colors-v{builder.PLUGIN_VERSION}'
+if args.ranking:
+    output = ROOT / 'build/screenshots' / f'ranking-v{builder.PLUGIN_VERSION}'
 native_dir = (args.spw_dir or builder.DEFAULT_SPW_DIR) / 'app'
 native_temp = scratch / 'native-temp'
 native_temp.mkdir(exist_ok=True)

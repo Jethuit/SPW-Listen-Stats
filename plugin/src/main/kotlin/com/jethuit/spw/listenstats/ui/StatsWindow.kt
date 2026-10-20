@@ -40,6 +40,8 @@ import com.jethuit.spw.listenstats.data.BackupService
 import com.jethuit.spw.listenstats.data.ChartType
 import com.jethuit.spw.listenstats.data.Granularity
 import com.jethuit.spw.listenstats.data.RangePreset
+import com.jethuit.spw.listenstats.data.RankingMode
+import com.jethuit.spw.listenstats.data.Rankings
 import com.jethuit.spw.listenstats.data.StatsCalculations
 import com.jethuit.spw.listenstats.data.StatsData
 import com.jethuit.spw.listenstats.data.StatsStore
@@ -248,6 +250,7 @@ fun ListenStatsApp(
     var customEnd by remember { mutableStateOf<LocalDate?>(null) }
     var query by remember { mutableStateOf("") }
     var rankPage by remember { mutableStateOf(1) }
+    var rankingMode by remember { mutableStateOf(RankingMode.Song) }
     var bottomScrollRequest by remember { mutableStateOf(0) }
     var reloadTick by remember { mutableStateOf(0) }
     var dateDialogOpen by remember { mutableStateOf(false) }
@@ -259,6 +262,7 @@ fun ListenStatsApp(
         }
         chartType = ChartType.fromStorage(Prefs.getString("chartType", ChartType.Line.storage))
         userGranularity = Granularity.fromStorage(Prefs.getString("granularity", Granularity.Day.storage))
+        rankingMode = RankingMode.fromStorage(Prefs.getString("rankingMode", RankingMode.Song.storage))
         rangePreset = RangePreset.fromStorage(Prefs.getString("range", RangePreset.Last30.storage))
         selectedDate = Prefs.getString("selectedDate", "")
             .takeIf { it.isNotBlank() }
@@ -314,7 +318,8 @@ fun ListenStatsApp(
             return@SaltTheme
         }
         val summary = remember(snapshot, today) { StatsCalculations.summary(snapshot, today) }
-        val rankCount = remember(snapshot, query) { filteredRankCount(snapshot, query) }
+        val rankingEntries = remember(snapshot, query, rankingMode) { Rankings.ranked(snapshot, rankingMode, query) }
+        val rankCount = rankingEntries.size
         val totalPages = rankingTotalPages(rankCount)
         val safePage = rankingSafePage(rankCount, rankPage)
         LaunchedEffect(totalPages) {
@@ -449,7 +454,15 @@ fun ListenStatsApp(
                                     scrollState = if (embedded) scrollState else null
                                 )
                                 StatsPage.Ranking -> RankingPage(
-                                    data = snapshot,
+                                    entries = rankingEntries,
+                                    mode = rankingMode,
+                                    onModeChange = {
+                                        if (rankingMode != it) {
+                                            rankingMode = it
+                                            rankPage = 1
+                                            Prefs.putString("rankingMode", it.storage)
+                                        }
+                                    },
                                     query = query,
                                     onQueryChange = { query = it },
                                     page = safePage,
@@ -663,8 +676,4 @@ private fun LoadingPage(onClose: () -> Unit) {
         Box(Modifier.height(24.dp))
         IconAction(IconPaths.Close, "关闭", colors.muted, onClose)
     }
-}
-
-private fun filteredRankCount(data: StatsData, query: String): Int {
-    return data.rankedTracks(query).size
 }

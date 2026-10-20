@@ -33,7 +33,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -54,8 +53,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jethuit.spw.listenstats.data.CoverDiagnostics
 import com.jethuit.spw.listenstats.data.CoverStore
-import com.jethuit.spw.listenstats.data.StatsData
-import com.jethuit.spw.listenstats.data.TrackRank
+import com.jethuit.spw.listenstats.data.RankedEntry
+import com.jethuit.spw.listenstats.data.RankingEntry
+import com.jethuit.spw.listenstats.data.RankingMode
 import com.jethuit.spw.listenstats.util.formatNumber
 import kotlinx.coroutines.delay
 
@@ -69,7 +69,9 @@ fun rankingSafePage(count: Int, page: Int): Int =
 
 @Composable
 fun RankingPage(
-    data: StatsData,
+    entries: List<RankedEntry>,
+    mode: RankingMode,
+    onModeChange: (RankingMode) -> Unit,
     query: String,
     onQueryChange: (String) -> Unit,
     page: Int,
@@ -78,13 +80,10 @@ fun RankingPage(
     val colors = LocalStatsColors.current
     val searchState = remember { TextFieldState(query) }
     val searchText = searchState.text.toString()
-    var searchFocused by remember { mutableStateOf(false) }
     LaunchedEffect(searchText) {
         if (searchText != query) onQueryChange(searchText)
     }
-    val filtered = remember(data, query) {
-        data.rankedTracks(query)
-    }
+    val filtered = entries
     val totalPages = rankingTotalPages(filtered.size)
     val currentPage = rankingSafePage(filtered.size, page)
     val from = (currentPage - 1) * RANKING_PAGE_SIZE
@@ -92,79 +91,109 @@ fun RankingPage(
     val rows = filtered.subList(from, to)
 
     Column(Modifier.fillMaxWidth()) {
-        Box(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-            SectionHeading(
-                icon = IconPaths.QueueMusic,
-                title = "歌曲播放次数",
-                headingHeight = 34.dp,
-                titleStyle = AppType.sectionTitle.copy(fontSize = 18.sp, lineHeight = 24.sp)
-            ) {
-                Surface(
-                    modifier = Modifier.width(190.dp).height(34.dp),
-                    shape = AppShape(8.dp),
-                    color = colors.controlBackground
-                ) {
-                    Row(
-                        Modifier.fillMaxSize().padding(horizontal = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(7.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AppIcon(IconPaths.Search, colors.muted, iconSize = 15.dp)
-                        OutlinedTextField(
-                            state = searchState,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(34.dp)
-                                .onFocusChanged { searchFocused = it.isFocused },
-                            lineLimits = TextFieldLineLimits.SingleLine,
-                            shape = AppShape(0.dp),
-                            contentPadding = PaddingValues(0.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = colors.text,
-                                unfocusedTextColor = colors.text,
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                cursorColor = colors.accent,
-                                focusedBorderColor = Color.Transparent,
-                                unfocusedBorderColor = Color.Transparent,
-                                focusedPlaceholderColor = colors.muted,
-                                unfocusedPlaceholderColor = colors.muted
-                            ),
-                            textStyle = com.moriafly.salt.ui.LocalTextStyle.current.merge(AppType.bodySmall),
-                            placeholder = {
-                                Text(
-                                    "搜索歌曲或歌手",
-                                    style = AppType.bodySmall.copy(color = colors.muted)
-                                )
-                            }
-                        )
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+            val searchWidth = (maxWidth - 160.dp).coerceIn(100.dp, 190.dp)
+            val controls: @Composable () -> Unit = {
+                SegmentedControl(
+                    options = RankingMode.entries.map { SegmentOption(it.storage, it.label) },
+                    selected = mode.storage,
+                    onSelected = { onModeChange(RankingMode.fromStorage(it)) }
+                )
+                RankingSearch(searchState, mode, searchWidth)
+            }
+            if (maxWidth < 600.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AppIcon(IconPaths.QueueMusic, colors.muted, iconSize = 19.dp)
+                        Text(mode.title, style = AppType.sectionTitle.copy(color = colors.text,
+                            fontSize = 18.sp, lineHeight = 24.sp))
                     }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically) { controls() }
                 }
+            } else {
+                SectionHeading(
+                    icon = IconPaths.QueueMusic,
+                    title = mode.title,
+                    headingHeight = 34.dp,
+                    titleStyle = AppType.sectionTitle.copy(fontSize = 18.sp, lineHeight = 24.sp)
+                ) { controls() }
             }
         }
-        SongTableHeader()
+        SongTableHeader(mode)
         rows.forEach { rank ->
-            key(rank.value.track.id) {
+            key(rank.value.key) {
                 SongRow(rank.value, rank.position)
             }
         }
         if (rows.isEmpty()) {
             Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
                 Text(
-                    if (query.isBlank()) "还没有达到计次条件的歌曲" else "没有找到匹配的歌曲",
+                    if (query.isBlank()) "还没有达到计次条件的${mode.label}" else "没有找到匹配的${mode.label}",
                     style = AppType.bodySmall.copy(color = colors.muted)
                 )
             }
         }
         Box(Modifier.height(16.dp))
-        RankingFooter(filtered.size, currentPage, totalPages, onPageChange)
+        RankingFooter(filtered.size, currentPage, totalPages, onPageChange, mode)
     }
 }
 
 @Composable
-fun RankingFooter(count: Int, currentPage: Int, totalPages: Int, onPageChange: (Int) -> Unit) {
+private fun RankingSearch(
+    state: TextFieldState, mode: RankingMode, width: Dp
+) {
     val colors = LocalStatsColors.current
-    val caption = "共 ${formatNumber(count.toLong())} 首 · 听满单曲 50% 计一次"
+    Surface(
+        modifier = Modifier.width(width).height(34.dp),
+        shape = AppShape(8.dp),
+        color = colors.controlBackground
+    ) {
+        Row(
+            Modifier.fillMaxSize().padding(horizontal = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AppIcon(IconPaths.Search, colors.muted, iconSize = 15.dp)
+            OutlinedTextField(
+                state = state,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(34.dp),
+                lineLimits = TextFieldLineLimits.SingleLine,
+                shape = AppShape(0.dp),
+                contentPadding = PaddingValues(0.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = colors.text,
+                    unfocusedTextColor = colors.text,
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    cursorColor = colors.accent,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    focusedPlaceholderColor = colors.muted,
+                    unfocusedPlaceholderColor = colors.muted
+                ),
+                textStyle = com.moriafly.salt.ui.LocalTextStyle.current.merge(AppType.bodySmall),
+                placeholder = {
+                    Text(
+                        mode.searchPlaceholder,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = AppType.bodySmall.copy(color = colors.muted)
+                    )
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun RankingFooter(count: Int, currentPage: Int, totalPages: Int, onPageChange: (Int) -> Unit,
+                  mode: RankingMode = RankingMode.Song) {
+    val colors = LocalStatsColors.current
+    val caption = "共 ${formatNumber(count.toLong())} ${mode.itemUnit} · 听满单曲 50% 计一次"
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         if (maxWidth < 840.dp) {
             val compact = maxWidth < 440.dp
@@ -216,7 +245,7 @@ fun RankingFooter(count: Int, currentPage: Int, totalPages: Int, onPageChange: (
 }
 
 @Composable
-private fun SongTableHeader() {
+private fun SongTableHeader(mode: RankingMode) {
     val colors = LocalStatsColors.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val widths = tableWidths(maxWidth)
@@ -228,12 +257,12 @@ private fun SongTableHeader() {
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
             Text(
-                "歌曲",
+                mode.label,
                 modifier = Modifier.width(widths.song),
                 style = AppType.tableHead.copy(color = colors.muted)
             )
-            Text(
-                "专辑",
+            if (widths.album > 0.dp) Text(
+                if (mode == RankingMode.Song) "专辑" else "歌曲数",
                 modifier = Modifier.width(widths.album),
                 style = AppType.tableHead.copy(color = colors.muted)
             )
@@ -254,7 +283,7 @@ private fun SongTableHeader() {
 }
 
 @Composable
-private fun SongRow(rank: TrackRank, position: Int) {
+private fun SongRow(rank: RankingEntry, position: Int) {
     val colors = LocalStatsColors.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val widths = tableWidths(maxWidth)
@@ -278,10 +307,10 @@ private fun SongRow(rank: TrackRank, position: Int) {
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Cover(rank.track.id)
-                        Column {
+                        if (rank.coverTrackId != null) Cover(rank.coverTrackId) else ArtistMonogram(rank.title)
+                        Column(Modifier.weight(1f)) {
                             Text(
-                                rank.track.title,
+                                rank.title,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 style = AppType.table.copy(
@@ -289,8 +318,9 @@ private fun SongRow(rank: TrackRank, position: Int) {
                                     fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
                                 )
                             )
-                            Text(
-                                rank.track.artist,
+                            val subtitle = rank.subtitle.ifEmpty { if (widths.album == 0.dp) rank.detail else "" }
+                            if (subtitle.isNotEmpty()) Text(
+                                subtitle,
                                 modifier = Modifier.padding(top = 5.dp),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -298,8 +328,8 @@ private fun SongRow(rank: TrackRank, position: Int) {
                             )
                         }
                     }
-                    Text(
-                        rank.track.album,
+                    if (widths.album > 0.dp) Text(
+                        rank.detail,
                         modifier = Modifier.width(widths.album).padding(end = 16.dp),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -311,7 +341,7 @@ private fun SongRow(rank: TrackRank, position: Int) {
                         verticalAlignment = Alignment.Bottom
                     ) {
                         Text(
-                            formatNumber(rank.count.toLong()),
+                            formatNumber(rank.count),
                             style = AppType.table.copy(color = colors.text)
                         )
                         Text(
@@ -328,6 +358,17 @@ private fun SongRow(rank: TrackRank, position: Int) {
                         .drawWith { drawRect(color = colors.line) }
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ArtistMonogram(name: String) {
+    val colors = LocalStatsColors.current
+    Surface(modifier = Modifier.size(44.dp), shape = AppShape(6.dp), color = colors.subtle,
+        border = BorderStroke(1.dp, SolidColor(colors.line))) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(name.take(1), style = AppType.sectionTitle.copy(color = colors.muted))
         }
     }
 }
@@ -383,6 +424,11 @@ private data class TableWidths(
 )
 
 private fun tableWidths(maxWidth: Dp): TableWidths {
+    if (maxWidth < 440.dp) {
+        val rank = 36.dp
+        val count = 72.dp
+        return TableWidths(rank, (maxWidth - rank - count).coerceAtLeast(0.dp), 0.dp, count)
+    }
     val rank = 48.dp
     val count = 96.dp
     val remaining = (maxWidth - rank - count).coerceAtLeast(0.dp)
