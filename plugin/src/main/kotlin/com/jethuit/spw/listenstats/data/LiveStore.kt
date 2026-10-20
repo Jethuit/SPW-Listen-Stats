@@ -18,14 +18,17 @@ data class LiveSession(
     var finalized: Boolean,
     val spans: MutableList<ListeningSpan> = mutableListOf(),
     var approximate: Boolean = false,
-    var hostId: String? = null
+    var hostId: String? = null,
+    var hostAliases: Set<String> = emptySet()
 ) {
-    fun copyForStore(): LiveSession = copy(spans = spans.toMutableList())
+    fun copyForStore(): LiveSession = copy(spans = spans.toMutableList(), hostAliases = hostAliases.toSet())
     fun copyForDisplay(): LiveSession = copyForStore()
+    fun recordedSpans(): List<ListeningSpan> =
+        if (spans.isEmpty() && durationMs > 0) listOf(ListeningSpan(startTimeMs, durationMs)) else spans.toList()
     fun event() = ListeningEvent("live:$id",
         TrackMeta(trackId, title, artist, album, albumArtist, trackDurationMs),
-        if (spans.isEmpty() && durationMs > 0) listOf(ListeningSpan(startTimeMs, durationMs)) else spans.toList(),
-        aliases = hostId?.let { setOf(it) } ?: emptySet(), approximate = approximate)
+        recordedSpans(),
+        aliases = hostAliases + setOfNotNull(hostId), approximate = approximate)
 }
 
 object LiveStore {
@@ -72,7 +75,8 @@ object LiveStore {
                 loaded[str("id")] = LiveSession(str("id"), str("trackId"), num("startTime"), num("duration"),
                     str("title"), str("artist"), str("album"), str("albumArtist"), num("trackDuration"),
                     finalized, spans, repaired || version == 1 || item["approximate"]?.jsonPrimitive?.booleanOrNull == true,
-                    item["hostId"]?.jsonPrimitive?.contentOrNull)
+                    item["hostId"]?.jsonPrimitive?.contentOrNull,
+                    item["hostAliases"]?.jsonArray?.map { it.jsonPrimitive.content }?.toSet() ?: emptySet())
             }
             sessions.putAll(loaded)
         } catch (failure: Exception) {
@@ -88,6 +92,7 @@ object LiveStore {
         try {
             val root = buildJsonObject {
                 put("version", 2)
+                put("sourceId", DataFiles.sourceId())
                 put("sessions", buildJsonArray {
                     sessions.values.forEach { session -> add(buildJsonObject {
                         put("id", session.id); put("trackId", session.trackId)
@@ -97,6 +102,7 @@ object LiveStore {
                         put("trackDuration", session.trackDurationMs); put("finalized", session.finalized)
                         put("approximate", session.approximate)
                         session.hostId?.let { put("hostId", it) }
+                        put("hostAliases", buildJsonArray { session.hostAliases.sorted().forEach { add(JsonPrimitive(it)) } })
                         put("spans", buildJsonArray { session.event().spans.forEach { span ->
                             add(buildJsonArray { add(JsonPrimitive(span.startMs)); add(JsonPrimitive(span.durationMs)) })
                         } })
@@ -113,7 +119,15 @@ object LiveStore {
 
     @Synchronized fun upsert(session: LiveSession) {
         val oldHostId = sessions[session.id]?.hostId
-        sessions[session.id] = session.copyForStore().also { if (it.hostId == null) it.hostId = oldHostId }
+        val oldAliases = sessions[session.id]?.hostAliases.orEmpty()
+        sessions[session.id] = session.copyForStore().also {
+            // The accumulator may still hold a pre-migration copy of this session.
+            if (oldHostId != null) {
+                it.hostId = oldHostId
+                session.hostId?.takeIf { alias -> alias != oldHostId }?.let { alias -> it.hostAliases += alias }
+            }
+            it.hostAliases += oldAliases
+        }
     }
 
     /**
@@ -153,23 +167,52 @@ object LiveStore {
                 listen.trackId, "未知歌曲", "", "", "", 0),
                 listOf(ListeningSpan(listen.startTimeMs, listen.durationMs)), approximate = true)
         }
-        val used = sessions.values.mapNotNull { it.hostId }.toMutableSet()
+        val prefix = "host:$source:"
+        val assigned = sessions.values.filter { it.hostId?.startsWith(prefix) == true }
+            .groupBy { it.hostId!! }.mapValues { it.value.toMutableList() }.toMutableMap()
         var changed = false
         sessions.values.filter { it.durationMs > 0 }.forEach { session ->
-            if (session.hostId == null) {
-                // Match at most one live play to a host row. Near-start matching remains a host heuristic.
+            if (session.hostId?.startsWith(prefix) != true) {
+                val observed = session.recordedSpans()
+                // Distinct, non-overlapping lifecycle fragments can share the same host play.
+                // Keep the existing near-start heuristic and do not join adjacent replays.
                 val candidate = host.listens.filter {
                     it.trackId == session.trackId && abs(it.startTimeMs - session.startTimeMs) <= 10_000 &&
-                        "host:$source:${it.id}" !in used
+                        assigned["$prefix${it.id}"].orEmpty().all { other ->
+                            abs(other.startTimeMs - session.startTimeMs) <= 250 &&
+                                other.recordedSpans().none { a -> observed.any { b ->
+                                    a.startMs < b.startMs + b.durationMs && b.startMs < a.startMs + a.durationMs
+                                } }
+                        }
                 }.minByOrNull { abs(it.startTimeMs - session.startTimeMs) }
                 if (candidate != null) {
-                    session.hostId = "host:$source:${candidate.id}"
-                    used.add(session.hostId!!)
+                    session.hostId?.let { session.hostAliases += it }
+                    session.hostId = "$prefix${candidate.id}"
+                    assigned.getOrPut(session.hostId!!) { mutableListOf() }.add(session)
                     changed = true
                 }
             }
         }
         if (changed) save()
-        return ListeningEvents.aggregate(host, hostEvents + sessions.values.filter { it.durationMs > 0 }.map { it.event() })
+        val liveEvents = sessions.values.filter { it.durationMs > 0 }.map { it.event() }
+            .groupBy { it.aliases.firstOrNull { alias -> alias.startsWith(prefix) } ?: it.id }
+            .values.map { pieces ->
+                val first = pieces.first()
+                val spans = mutableListOf<ListeningSpan>()
+                pieces.flatMap { it.spans }.sortedBy { it.startMs }.forEach { span ->
+                    val last = spans.lastOrNull()
+                    if (last != null && span.startMs <= last.startMs + last.durationMs) {
+                        spans[spans.lastIndex] = last.copy(durationMs =
+                            maxOf(last.startMs + last.durationMs, span.startMs + span.durationMs) - last.startMs)
+                    } else spans.add(span)
+                }
+                first.copy(
+                    track = pieces.fold(first.track) { known, piece -> ListeningEvents.mergeTrack(known, piece.track) },
+                    spans = spans,
+                    aliases = pieces.flatMap { it.aliases + it.id }.toSet() - first.id,
+                    approximate = pieces.any { it.approximate }
+                )
+            }
+        return ListeningEvents.aggregate(host, hostEvents + liveEvents)
     }
 }

@@ -1,5 +1,7 @@
 # GPT 交接文档：听歌统计
 
+> **当前源码：v0.1.3-dev.1，未上传、未发布。** 已同步 `main` 的用户 README 提交 `139e1b0`，按四项数据问题复现报告完成修复：生命周期片段去重、回调身份校验、有效元数据保留、来源 UUID 恢复和旧别名迁移。38 文件构建成功，18 组原数据回归＋9 组新增完整性回归全部通过。本地包 `build/libs/SPW-Stats-v0.1.3-dev.1.spmod`；未运行真实 SPW 播放，也未操作真实数据。详情与近似匹配/丢弃不确定采样的边界见 [BUGFIX-v0.1.3.md](BUGFIX-v0.1.3.md)。当前公开最新版仍为 v0.1.2。
+
 > **当前源码及最新发布：v0.1.2，已正式公开并设为 Latest。** 用户已在 dev.2 验收后恢复发布授权，[Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.2) 已完成（ID `417473230`）。标签目标 `e1b6406fd25c24dda1253062cb62f5ed032e845a`；`main` 与工作分支已同步。附件仅 `SPW-Stats-v0.1.2.spmod`，17,193,719 字节，远端摘要与本地一致。代码、资源和依赖均与已确认 dev.2 一致，仅转换版本描述。功能为顶部入口与官方卡片/提示框配色；说明见 [UI-v0.1.2.md](UI-v0.1.2.md)。本机回执 `build/releases/published-v0.1.2.json`。
 
 > **历史发布：v0.1.1。** 用户于 2026-10-19 授权更新 GitHub，[Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.1) 采用其提供的四条更新日志。源码与 README 已同步 main；附件仅 `SPW-Stats-v0.1.1.spmod`，17,180,687 字节；标签对应 `9547491dda859cc193d60e572cd870b6dc61ca6e`。导航、返回箭头、自定义日期按钮与窄屏布局修复统一纳入此版本。技术说明见 [UI-v0.1.1.md](UI-v0.1.1.md) 和 [BUGFIX-0.1.1.md](BUGFIX-0.1.1.md)。

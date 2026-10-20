@@ -110,9 +110,15 @@ object PlaybackTracker {
     private var active = false
     private var accumulator = PlaybackAccumulator(::persistSession)
     private var lastSaveNano = 0L
+    private var observationRevision = 0L
+    private var positionSerial = 0L
+    private var observedTrack: TrackMeta? = null
 
     fun initialize() = synchronized(lock) {
         generation++
+        observationRevision++
+        positionSerial = 0
+        observedTrack = null
         if (executor.isShutdown) executor = newExecutor()
         LiveStore.load()
         accumulator = PlaybackAccumulator(::persistSession) { track -> LiveStore.recoverOpen(track.id) }
@@ -124,6 +130,7 @@ object PlaybackTracker {
         val old = synchronized(lock) {
             active = false
             generation++
+            observedTrack = null
             accumulator.finish()
             LiveStore.finalizeOpenExcept()
             LiveStore.save()
@@ -133,8 +140,13 @@ object PlaybackTracker {
         catch (_: InterruptedException) { Thread.currentThread().interrupt() }
     }
 
-    private fun enqueue(action: () -> Unit) = synchronized(lock) {
+    private fun enqueue(invalidateObservation: Boolean = false, action: () -> Unit) = synchronized(lock) {
         if (!active) return@synchronized
+        // Invalidate at callback receipt, not after an older, potentially blocked lookup.
+        if (invalidateObservation) {
+            observationRevision++
+            observedTrack = null
+        }
         val expected = generation
         try {
             executor.execute {
@@ -146,7 +158,7 @@ object PlaybackTracker {
         } catch (_: RejectedExecutionException) { }
     }
 
-    fun onStateChanged(state: PlaybackExtensionPoint.State) = enqueue {
+    fun onStateChanged(state: PlaybackExtensionPoint.State) = enqueue(invalidateObservation = true) {
         if (state == PlaybackExtensionPoint.State.Ended || state == PlaybackExtensionPoint.State.Idle) {
             accumulator.finish()
             accumulator.playing(false)
@@ -155,12 +167,12 @@ object PlaybackTracker {
         } else if (state == PlaybackExtensionPoint.State.Buffering) accumulator.suspendSampling()
     }
 
-    fun onIsPlayingChanged(isPlaying: Boolean) = enqueue {
+    fun onIsPlayingChanged(isPlaying: Boolean) = enqueue(invalidateObservation = true) {
         accumulator.playing(isPlaying)
         if (!isPlaying) LiveStore.save()
     }
 
-    fun onSeekTo(position: Long) = enqueue {
+    fun onSeekTo(position: Long) = enqueue(invalidateObservation = true) {
         accumulator.seek(position)
         if (position == 0L) LiveStore.finalizeOpenExcept()
         LiveStore.save()
@@ -172,9 +184,18 @@ object PlaybackTracker {
         synchronized(lock) {
             if (!active) return
             val expected = generation
+            val revision = observationRevision
+            val serial = ++positionSerial
+            val before = observedTrack
             try {
                 executor.execute {
-                    if (!synchronized(lock) { active && generation == expected }) return@execute
+                    if (!synchronized(lock) {
+                        if (!active || generation != expected) false
+                        else if (revision != observationRevision || serial != positionSerial) {
+                            accumulator.suspendSampling()
+                            false
+                        } else true
+                    }) return@execute
                     // Host IO stays outside the lifecycle lock, so shutdown can invalidate this result.
                     val track = try {
                         WorkshopApi.playback.getCurrentMediaItem()?.let {
@@ -183,7 +204,18 @@ object PlaybackTracker {
                     } catch (_: Exception) { null }
                     synchronized(lock) {
                         if (!active || generation != expected) return@execute
-                        if (System.nanoTime() - nano > 3_000_000_000L) {
+                        if (revision != observationRevision || serial != positionSerial ||
+                            System.nanoTime() - nano > 3_000_000_000L) {
+                            accumulator.suspendSampling()
+                            observedTrack = null
+                            return@execute
+                        }
+                        observedTrack = track
+                        // The API has no atomic track+position snapshot. Only accept a position
+                        // bracketed by matching metadata observations, with no queued transition.
+                        // The first/uncertain observation is used to establish identity, not a play.
+                        if (track == null || before?.id != track.id || position < 0 ||
+                            (track.durationMs > 0 && position > track.durationMs + 3_000)) {
                             accumulator.suspendSampling()
                             return@execute
                         }
