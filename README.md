@@ -16,17 +16,23 @@
 
 ## 实际效果图
 
-### 听歌概览与热力图
+### 听歌概览与热力图（浅色）
 
-![听歌概览与热力图实际效果](docs/screenshots/v0.1.2/overview-heatmap.png)
+![浅色听歌概览、热力图与近七天时长分布](docs/screenshots/v0.1.5/overview-light.png)
 
-### 时长分布与听歌小结
+### 时长分布（深色柱状图）
 
-![时长分布与听歌小结实际效果](docs/screenshots/v0.1.2/distribution-summary.png)
+![深色听歌概览、热力图与单天小时柱状图](docs/screenshots/v0.1.5/distribution-dark-bar.png)
 
-### 听歌排行
+### 材质背景（浅色与深色）
 
-![听歌排行实际效果](docs/screenshots/v0.1.2/ranking.png)
+![浅色材质背景下的热力图与平滑曲线](docs/screenshots/v0.1.5/overview-material-light.png)
+
+![深色材质背景下的热力图提示与平滑曲线](docs/screenshots/v0.1.5/overview-material-dark.png)
+
+### 专辑排行
+
+![材质背景下的专辑播放次数排行](docs/screenshots/v0.1.5/album-ranking.png)
 
 ## 安装与打开
 
