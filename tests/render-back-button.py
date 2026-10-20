@@ -73,7 +73,7 @@ if args.material_ranking:
         assert cover_rows, file.name
         dark, classic = file.name.startswith('dark-'), '-classic-' in file.name
         background = (35, 35, 35) if dark else (248, 248, 248) if classic else (221, 221, 221)
-        light_mica = file.name.startswith('light-mica-') and not file.name.startswith('light-mica-alt-')
+        light_mica = file.name.startswith('light-mica-')
         line = ((55, 57, 62) if dark else (177, 177, 177) if light_mica else
                 (195, 195, 195) if '-acrylic-' in file.name else (233, 234, 237))
         for y in range(min(cover_rows), max(cover_rows)+8):

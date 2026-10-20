@@ -90,7 +90,7 @@ fun main(args: Array<String>) {
                     controlBackground = base.controlBackground.copy(alpha = 0.72f),
                     subtle = base.subtle.copy(alpha = 0.55f), hover = base.hover.copy(alpha = 0.65f),
                     rankingRowHover = base.subtle.copy(alpha = 0.55f),
-                    separatorLine = if (style == "WindowsMica" && !base.isDark)
+                    separatorLine = if (style in setOf("WindowsMica", "WindowsMicaAlt") && !base.isDark)
                         androidx.compose.ui.graphics.Color(0xFFB1B1B1) else base.line))
             }
             check(materialStatsColors(base, style, false) === base)

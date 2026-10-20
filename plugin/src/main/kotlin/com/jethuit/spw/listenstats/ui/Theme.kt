@@ -129,7 +129,7 @@ fun materialStatsColors(base: StatsColors, windowStyle: String?,
         rankingRowHover = base.subtle.copy(alpha = 0.55f),
         // User selected the native drop-target outline gray, rather than the
         // lighter card border. Keep layout separators independent of borders.
-        separatorLine = if (windowStyle == "WindowsMica" && !base.isDark)
+        separatorLine = if (windowStyle in setOf("WindowsMica", "WindowsMicaAlt") && !base.isDark)
             Color(0xFFB1B1B1) else base.line
     )
 }
