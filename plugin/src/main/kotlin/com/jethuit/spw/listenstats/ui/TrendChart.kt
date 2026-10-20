@@ -31,10 +31,8 @@ import com.moriafly.salt.ui.LocalTextStyle
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
-import kotlin.math.log10
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.pow
 import kotlin.math.sqrt
 
 @Composable
@@ -58,11 +56,9 @@ fun TrendChart(
     val values = buckets.map { it.millis }
     val maxMillis = values.maxOrNull() ?: 0L
     val empty = maxMillis <= 0L
-    val useHours = maxMillis >= 3_600_000L
-    val unitMillis = if (useHours) 3_600_000.0 else 60_000.0
-    val unitName = if (useHours) "小时" else "分钟"
-    val rawMax = values.maxOrNull()?.let { it / unitMillis } ?: 0.0
-    val yMax = niceMax(rawMax)
+    val axis = UiGeometry.trendAxis(maxMillis, hourly)
+    val unitMillis = axis.unitMillis
+    val yMax = axis.maximum
     val average = if (values.isEmpty()) 0.0 else values.sum().toDouble() / values.size / unitMillis
 
     BoxWithConstraints(
@@ -331,21 +327,6 @@ fun TrendChart(
         )
         StatsTooltip(tooltip)
     }
-}
-
-private fun niceMax(value: Double): Double {
-    if (value <= 0.0) return 4.0
-    val padded = value * 1.12
-    val exponent = floor(log10(padded))
-    val power = 10.0.pow(exponent)
-    val fraction = padded / power
-    val nice = when {
-        fraction <= 1.0 -> 1.0
-        fraction <= 2.0 -> 2.0
-        fraction <= 5.0 -> 5.0
-        else -> 10.0
-    }
-    return nice * power
 }
 
 private fun linePath(points: List<Offset>): Path {

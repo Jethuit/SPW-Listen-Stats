@@ -1,4 +1,5 @@
 import com.jethuit.spw.listenstats.ui.UiGeometry
+import com.jethuit.spw.listenstats.ui.TrendAxis
 import com.jethuit.spw.listenstats.ui.rankingSafePage
 import com.jethuit.spw.listenstats.ui.rankingTotalPages
 import com.jethuit.spw.listenstats.data.*
@@ -47,6 +48,18 @@ fun main(args: Array<String>) {
         labels.forEachIndexed { index, text -> check(kotlin.math.abs(text.toDouble() - index * step) < 0.000001) }
     }
     println("PASS empty, fractional minute and hour ticks are distinct and accurate")
+    for (minutes in listOf(0L, 1L, 20L, 59L, 60L, 61L)) {
+        val axis = UiGeometry.trendAxis(minutes * 60_000L, hourly = true)
+        check(axis.caption == "时长/min" && axis.unitMillis == 60_000.0)
+        val labels = (0..4).map { UiGeometry.tick(axis.maximum * it / 4, axis.maximum / 4) }
+        check(labels == listOf("0", "15", "30", "45", "60")) { "Single-day scale: $labels" }
+    }
+    check(UiGeometry.trendAxis(0L, hourly = false) == TrendAxis(false, 4.0))
+    val multipleDays = UiGeometry.trendAxis(59 * 60_000L, hourly = false)
+    check(multipleDays.caption == "时长/min" && multipleDays.maximum == 100.0)
+    val fullDay = UiGeometry.trendAxis(24 * 3_600_000L, hourly = false)
+    check(fullDay.caption == "时长/h" && fullDay.maximum == 50.0)
+    println("PASS single-day 0/59/60-minute boundaries keep 0–60 min; multi-day scaling is preserved")
     val today = LocalDate.of(2026, 10, 18)
     val data = StatsData.empty().copy(dailyMillis = mapOf(today to 1_000L,
         today.plusDays(1) to 20_000L, LocalDate.of(2025, 12, 31) to 50_000L))
@@ -61,5 +74,5 @@ fun main(args: Array<String>) {
     val hours = StatsCalculations.chartBuckets(data, DateRange(today, today), Granularity.Day)
     check(hours.size == 24 && hours.last().longLabel.endsWith("23:00–24:00"))
     println("PASS midnight interval ends at 24:00")
-    println("6 UI regression groups passed; rendered UI still requires user review")
+    println("7 UI regression groups passed; rendered UI still requires user review")
 }

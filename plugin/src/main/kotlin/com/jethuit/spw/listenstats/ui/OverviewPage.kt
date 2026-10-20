@@ -78,7 +78,7 @@ fun OverviewPage(
     }
     val rangeTotal = buckets.sumOf { it.millis }
     val maxBucket = buckets.maxOfOrNull { it.millis } ?: 0L
-    val unitName = if (maxBucket >= 3_600_000L) "小时" else "分钟"
+    val trendAxis = UiGeometry.trendAxis(maxBucket, hourly = range.days == 1)
 
     Column(Modifier.fillMaxWidth()) {
         SummaryStrip(4) { itemWidth ->
@@ -185,7 +185,7 @@ fun OverviewPage(
         }
         Box(Modifier.height(23.dp))
         Text(
-            if (unitName == "小时") "时长/h" else "时长/min",
+            trendAxis.caption,
             style = AppType.tiny.copy(color = colors.muted)
         )
         Box(Modifier.height(7.dp))
