@@ -88,7 +88,9 @@ fun main(args: Array<String>) {
                 check(material == base.copy(pageBackground = androidx.compose.ui.graphics.Color.Transparent,
                     cardBackground = base.cardBackground.copy(alpha = 0.72f),
                     controlBackground = base.controlBackground.copy(alpha = 0.72f),
-                    subtle = base.subtle.copy(alpha = 0.55f), hover = base.hover.copy(alpha = 0.65f)))
+                    subtle = base.subtle.copy(alpha = 0.55f), hover = base.hover.copy(alpha = 0.65f),
+                    rankingRowLine = if (style == "WindowsAcrylic") androidx.compose.ui.graphics.Color.Transparent else base.line,
+                    rankingRowHover = base.subtle.copy(alpha = 0.55f)))
             }
             for (mode in listOf(ThemeMode.Light, ThemeMode.Dark)) {
                 check(materialStatsColors(base, mode, style, true) === base)

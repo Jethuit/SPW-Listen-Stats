@@ -293,7 +293,7 @@ private fun SongRow(rank: RankingEntry, position: Int) {
     val colors = LocalStatsColors.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val widths = tableWidths(maxWidth)
-        HoverColor(colors.pageBackground, colors.subtle) { background ->
+        HoverColor(colors.pageBackground, colors.rankingRowHover) { background ->
             Column {
                 Row(
                     Modifier
@@ -360,7 +360,7 @@ private fun SongRow(rank: RankingEntry, position: Int) {
                     Modifier
                         .fillMaxWidth()
                         .height(1.dp)
-                        .drawWith { drawRect(color = colors.line) }
+                        .drawWith { drawRect(color = colors.rankingRowLine) }
                 )
             }
         }

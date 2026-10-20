@@ -16,6 +16,7 @@ parser.add_argument('--colors', action='store_true', help='render sampled card a
 parser.add_argument('--ranking', action='store_true', help='render three ranking modes at narrow and wide widths')
 parser.add_argument('--material', action='store_true', help='check retained host composition and material background isolation')
 parser.add_argument('--acrylic', action='store_true', help='compare native Acrylic reference colors on sampled flat backdrops')
+parser.add_argument('--acrylic-ranking', action='store_true', help='render actual Acrylic rows and pointer hover')
 args = parser.parse_args()
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
@@ -27,7 +28,7 @@ scratch.mkdir(parents=True, exist_ok=True)
 classpath = os.pathsep.join(map(str, [kotlin / 'lib/kotlin-stdlib.jar', ROOT / 'build/plugin-classes',
     *builder.saltui_jars(), ROOT / 'build/tools/spw-host.jar']))
 java = str(jdk / 'bin/java.exe')
-test_name = ('AcrylicColorsVisualCheck' if args.acrylic else 'MaterialLayerVisualCheck' if args.material else 'RankingModesVisualCheck' if args.ranking else 'CardColorsVisualCheck' if args.colors else 'CalendarNavigationVisualCheck' if args.calendar else
+test_name = ('AcrylicColorsVisualCheck' if args.acrylic else 'MaterialLayerVisualCheck' if args.material else 'RankingModesVisualCheck' if args.ranking or args.acrylic_ranking else 'CardColorsVisualCheck' if args.colors else 'CalendarNavigationVisualCheck' if args.calendar else
              'ResponsiveLayoutVisualCheck' if args.layout else 'BackButtonVisualCheck')
 subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
     '-no-stdlib', '-classpath', classpath,
@@ -49,14 +50,27 @@ if args.material:
     output = ROOT / 'build/screenshots' / f'material-v{builder.PLUGIN_VERSION}'
 if args.acrylic:
     output = ROOT / 'build/screenshots' / f'acrylic-v{builder.PLUGIN_VERSION}'
+if args.acrylic_ranking:
+    output = ROOT / 'build/screenshots' / f'acrylic-ranking-v{builder.PLUGIN_VERSION}'
 native_dir = (args.spw_dir or builder.DEFAULT_SPW_DIR) / 'app'
 native_temp = scratch / 'native-temp'
 native_temp.mkdir(exist_ok=True)
 subprocess.run([java, f'-Dskiko.library.path={native_dir}', f'-Djna.tmpdir={native_temp}',
     f'-Djava.io.tmpdir={native_temp}', '--enable-native-access=ALL-UNNAMED',
     '-cp', str(scratch) + os.pathsep + classpath,
-    test_name + 'Kt', str(output)], check=True, env=environment)
-if args.acrylic:
+    test_name + 'Kt', str(output), *(['acrylic'] if args.acrylic_ranking else [])], check=True, env=environment)
+if args.acrylic_ranking:
+    for mode in ['song', 'artist', 'album']:
+        normal = Image.open(output / f'acrylic-{mode}-760.png').convert('RGB')
+        hovered = Image.open(output / f'acrylic-{mode}-760-hover.png').convert('RGB')
+        # x=10 avoids covers, rank text and the footer. Scan across row boundaries
+        # to detect dividers rather than just checking a palette constant.
+        for y in range(130, 350 if mode == 'song' else 270):
+            assert normal.getpixel((10, y)) == (221, 221, 221), (mode, y, normal.getpixel((10, y)))
+        assert hovered.getpixel((10, 160)) == (194, 194, 194), (mode, hovered.getpixel((10, 160)))
+        assert hovered.getpixel((10, 245)) == (221, 221, 221), mode
+    print('PASS three actual ranking modes: no row separators; native #C2C2C2 pointer hover and unaffected next row')
+elif args.acrylic:
     from collections import Counter
     # Native focused card samples vary with the backdrop. Inactive reference:
     # background #DDDDDD, card #E2E2E2, outline #C7C7C7.

@@ -50,7 +50,9 @@ data class StatsColors(
     val pageBackground: Color = background,
     val controlBackground: Color = subtle,
     val cardBackground: Color = background,
-    val selectedControlBackground: Color = background
+    val selectedControlBackground: Color = background,
+    val rankingRowLine: Color = line,
+    val rankingRowHover: Color = subtle
 )
 
 // Sampled from the official SPW classic settings cards, for both theme modes.
@@ -129,6 +131,9 @@ fun materialStatsColors(base: StatsColors, mode: ThemeMode, windowStyle: String?
             selectedControlBackground = Color.White.copy(alpha = 0.60f),
             subtle = Color.Black.copy(alpha = 0.04f),
             hover = Color.Black.copy(alpha = 0.075f),
+            rankingRowLine = Color.Transparent,
+            // Native Acrylic row: #DDDDDD backdrop -> #C2C2C2 on hover.
+            rankingRowHover = Color.Black.copy(alpha = 0.12f),
             cells = listOf(Color.Black.copy(alpha = 0.055f)) + base.cells.drop(1)
         )
     }
@@ -137,7 +142,9 @@ fun materialStatsColors(base: StatsColors, mode: ThemeMode, windowStyle: String?
         cardBackground = base.cardBackground.copy(alpha = 0.72f),
         controlBackground = base.controlBackground.copy(alpha = 0.72f),
         subtle = base.subtle.copy(alpha = 0.55f),
-        hover = base.hover.copy(alpha = 0.65f)
+        hover = base.hover.copy(alpha = 0.65f),
+        rankingRowLine = if (windowStyle == "WindowsAcrylic") Color.Transparent else base.line,
+        rankingRowHover = base.subtle.copy(alpha = 0.55f)
     )
 }
 
