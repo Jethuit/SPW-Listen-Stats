@@ -2,7 +2,9 @@
 
 > 给接手 GPT 的单一入口文档见 [`GPT-HANDOFF.md`](GPT-HANDOFF.md)；本文件保留逐版本修订记录。
 
-## v0.1.4 正式发布准备
+## 最新正式发布：v0.1.4
+
+- 已正式公开并设为 Latest：[v0.1.4 Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.4)，Release ID `418260534`，标签目标 `de9d8522e9b784e64fda920c002c65d5142d70cf`；源码、README 和说明已同步 GitHub `main` 与工作分支。唯一附件为 `SPW-Stats-v0.1.4.spmod`，GitHub 大小及 SHA-256 与本地一致。发布回执 `build/releases/published-v0.1.4.json`。未重新安装或运行真实宿主。
 
 - 用户授权发布当前正式版。版本由 dev.11 提升为 `0.1.4`，README 更新为始终跟随宿主主题、四种材质、每日热力图配置和分钟四舍五入；沿用现有截图，不增加开发信息或更新日志。发布说明为 [releases/v0.1.4.md](releases/v0.1.4.md)。
 - 正式包 `build/releases/v0.1.4/SPW-Stats-v0.1.4.spmod`（17,242,562 字节、159 项），41 文件编译成功，包结构与 ZIP 完整性检查通过。与 dev.11 逐项比对，仅 manifest 版本不同，代码、资源与依赖一致；沿用开发阶段验证，未重复运行测试。仅上传安装包附件，不附截图或校验文件。公开状态以发布回执为准。

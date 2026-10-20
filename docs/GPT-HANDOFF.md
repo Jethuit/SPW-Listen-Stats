@@ -1,5 +1,7 @@
 # GPT 交接文档：听歌统计
 
+> **v0.1.4 已正式发布并设为 Latest。** [发布页面](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.4)，Release ID `418260534`，标签目标 `de9d8522e9b784e64fda920c002c65d5142d70cf`，GitHub `main` 与工作分支已同步。唯一附件 `SPW-Stats-v0.1.4.spmod`（17,242,562 字节），GitHub SHA-256 与本地一致，回执 `build/releases/published-v0.1.4.json`；无需再执行下方发布准备。未重新操作真实宿主。
+
 > **v0.1.4 正式发布准备完成。** 用户授权发布；正式包 `build/releases/v0.1.4/SPW-Stats-v0.1.4.spmod`（17,242,562 字节、159 项）。41 文件编译、包结构／ZIP 检查通过，逐项比对 dev.11 仅 manifest 版本不同，沿用既有验证。README 与发布说明已更新。发布目标为 GitHub 正式 Latest，公开结果以回执 `build/releases/published-v0.1.4.json` 为准。
 
 > **最新 dev.11 已构建。** 包 `build/libs/SPW-Stats-v0.1.4-dev.11.spmod`（17,242,566 字节、159 项）；椒盐经典三榜悬停按原版取样改为浅色 `#E8E8E8`、深色 `#363637`，图表圆点改为实心蓝点，取代之前空心透明要求。41 文件编译、8 组 UI、包结构／版本／ZIP 完整性及实心标记源码检查通过。未安装／运行真实 SPW、未上传或发布；最终观感由用户核对。
