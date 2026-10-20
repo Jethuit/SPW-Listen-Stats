@@ -1,6 +1,6 @@
 import com.jethuit.spw.listenstats.ui.UiGeometry
 import com.jethuit.spw.listenstats.ui.TrendAxis
-import com.jethuit.spw.listenstats.ui.ThemeMode
+import com.jethuit.spw.listenstats.ui.hostStatsColors
 import com.jethuit.spw.listenstats.ui.LightStatsColors
 import com.jethuit.spw.listenstats.ui.DarkStatsColors
 import com.jethuit.spw.listenstats.ui.materialStatsColors
@@ -80,7 +80,7 @@ fun main(args: Array<String>) {
     println("PASS midnight interval ends at 24:00")
     for (base in listOf(LightStatsColors, DarkStatsColors)) {
         for (style in listOf("WindowsAcrylic", "WindowsMica", "WindowsMicaAlt")) {
-            val material = materialStatsColors(base, ThemeMode.System, style, true)
+            val material = materialStatsColors(base, style, true)
             check(material.pageBackground.alpha == 0f && material.cardBackground.alpha in 0.1f..0.99f)
             check(material.text.alpha == 1f && material.tooltipBackground == base.tooltipBackground)
             check(material.background == base.background && material.tooltipText == base.tooltipText)
@@ -89,18 +89,19 @@ fun main(args: Array<String>) {
                     cardBackground = base.cardBackground.copy(alpha = 0.72f),
                     controlBackground = base.controlBackground.copy(alpha = 0.72f),
                     subtle = base.subtle.copy(alpha = 0.55f), hover = base.hover.copy(alpha = 0.65f),
-                    rankingRowLine = if (style == "WindowsAcrylic") androidx.compose.ui.graphics.Color.Transparent else base.line,
                     rankingRowHover = base.subtle.copy(alpha = 0.55f)))
             }
-            for (mode in listOf(ThemeMode.Light, ThemeMode.Dark)) {
-                check(materialStatsColors(base, mode, style, true) === base)
-            }
-            check(materialStatsColors(base, ThemeMode.System, style, false) === base)
+            check(materialStatsColors(base, style, false) === base)
         }
         for (style in listOf(null, "None", "UnknownStyle")) {
-            check(materialStatsColors(base, ThemeMode.System, style, true) === base)
+            check(materialStatsColors(base, style, true) === base)
         }
     }
-    println("PASS material follows the host only with an active wrapper; manual and unsupported styles remain opaque")
+    for (systemDark in listOf(false, true)) {
+        check(hostStatsColors(false, systemDark) === LightStatsColors)
+        check(hostStatsColors(true, systemDark) === DarkStatsColors)
+        check(hostStatsColors(null, systemDark).isDark == systemDark)
+    }
+    println("PASS host light/dark selection overrides OS; OS fallback and safe material wrapping remain supported")
     println("8 UI regression groups passed; rendered UI still requires user review")
 }

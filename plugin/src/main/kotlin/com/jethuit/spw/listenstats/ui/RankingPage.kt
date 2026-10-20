@@ -62,7 +62,7 @@ import kotlinx.coroutines.delay
 const val RANKING_PAGE_SIZE = 25
 private val RankingCoverSize = 48.dp
 private val RankingCoverRadius = 4.dp
-// 65dp content plus the existing 1dp rule approximates the host's 66dp row pitch.
+// 65dp content plus a 1dp gap preserves the host's approximately 66dp row pitch.
 private val RankingRowHeight = 65.dp
 private val RankingRowText = AppType.table.copy(fontSize = 14.sp, lineHeight = 20.sp)
 private val RankingSecondaryText = AppType.tiny.copy(fontSize = 12.sp, lineHeight = 16.sp)
@@ -141,6 +141,8 @@ fun RankingPage(
                 )
             }
         }
+        // One closing rule separates the current page's records from its footer.
+        Box(Modifier.fillMaxWidth().height(1.dp).drawWith { drawRect(colors.line) })
         Box(Modifier.height(16.dp))
         RankingFooter(filtered.size, currentPage, totalPages, onPageChange, mode)
     }
@@ -356,12 +358,7 @@ private fun SongRow(rank: RankingEntry, position: Int) {
                         )
                     }
                 }
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .drawWith { drawRect(color = colors.rankingRowLine) }
-                )
+                Box(Modifier.height(1.dp))
             }
         }
     }

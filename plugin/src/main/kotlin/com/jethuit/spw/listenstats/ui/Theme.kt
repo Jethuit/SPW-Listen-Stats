@@ -16,23 +16,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-enum class ThemeMode(val storage: String) {
-    System("system"),
-    Light("light"),
-    Dark("dark");
-
-    fun next(): ThemeMode = when (this) {
-        System -> Light
-        Light -> Dark
-        Dark -> System
-    }
-
-    companion object {
-        fun fromStorage(value: String?): ThemeMode =
-            entries.firstOrNull { it.storage == value } ?: System
-    }
-}
-
 data class StatsColors(
     val isDark: Boolean,
     val background: Color,
@@ -51,7 +34,6 @@ data class StatsColors(
     val controlBackground: Color = subtle,
     val cardBackground: Color = background,
     val selectedControlBackground: Color = background,
-    val rankingRowLine: Color = line,
     val rankingRowHover: Color = subtle
 )
 
@@ -111,9 +93,9 @@ val DarkStatsColors = StatsColors(
 val LocalStatsColors = staticCompositionLocalOf { LightStatsColors }
 
 /** DWM belongs to the host window. Transparent page paint is safe only behind an active wrapper. */
-fun materialStatsColors(base: StatsColors, mode: ThemeMode, windowStyle: String?,
+fun materialStatsColors(base: StatsColors, windowStyle: String?,
                         inheritMaterial: Boolean): StatsColors {
-    if (!inheritMaterial || mode != ThemeMode.System ||
+    if (!inheritMaterial ||
         windowStyle !in setOf("WindowsAcrylic", "WindowsMica", "WindowsMicaAlt")) return base
     // The supplied light Acrylic captures have a #DDDDDD inactive backdrop and
     // #E2E2E2 card interiors. A light tint preserves the native focused backdrop
@@ -131,7 +113,6 @@ fun materialStatsColors(base: StatsColors, mode: ThemeMode, windowStyle: String?
             selectedControlBackground = Color.White.copy(alpha = 0.60f),
             subtle = Color.Black.copy(alpha = 0.04f),
             hover = Color.Black.copy(alpha = 0.075f),
-            rankingRowLine = Color.Transparent,
             // Native Acrylic row: #DDDDDD backdrop -> #C2C2C2 on hover.
             rankingRowHover = Color.Black.copy(alpha = 0.12f),
             cells = listOf(Color.Black.copy(alpha = 0.055f)) + base.cells.drop(1)
@@ -143,13 +124,16 @@ fun materialStatsColors(base: StatsColors, mode: ThemeMode, windowStyle: String?
         controlBackground = base.controlBackground.copy(alpha = 0.72f),
         subtle = base.subtle.copy(alpha = 0.55f),
         hover = base.hover.copy(alpha = 0.65f),
-        rankingRowLine = if (windowStyle == "WindowsAcrylic") Color.Transparent else base.line,
         rankingRowHover = base.subtle.copy(alpha = 0.55f)
     )
 }
 
+/** SPW's explicit light/dark selection takes precedence over the OS fallback. */
+fun hostStatsColors(hostDark: Boolean?, systemDark: Boolean): StatsColors =
+    if (hostDark ?: systemDark) DarkStatsColors else LightStatsColors
+
 @Composable
-fun StatsTheme(mode: ThemeMode, inheritMaterial: Boolean = false, content: @Composable () -> Unit) {
+fun StatsTheme(inheritMaterial: Boolean = false, content: @Composable () -> Unit) {
     var hostAppearance by remember { mutableStateOf(HostAppearance()) }
     var systemDark by remember { mutableStateOf(false) }
     var hostFont by remember { mutableStateOf<androidx.compose.ui.text.font.FontFamily>(androidx.compose.ui.text.font.FontFamily.Default) }
@@ -168,13 +152,9 @@ fun StatsTheme(mode: ThemeMode, inheritMaterial: Boolean = false, content: @Comp
             delay(1_000)
         }
     }
-    val dark = when (mode) {
-        ThemeMode.System -> hostAppearance.dark ?: systemDark
-        ThemeMode.Light -> false
-        ThemeMode.Dark -> true
-    }
-    val baseColors = if (dark) DarkStatsColors else LightStatsColors
-    val colors = materialStatsColors(baseColors, mode, hostAppearance.windowStyle, inheritMaterial)
+    val baseColors = hostStatsColors(hostAppearance.dark, systemDark)
+    val dark = baseColors.isDark
+    val colors = materialStatsColors(baseColors, hostAppearance.windowStyle, inheritMaterial)
     val scheme = if (dark) {
         darkColorScheme(
             primary = colors.accent,

@@ -233,12 +233,6 @@ fun ListenStatsApp(
             }
         )
     }
-    var themeMode by remember {
-        mutableStateOf(
-            System.getProperty("spw.listenstats.theme")?.let { ThemeMode.fromStorage(it) }
-                ?: ThemeMode.System
-        )
-    }
     var chartType by remember { mutableStateOf(ChartType.Line) }
     var userGranularity by remember { mutableStateOf(Granularity.Day) }
     var rangePreset by remember { mutableStateOf(RangePreset.Last30) }
@@ -257,9 +251,6 @@ fun ListenStatsApp(
 
     LaunchedEffect(Unit) {
         Prefs.initialize()
-        if (System.getProperty("spw.listenstats.theme") == null) {
-            themeMode = ThemeMode.fromStorage(Prefs.getString("theme", ThemeMode.System.storage))
-        }
         chartType = ChartType.fromStorage(Prefs.getString("chartType", ChartType.Line.storage))
         userGranularity = Granularity.fromStorage(Prefs.getString("granularity", Granularity.Day.storage))
         rankingMode = RankingMode.fromStorage(Prefs.getString("rankingMode", RankingMode.Song.storage))
@@ -300,7 +291,7 @@ fun ListenStatsApp(
         }
     }
 
-    StatsTheme(themeMode, inheritMaterial = embedded && StatsHostState.materialBridgeAvailable) {
+    StatsTheme(inheritMaterial = embedded && StatsHostState.materialBridgeAvailable) {
         val colors = LocalStatsColors.current
         val font = LocalHostFontFamily.current
         val inheritedText = SaltTheme.textStyles
@@ -354,11 +345,6 @@ fun ListenStatsApp(
                                 .padding(bottom = if (embedded) 96.dp else 24.dp)
                         ) {
                             PageHeader(
-                                themeMode = themeMode,
-                                onTheme = {
-                                    themeMode = themeMode.next()
-                                    Prefs.putString("theme", themeMode.storage)
-                                },
                                 onImport = {
                                     if (BackupService.importBackup()) {
                                         rankPage = 1
@@ -509,17 +495,10 @@ fun ListenStatsApp(
 
 @Composable
 private fun PageHeader(
-    themeMode: ThemeMode,
-    onTheme: () -> Unit,
     onImport: () -> Unit,
     onExport: () -> Unit
 ) {
     val colors = LocalStatsColors.current
-    val themeIcon = when (themeMode) {
-        ThemeMode.System -> IconPaths.Routine
-        ThemeMode.Light -> IconPaths.LightMode
-        ThemeMode.Dark -> IconPaths.DarkMode
-    }
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -530,12 +509,6 @@ private fun PageHeader(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconAction(themeIcon, when (themeMode) {
-                ThemeMode.System -> "跟随 SPW · 点击切换浅色"
-                ThemeMode.Light -> "浅色 · 点击切换深色"
-                ThemeMode.Dark -> "深色 · 点击跟随 SPW"
-            }, colors.muted, onTheme, tooltip = null)
-            VerticalRule(colors.line, 17.dp)
             TextAction(IconPaths.Download, "导入", colors.text, onImport)
             TextAction(IconPaths.Upload, "导出", colors.text, onExport)
         }

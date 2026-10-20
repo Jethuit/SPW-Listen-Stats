@@ -17,6 +17,7 @@ parser.add_argument('--ranking', action='store_true', help='render three ranking
 parser.add_argument('--material', action='store_true', help='check retained host composition and material background isolation')
 parser.add_argument('--acrylic', action='store_true', help='compare native Acrylic reference colors on sampled flat backdrops')
 parser.add_argument('--acrylic-ranking', action='store_true', help='render actual Acrylic rows and pointer hover')
+parser.add_argument('--material-ranking', action='store_true', help='check no row dividers and one closing line across all four styles')
 args = parser.parse_args()
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
@@ -28,7 +29,7 @@ scratch.mkdir(parents=True, exist_ok=True)
 classpath = os.pathsep.join(map(str, [kotlin / 'lib/kotlin-stdlib.jar', ROOT / 'build/plugin-classes',
     *builder.saltui_jars(), ROOT / 'build/tools/spw-host.jar']))
 java = str(jdk / 'bin/java.exe')
-test_name = ('AcrylicColorsVisualCheck' if args.acrylic else 'MaterialLayerVisualCheck' if args.material else 'RankingModesVisualCheck' if args.ranking or args.acrylic_ranking else 'CardColorsVisualCheck' if args.colors else 'CalendarNavigationVisualCheck' if args.calendar else
+test_name = ('AcrylicColorsVisualCheck' if args.acrylic else 'MaterialLayerVisualCheck' if args.material else 'RankingModesVisualCheck' if args.ranking or args.acrylic_ranking or args.material_ranking else 'CardColorsVisualCheck' if args.colors else 'CalendarNavigationVisualCheck' if args.calendar else
              'ResponsiveLayoutVisualCheck' if args.layout else 'BackButtonVisualCheck')
 subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
     '-no-stdlib', '-classpath', classpath,
@@ -52,14 +53,34 @@ if args.acrylic:
     output = ROOT / 'build/screenshots' / f'acrylic-v{builder.PLUGIN_VERSION}'
 if args.acrylic_ranking:
     output = ROOT / 'build/screenshots' / f'acrylic-ranking-v{builder.PLUGIN_VERSION}'
+if args.material_ranking:
+    output = ROOT / 'build/screenshots' / f'material-ranking-v{builder.PLUGIN_VERSION}'
 native_dir = (args.spw_dir or builder.DEFAULT_SPW_DIR) / 'app'
 native_temp = scratch / 'native-temp'
 native_temp.mkdir(exist_ok=True)
 subprocess.run([java, f'-Dskiko.library.path={native_dir}', f'-Djna.tmpdir={native_temp}',
     f'-Djava.io.tmpdir={native_temp}', '--enable-native-access=ALL-UNNAMED',
     '-cp', str(scratch) + os.pathsep + classpath,
-    test_name + 'Kt', str(output), *(['acrylic'] if args.acrylic_ranking else [])], check=True, env=environment)
-if args.acrylic_ranking:
+    test_name + 'Kt', str(output), *(['materials'] if args.material_ranking else ['acrylic'] if args.acrylic_ranking else [])], check=True, env=environment)
+if args.material_ranking:
+    files = sorted(output.glob('*.png'))
+    assert len(files) == 24, len(files)
+    for file in files:
+        rendered = Image.open(file).convert('RGB')
+        pixels = rendered.load()
+        cover_rows = [y for y in range(rendered.height)
+                      if any(pixels[x, y] == (30, 90, 180) for x in range(50, 125))]
+        assert cover_rows, file.name
+        dark, classic = file.name.startswith('dark-'), '-classic-' in file.name
+        background = (35, 35, 35) if dark else (248, 248, 248) if classic else (221, 221, 221)
+        line = (55, 57, 62) if dark else (195, 195, 195) if '-acrylic-' in file.name else (233, 234, 237)
+        for y in range(min(cover_rows), max(cover_rows)+8):
+            assert pixels[10, y] == background, (file.name, y, pixels[10, y])
+        closing = [y for y in range(max(cover_rows)+8, max(cover_rows)+35)
+                   if pixels[10, y] == line and pixels[rendered.width-10, y] == line]
+        assert 1 <= len(closing) <= 2, (file.name, closing)
+    print('PASS all 24 layouts: no internal row dividers and exactly one full-width closing line before footer')
+elif args.acrylic_ranking:
     for mode in ['song', 'artist', 'album']:
         normal = Image.open(output / f'acrylic-{mode}-760.png').convert('RGB')
         hovered = Image.open(output / f'acrylic-{mode}-760-hover.png').convert('RGB')

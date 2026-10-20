@@ -31,6 +31,7 @@ import javax.swing.SwingUtilities
 fun main(args: Array<String>) {
     val output = Path.of(args.first())
     val acrylic = args.getOrNull(1) == "acrylic"
+    val materials = args.getOrNull(1) == "materials"
     Files.createDirectories(output)
     val tracks = listOf(
         TrackMeta("demo1", "歌曲一", "歌手甲/歌手乙", "专辑一", "专辑艺术家", 240_000),
@@ -57,10 +58,13 @@ fun main(args: Array<String>) {
     CoverStore.clear()
     runBlocking { for (track in tracks) check(CoverStore.load(track.id, 60) != null) }
     try {
-        val palettes = if (acrylic) listOf("acrylic" to materialStatsColors(LightStatsColors,
-            ThemeMode.System, "WindowsAcrylic", true)) else listOf("light" to LightStatsColors, "dark" to DarkStatsColors)
+        val palettes = if (materials) listOf("light" to LightStatsColors, "dark" to DarkStatsColors).flatMap { (theme, base) ->
+            listOf("classic" to "None", "acrylic" to "WindowsAcrylic", "mica" to "WindowsMica", "mica-alt" to "WindowsMicaAlt")
+                .map { (name, style) -> "$theme-$name" to materialStatsColors(base, style, true) }
+        } else if (acrylic) listOf("acrylic" to materialStatsColors(LightStatsColors,
+            "WindowsAcrylic", true)) else listOf("light" to LightStatsColors, "dark" to DarkStatsColors)
         for ((theme, colors) in palettes) {
-            for (width in if (acrylic) listOf(760) else listOf(280, 760)) for (mode in RankingMode.entries) {
+            for (width in if (acrylic || materials) listOf(760) else listOf(280, 760)) for (mode in RankingMode.entries) {
                 val rows = Rankings.ranked(data, mode)
                 lateinit var scene: ImageComposeScene
                 SwingUtilities.invokeAndWait {
@@ -69,7 +73,9 @@ fun main(args: Array<String>) {
                             MaterialTheme(colorScheme = if (colors.isDark) darkColorScheme() else lightColorScheme()) {
                                 CompositionLocalProvider(LocalStatsColors provides colors) {
                                     Box(Modifier.fillMaxSize().drawWith {
-                                        drawRect(if (acrylic) Color(0xFFDDDDDD) else colors.pageBackground)
+                                        drawRect(if (acrylic || materials && colors.pageBackground.alpha == 0f)
+                                            if (colors.isDark) Color(0xFF232323) else Color(0xFFDDDDDD)
+                                            else colors.pageBackground)
                                     }) {
                                         RankingPage(rows, mode, {}, "", {}, 1, {})
                                     }
@@ -110,6 +116,7 @@ fun main(args: Array<String>) {
             }
         }
     } finally { CoverStore.clear() }
-    println(if (acrylic) "Rendered three actual Acrylic ranking modes before and after pointer hover"
+    println(if (materials) "Rendered 24 actual ranking layouts across four styles, both themes and all three modes"
+        else if (acrylic) "Rendered three actual Acrylic ranking modes before and after pointer hover"
         else "Rendered 12 real ranking layouts with synthetic 60px covers; three modes, two widths and two themes")
 }

@@ -24,7 +24,7 @@ import javax.swing.SwingUtilities
 fun main(args: Array<String>) {
     val output = Path.of(args.single())
     Files.createDirectories(output)
-    val colors = materialStatsColors(LightStatsColors, ThemeMode.System, "WindowsAcrylic", true)
+    val colors = materialStatsColors(LightStatsColors, "WindowsAcrylic", true)
     SwingUtilities.invokeAndWait {
         for ((name, backdrop) in listOf(
             "focused" to Color(0xFFC3DBEE),

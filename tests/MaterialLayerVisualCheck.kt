@@ -25,7 +25,7 @@ fun main(args: Array<String>) {
     var disposed = 0
     var clicked = 0
     lateinit var scene: ImageComposeScene
-    val colors = materialStatsColors(LightStatsColors, ThemeMode.System, "WindowsMica", true)
+    val colors = materialStatsColors(LightStatsColors, "WindowsMica", true)
     SwingUtilities.invokeAndWait {
         scene = ImageComposeScene(400, 300, density = Density(1f)) {
             MaterialTheme {
