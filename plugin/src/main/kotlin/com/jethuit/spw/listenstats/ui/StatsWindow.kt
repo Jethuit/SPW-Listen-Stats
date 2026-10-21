@@ -572,7 +572,10 @@ private fun NavTab(icon: String, label: String, active: Boolean, onClick: () -> 
     val colors = LocalStatsColors.current
     var hovered by remember { mutableStateOf(false) }
     val background = when {
-        active -> if (colors.isDark) Color.White.copy(alpha = 0.07f) else Color.Black.copy(alpha = 0.04f)
+        // Native dark sample: #313232. Material pages retain their translucent tint.
+        active -> if (colors.isDark) {
+            if (colors.pageBackground.alpha == 0f) Color.White.copy(alpha = 0.07f) else Color(0xFF313232)
+        } else Color.Black.copy(alpha = 0.04f)
         hovered -> if (colors.isDark) Color.White.copy(alpha = 0.045f) else Color.Black.copy(alpha = 0.025f)
         else -> Color.Transparent
     }
@@ -585,9 +588,9 @@ private fun NavTab(icon: String, label: String, active: Boolean, onClick: () -> 
         shape = AppShape(8.dp),
         color = background
     ) {
-        Box(contentAlignment = Alignment.CenterStart) {
-            if (active) Box(Modifier.width(3.dp).height(20.dp).drawWith {
-                drawRoundRect(color = colors.accent,
+        Box(contentAlignment = Alignment.Center) {
+            if (active) Box(Modifier.align(Alignment.BottomCenter).width(20.dp).height(3.dp).drawWith {
+                drawRoundRect(color = if (colors.isDark) Color(0xFF53C4FF) else colors.accent,
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()))
             })
             Row(
