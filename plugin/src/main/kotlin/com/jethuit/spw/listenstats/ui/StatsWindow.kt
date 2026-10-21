@@ -590,14 +590,6 @@ private fun NavTab(icon: String, label: String, active: Boolean, onClick: () -> 
         contentColor = colors.text
     ) {
         Box(contentAlignment = Alignment.Center) {
-            if (active) Box(Modifier.matchParentSize().drawWith {
-                val barHeight = 3.dp.toPx().coerceAtMost(size.height)
-                val barWidth = size.width * 0.618f
-                drawRoundRect(color = if (colors.isDark) Color(0xFF53C4FF) else colors.accent,
-                    topLeft = androidx.compose.ui.geometry.Offset((size.width - barWidth) / 2f, size.height - barHeight),
-                    size = androidx.compose.ui.geometry.Size(barWidth, barHeight),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(barHeight / 2f))
-            })
             Row(
                 Modifier.padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
