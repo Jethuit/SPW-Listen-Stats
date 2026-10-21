@@ -33,6 +33,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.unit.dp
 import com.jethuit.spw.listenstats.PluginLog
 import com.jethuit.spw.listenstats.Prefs
@@ -324,6 +327,7 @@ fun ListenStatsApp(
             if (rankPage > totalPages) rankPage = totalPages
         }
         Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {
+        StatsPageEnter {
         StatsPageFrame(onClose) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val density = LocalDensity.current
@@ -373,9 +377,13 @@ fun ListenStatsApp(
                                 }
                             )
                             PageNav(page) { newPage ->
-                                page = newPage
-                                scrollTop()
+                                if (page != newPage) {
+                                    page = newPage
+                                    scrollTop()
+                                }
                             }
+                            StatsPageBody(page) { shownPage ->
+                            Column(Modifier.fillMaxWidth()) {
                             if (snapshot.error != null) {
                                 ErrorBanner(snapshot.error)
                                 Box(Modifier.height(18.dp))
@@ -383,7 +391,7 @@ fun ListenStatsApp(
                                 EmptyBanner()
                                 Box(Modifier.height(18.dp))
                             }
-                            when (page) {
+                            when (shownPage) {
                                 StatsPage.Overview -> OverviewPage(
                                     data = snapshot,
                                     summary = summary,
@@ -483,9 +491,12 @@ fun ListenStatsApp(
                                     }
                                 )
                             }
-                            if (page == StatsPage.Overview) PageFooter(snapshot)
+                            if (shownPage == StatsPage.Overview) PageFooter(snapshot)
+                            }
+                            }
                         }
                     }
+        }
                 }
                 }
                 if (dateDialogOpen) {
@@ -544,10 +555,8 @@ private fun PageHeader(
 }
 
 @Composable
-private fun PageNav(page: StatsPage, onPage: (StatsPage) -> Unit) {
-    val colors = LocalStatsColors.current
-    Column {
-        Row(horizontalArrangement = Arrangement.spacedBy(26.dp)) {
+fun PageNav(page: StatsPage, onPage: (StatsPage) -> Unit) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             NavTab(IconPaths.Dashboard, "听歌概览", page == StatsPage.Overview) {
                 onPage(StatsPage.Overview)
             }
@@ -555,35 +564,35 @@ private fun PageNav(page: StatsPage, onPage: (StatsPage) -> Unit) {
                 onPage(StatsPage.Ranking)
             }
         }
-        Box(Modifier.height(1.dp))
-    }
-    Box(Modifier.height(if (page == StatsPage.Ranking) 0.dp else 30.dp))
+    Box(Modifier.height(24.dp))
 }
 
 @Composable
 private fun NavTab(icon: String, label: String, active: Boolean, onClick: () -> Unit) {
     val colors = LocalStatsColors.current
     var hovered by remember { mutableStateOf(false) }
-    Box(
-        Modifier
+    val background = when {
+        active -> if (colors.isDark) Color.White.copy(alpha = 0.07f) else Color.Black.copy(alpha = 0.04f)
+        hovered -> if (colors.isDark) Color.White.copy(alpha = 0.045f) else Color.Black.copy(alpha = 0.025f)
+        else -> Color.Transparent
+    }
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.height(44.dp)
             .onPointerEvent(PointerEventType.Enter) { hovered = true }
             .onPointerEvent(PointerEventType.Exit) { hovered = false }
-            .onPointerEvent(PointerEventType.Press) { onClick() }
+            .semantics { selected = active; role = androidx.compose.ui.semantics.Role.Tab },
+        shape = AppShape(8.dp),
+        color = background
     ) {
-        Column(
-            Modifier.drawWith {
-                if (active) {
-                    drawRect(
-                        color = colors.accent,
-                        topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - 2f),
-                        size = androidx.compose.ui.geometry.Size(size.width, 2f)
-                    )
-                }
-            }
-        ) {
+        Box(contentAlignment = Alignment.CenterStart) {
+            if (active) Box(Modifier.width(3.dp).height(20.dp).drawWith {
+                drawRoundRect(color = colors.accent,
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()))
+            })
             Row(
-                Modifier.padding(bottom = 13.dp),
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                Modifier.padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppIcon(icon, if (active || hovered) colors.text else colors.muted, iconSize = 17.dp)
@@ -591,7 +600,7 @@ private fun NavTab(icon: String, label: String, active: Boolean, onClick: () -> 
                     label,
                     style = AppType.tab.copy(
                         color = if (active || hovered) colors.text else colors.muted,
-                        fontWeight = if (active) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Normal
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Normal
                     )
                 )
             }
