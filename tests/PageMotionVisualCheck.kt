@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalFocusManager
 import com.jethuit.spw.listenstats.ui.*
 import com.moriafly.salt.ui.SaltTheme
 import org.jetbrains.skia.EncodedImageFormat
@@ -29,12 +30,15 @@ fun main(args: Array<String>) {
         var page by mutableStateOf(StatsPage.Overview)
         var show by mutableStateOf(true)
         var clicks = 0
+        var clearFocus: () -> Unit = {}
         lateinit var scene: ImageComposeScene
         SwingUtilities.invokeAndWait {
             scene = ImageComposeScene(400, 320, density = Density(1f)) {
                 SaltTheme {
                     MaterialTheme(colorScheme = if (colors.isDark) darkColorScheme() else lightColorScheme()) {
                         CompositionLocalProvider(LocalStatsColors provides colors) {
+                            val focus = LocalFocusManager.current
+                            SideEffect { clearFocus = { focus.clearFocus(force = true) } }
                             Box(Modifier.fillMaxSize().drawWith { drawRect(colors.pageBackground) }) {
                                 if (show) StatsPageEnter {
                                     Column(Modifier.fillMaxSize().padding(20.dp)) {
@@ -81,11 +85,16 @@ fun main(args: Array<String>) {
                 scene.sendPointerEvent(PointerEventType.Press, Offset(210f, 75f))
                 scene.sendPointerEvent(PointerEventType.Release, Offset(210f, 75f))
                 scene.sendPointerEvent(PointerEventType.Exit, Offset(-1f, -1f))
+                clearFocus()
             }
             frame(); frame()
             check(page == StatsPage.Ranking && clicks == 1) { "Native-style navigation did not activate once" }
             val forward = frame("forward-mid")
             settle()
+            // Ripple enforces a real-time minimum press duration, independently
+            // of the controlled animation clock. Do not publish a pressed state.
+            Thread.sleep(300)
+            repeat(16) { frame() }
             val ranking = frame("ranking")
             check(!sameRegion(forward, ranking, 20, 130, 380, 240)) { "Body did not animate" }
             check(sameRegion(overview, ranking, 20, 20, 350, 40)) { "Header moved during tab switch" }
@@ -97,8 +106,13 @@ fun main(args: Array<String>) {
             frame(); frame()
             SwingUtilities.invokeAndWait { page = StatsPage.Overview }
             settle()
+            Thread.sleep(300)
+            repeat(16) { frame() }
             val restored = frame("restored")
             check(sameRegion(overview, restored, 20, 130, 380, 220)) { "Rapid reversals did not reach the latest page" }
+            check(restored.getRGB(260, 85) == overview.getRGB(260, 85)) {
+                "Inactive navigation retained a press overlay in the preview"
+            }
             SwingUtilities.invokeAndWait { show = false }; settle()
             SwingUtilities.invokeAndWait { show = true }
             val reopen = frame("reopen-start")
