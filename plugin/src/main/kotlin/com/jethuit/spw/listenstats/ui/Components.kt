@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -19,6 +20,11 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Surface
 import com.moriafly.salt.ui.Card as SaltCard
 import com.moriafly.salt.ui.LocalTextStyle
+import com.moriafly.salt.ui.BasicButton
+import com.moriafly.salt.ui.ButtonColors
+import com.moriafly.salt.ui.ControlSize
+import com.moriafly.salt.ui.popup.PopupMenu
+import com.moriafly.salt.ui.popup.PopupMenuItem
 import com.moriafly.salt.ui.rememberScrollState
 import com.moriafly.salt.ui.verticalScroll
 import com.jethuit.spw.listenstats.ui.StatsText as Text
@@ -43,6 +49,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -61,6 +68,38 @@ data class SegmentOption(
 )
 
 private val ControlHeight = 34.dp
+
+@Composable
+fun BackupMenu(onImport: () -> Unit, onExport: () -> Unit) {
+    val colors = LocalStatsColors.current
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        BasicButton(
+            onClick = { expanded = !expanded },
+            modifier = Modifier.size(40.dp).semantics { contentDescription = "更多操作" },
+            size = ControlSize.Regular,
+            shape = AppShape(8.dp),
+            colors = ButtonColors(Color.Transparent, colors.text, Color.Transparent, colors.muted),
+            border = BorderStroke(1.dp, SolidColor(colors.line)),
+            contentPadding = PaddingValues(0.dp)
+        ) {
+            Box(Modifier.size(20.dp).drawWith {
+                for (x in listOf(0.2f, 0.5f, 0.8f)) {
+                    drawCircle(colors.text, radius = 1.6.dp.toPx(),
+                        center = androidx.compose.ui.geometry.Offset(size.width * x, size.height / 2f))
+                }
+            })
+        }
+        PopupMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            offset = DpOffset(0.dp, 4.dp)
+        ) {
+            PopupMenuItem(onClick = { expanded = false; onImport() }, text = "导入")
+            PopupMenuItem(onClick = { expanded = false; onExport() }, text = "导出")
+        }
+    }
+}
 
 @Composable
 fun HoverColor(
@@ -323,7 +362,7 @@ fun SelectBox(
                                                 text,
                                                 maxLines = 1,
                                                 style = AppType.bodySmall.copy(
-                                                    color = if (isSelected) colors.accent else colors.text
+                                                    color = colors.text
                                                 )
                                             )
                                         }

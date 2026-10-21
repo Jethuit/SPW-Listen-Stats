@@ -543,13 +543,7 @@ private fun PageHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text("听歌统计", style = AppType.pageTitle.copy(color = colors.text))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TextAction(IconPaths.Download, "导入", colors.text, onImport)
-            TextAction(IconPaths.Upload, "导出", colors.text, onExport)
-        }
+        BackupMenu(onImport, onExport)
     }
     Box(Modifier.height(30.dp))
 }

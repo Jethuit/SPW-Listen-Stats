@@ -574,7 +574,6 @@ private fun PageButton(
     val colors = LocalStatsColors.current
     val color = when {
         !enabled -> colors.muted.copy(alpha = 0.45f)
-        active -> colors.accent
         else -> colors.text
     }
     CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
