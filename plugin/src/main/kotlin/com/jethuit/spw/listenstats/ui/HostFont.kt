@@ -13,6 +13,8 @@ val LocalHostFontFamily = staticCompositionLocalOf<FontFamily> { FontFamily.Defa
 /** SPW 1.19.0's font selection and resource; no font is copied into the plugin package. */
 object HostFont {
     private const val MISANS = "composeResources/voxzen.composeapp.generated.resources/font/misans.ttf"
+    private data class Key(val strategy: String?, val path: String?, val modified: java.nio.file.attribute.FileTime?, val size: Long)
+    private var cached: Pair<Key, FontFamily>? = null
 
     fun readBytes(strategy: String?, customPath: String?): ByteArray? = when (strategy) {
         "MiSansRegular" -> AppConfig::class.java.classLoader.getResourceAsStream(MISANS)?.use { it.readBytes() }
@@ -24,14 +26,19 @@ object HostFont {
         else -> null
     }
 
-    fun load(strategy: String?, customPath: String?): FontFamily {
+    @Synchronized fun load(strategy: String?, customPath: String?): FontFamily {
         return try {
+            if (strategy != "Custom" && strategy != "MiSansRegular") return FontFamily.Default
+            val attrs = if (strategy == "Custom") Files.readAttributes(Path.of(customPath!!),
+                java.nio.file.attribute.BasicFileAttributes::class.java) else null
+            val key = Key(strategy, customPath, attrs?.lastModifiedTime(), attrs?.size() ?: 0)
+            cached?.takeIf { it.first == key }?.let { return it.second }
             val bytes = readBytes(strategy, customPath) ?: return FontFamily.Default
             // Detect invalid custom files before Compose tries to render with them.
             if (strategy == "Custom") {
                 java.awt.Font.createFont(java.awt.Font.TRUETYPE_FONT, Path.of(customPath!!).toFile())
             }
-            FontFamily(Font(identity = "spw-listenstats:$strategy:${customPath.orEmpty()}", data = bytes))
+            FontFamily(Font(identity = "spw-listenstats:$key", data = bytes)).also { cached = key to it }
         } catch (failure: Exception) {
             PluginLog.error("loading SPW font failed; using system font", failure)
             FontFamily.Default

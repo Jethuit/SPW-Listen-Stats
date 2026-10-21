@@ -20,20 +20,23 @@ object StatsStore {
             WorkshopApi.manager.isPermissionGranted(PluginPermission.LIBRARY_READ)
         }.getOrDefault(false)
         if (!allowed) return StatsData.empty(error = "请先授权曲库读取权限")
-        val path = databasePath ?: resolveDatabasePath(PluginState.pluginPath)
+        val path = databasePath?.takeIf { java.nio.file.Files.isRegularFile(it) }
+            ?: resolveDatabasePath(PluginState.pluginPath)
         if (path == null) {
             return StatsData.empty(error = "无法定位播放器数据目录")
         }
         databasePath = path
-        val host = HostDatabase.load(path)
+        val host = HostDatabase.load(path, aggregate = false)
         return try {
-            val merged = BackupService.merge(LiveStore.merge(host))
+            val merged = BackupService.mergeWithLive(host)
             LiveStore.storageError()?.let { merged.copy(error = it) } ?: merged
         } catch (failure: Exception) {
             PluginLog.error("loading statistics failed", failure)
             host.copy(error = "统计数据读取失败：${failure.message}")
         }
     }
+
+    fun diagnosticPath(): String = databasePath?.toString() ?: "unresolved"
 
     private fun resolveDatabasePath(pluginPath: String?): Path? {
         if (!pluginPath.isNullOrBlank()) {

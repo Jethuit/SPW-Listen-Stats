@@ -50,8 +50,11 @@ object Rankings {
         val tagged = members.filter { it.track.album.isNotBlank() }.ifEmpty { members }
         // Members already follow the song ranking. For a winning album, use its top song's cover.
         return tagged.groupBy { albumKey(it.track) }.values
-            .maxBy { album -> album.sumOf { it.count.toLong() } }.first().track.id
+            .maxBy { album -> album.sumOf { it.count.toLong() } }.let(::coverTrack)
     }
+
+    private fun coverTrack(members: List<TrackRank>): String =
+        (members.firstOrNull { CoverStore.canLoad(it.track.id) } ?: members.first()).track.id
 
     /** SPW exposes a display string, not structured credits. Keep '&' and commas in band names. */
     fun artists(credits: String): List<String> {
@@ -90,7 +93,7 @@ object Rankings {
                 val (title, artist) = labels.getValue(key)
                 RankingEntry(key, title, if (mode == RankingMode.Artist) "" else artist,
                     "${members.size} 首", members.sumOf { it.count.toLong() },
-                    if (mode == RankingMode.Artist) artistCover(members) else members.first().track.id)
+                    if (mode == RankingMode.Artist) artistCover(members) else coverTrack(members))
             }.sortedWith(compareByDescending<RankingEntry> { it.count }
                 .thenComparator { a, b -> collator.compare(a.title, b.title) }
                 .thenComparator { a, b -> collator.compare(a.subtitle, b.subtitle) })

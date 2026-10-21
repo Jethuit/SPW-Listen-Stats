@@ -21,6 +21,10 @@ class PlaybackAccumulator(
     private var wall = 0L
     private var recoveryAvailable = true
     private val lifecycleId = UUID.randomUUID().toString()
+    private var loopPosition = -1L
+    private var loopNano = 0L
+    private var hintTrackId: String? = null
+    private var originHint: Long? = null
 
     fun playing(value: Boolean) {
         if (playing != value) resetBaseline()
@@ -28,6 +32,7 @@ class PlaybackAccumulator(
     }
 
     fun seek(target: Long) {
+        loopPosition = -1L // Explicit seeks must not look like an automatic rollover.
         if (target == 0L) recoveryAvailable = false
         // An explicit restart at zero begins a new play; other backward seeks stay in this play.
         if (target == 0L && (current?.durationMs ?: 0) > 0) finish()
@@ -37,9 +42,13 @@ class PlaybackAccumulator(
     fun suspendSampling() = resetBaseline()
 
     /** Metadata can close an old play even when the accompanying position cannot be accepted. */
-    fun observeTrack(track: TrackMeta?) {
+    fun observeTrack(track: TrackMeta?, originHintMs: Long? = null) {
         if (track != null && track.id.isNotBlank() && current?.let { it.trackId != track.id } == true) {
             finish()
+        }
+        if (track != null && track.id.isNotBlank() && hintTrackId != track.id) {
+            hintTrackId = track.id
+            originHint = originHintMs
         }
     }
 
@@ -49,11 +58,15 @@ class PlaybackAccumulator(
             return
         }
         var session = current
-        val loop = session != null && session.trackId == track.id && nextPosition in 0..2_000L &&
-            session.trackDurationMs > 0 && position >= session.trackDurationMs - 3_000 &&
-            nextPosition < position
+        val sinceEvidence = ((nowNano - loopNano) / 1_000_000).coerceAtLeast(0)
+        val window = (sinceEvidence * 4 + 250).coerceIn(3_000, 12_000)
+        val loop = session != null && session.trackId == track.id && session.trackDurationMs > 0 &&
+            loopPosition >= 0 && sinceEvidence <= 15_000 &&
+            loopPosition >= session.trackDurationMs - window && nextPosition in 0..window &&
+            loopPosition - nextPosition >= maxOf(1_000, session.trackDurationMs / 2)
         if (session?.trackId != track.id || loop) {
             val recover = recoveryAvailable && !loop
+            val hint = if (!loop && hintTrackId == track.id) originHint else null
             recoveryAvailable = false
             finish()
             val resumed = if (recover) resume(track) else null
@@ -64,13 +77,15 @@ class PlaybackAccumulator(
                 nano = nowNano
                 wall = nowWall
                 resumed.lastPositionMs = nextPosition
+                loopPosition = nextPosition
+                loopNano = nowNano
                 return
             }
             session = LiveSession(UUID.randomUUID().toString(), track.id,
                 nowWall - nextPosition.coerceAtLeast(0), 0,
                 track.title, track.artist, track.album, track.albumArtist, track.durationMs, false,
                 spans = mutableListOf(), firstPositionMs = nextPosition,
-                lastPositionMs = nextPosition, lifecycleId = lifecycleId)
+                lastPositionMs = nextPosition, lifecycleId = lifecycleId, observedOriginMs = hint)
             current = session
         }
         session!!
@@ -79,7 +94,7 @@ class PlaybackAccumulator(
         val elapsed = (nowNano - nano) / 1_000_000
         val delta = nextPosition - position
         // Position confirms progress; monotonic time caps actual listening. Discard sleep and seeks.
-        if (position >= 0 && elapsed in 1..3_000 && delta in 1..3_000) {
+        if (position >= 0 && elapsed in 1..3_000 && delta in 1..maxOf(3_000, elapsed * 4 + 250)) {
             val listened = elapsed
             session.durationMs += listened
             val previous = session.spans.lastOrNull()
@@ -98,6 +113,8 @@ class PlaybackAccumulator(
         position = nextPosition
         nano = nowNano
         wall = nowWall
+        loopPosition = nextPosition
+        loopNano = nowNano
     }
 
     fun finish() {
@@ -107,6 +124,9 @@ class PlaybackAccumulator(
             if (it.durationMs > 0) persist(it)
         }
         current = null
+        loopPosition = -1L
+        hintTrackId = null
+        originHint = null
         resetBaseline()
     }
 
@@ -124,12 +144,18 @@ object PlaybackTracker {
     private var observationRevision = 0L
     private var positionSerial = 0L
     private var observedTrack: TrackMeta? = null
+    private var stableTrackId: String? = null
+
+    fun diagnostics(): String = synchronized(lock) {
+        "trackerActive=$active; generation=$generation; liveSessions=${LiveStore.snapshot().size}"
+    }
 
     fun initialize() = synchronized(lock) {
         generation++
         observationRevision++
         positionSerial = 0
         observedTrack = null
+        stableTrackId = null
         if (executor.isShutdown) executor = newExecutor()
         LiveStore.load()
         accumulator = PlaybackAccumulator(::persistSession) { track -> LiveStore.recoverOpen(track.id) }
@@ -224,15 +250,29 @@ object PlaybackTracker {
                         observedTrack = track
                         // Track changes and position acceptance are separate decisions. A brief B
                         // observation must close A even if B never gets a second, stable sample.
-                        accumulator.observeTrack(track)
+                        val origin = when {
+                            track == null -> null
+                            position in 0..2_000 -> wall - position
+                            stableTrackId != null && stableTrackId != track.id -> System.currentTimeMillis()
+                            else -> null
+                        }
+                        accumulator.observeTrack(track, origin)
                         // The API has no atomic track+position snapshot. Only accept a position
                         // bracketed by matching metadata observations, with no queued transition.
                         // The first/uncertain observation is used to establish identity, not a play.
                         if (track == null || before?.id != track.id || position < 0 ||
                             (track.durationMs > 0 && position > track.durationMs + 3_000)) {
                             accumulator.suspendSampling()
+                            // Same-song transitions already have identity evidence. Establish a
+                            // baseline only (never bridge across the invalidated transition).
+                            if (track != null && stableTrackId == track.id && position >= 0 &&
+                                (track.durationMs <= 0 || position <= track.durationMs + 3_000)) {
+                                accumulator.sample(track, position, wall, nano)
+                            }
+                            stableTrackId = track?.id
                             return@execute
                         }
+                        stableTrackId = track.id
                         accumulator.sample(track, position, wall, nano)
                         if (nano - lastSaveNano >= 10_000_000_000L) {
                             lastSaveNano = nano

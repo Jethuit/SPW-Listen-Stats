@@ -17,7 +17,6 @@ import os
 import shutil
 import subprocess
 import sys
-import textwrap
 import zipfile
 from pathlib import Path
 
@@ -128,14 +127,18 @@ def manifest_text() -> str:
     lines: list[str] = []
     for key, value in entries:
         raw = f'{key}: {value}'
-        encoded = raw.encode('utf-8')
-        if len(encoded) <= 70:
-            lines.append(raw)
-            continue
-        # Manifest continuation lines must start with one space; keep each
-        # physical line within 72 bytes including CRLF.
-        wrapped = textwrap.wrap(raw, width=70, subsequent_indent=' ', break_long_words=True)
-        lines.extend(wrapped)
+        # Count encoded bytes, keeping UTF-8 characters intact. Continuations
+        # include their leading space in the 70-byte budget (plus CRLF).
+        line = ''
+        size = 0
+        for char in raw:
+            width = len(char.encode('utf-8'))
+            if size + width > 70:
+                lines.append(line)
+                line, size = ' ', 1
+            line += char
+            size += width
+        lines.append(line)
     return '\r\n'.join(lines) + '\r\n\r\n'
 
 

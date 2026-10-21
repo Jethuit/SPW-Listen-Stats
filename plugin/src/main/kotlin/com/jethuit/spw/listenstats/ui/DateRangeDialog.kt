@@ -59,7 +59,8 @@ fun DateRangeDialog(
     initialStart: LocalDate,
     initialEnd: LocalDate,
     onCancel: () -> Unit,
-    onConfirm: (LocalDate, LocalDate) -> Unit
+    onConfirm: (LocalDate, LocalDate) -> Unit,
+    earliestYear: Int = minOf(initialStart.year, initialEnd.year)
 ) {
     val colors = LocalStatsColors.current
     var startDate by remember { mutableStateOf(initialStart) }
@@ -67,7 +68,8 @@ fun DateRangeDialog(
     var startMonth by remember { mutableStateOf(YearMonth.from(initialStart)) }
     var endMonth by remember { mutableStateOf(YearMonth.from(initialEnd)) }
     val rootFocus = remember { FocusRequester() }
-    val years = (2025..LocalDate.now().year).toList()
+    val years = (minOf(earliestYear, initialStart.year, initialEnd.year, startMonth.year, endMonth.year)..
+        maxOf(LocalDate.now().year, startMonth.year, endMonth.year)).toList()
     val months = (1..12).map { it.toString() to "${it}月" }
     val yearOptions = years.map { it.toString() to "${it}年" }
 

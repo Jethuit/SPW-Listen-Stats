@@ -123,9 +123,16 @@ object BackupCodec {
         ListeningEvents.union(left.events + right.events), mergeLegacy(left.legacy, right.legacy))
 
     fun apply(data: StatsData, bundle: BackupBundle): StatsData {
-        val merged = ListeningEvents.aggregate(data, data.events + bundle.events)
+        val merged = if (bundle.events.isEmpty()) data
+            else ListeningEvents.aggregate(data, data.events + bundle.events)
+        return applyLegacy(merged, bundle.legacy)
+    }
+
+    /** Apply the v1 lower bound only after the exact/host event union is aggregated. */
+    fun applyLegacy(merged: StatsData, legacy: LegacyTotals): StatsData {
+        if (legacy.hours.isEmpty() && legacy.tracks.isEmpty() && legacy.counts.isEmpty()) return merged
         val base = LegacyTotals(merged.hourlyMillis, merged.tracks, merged.playCounts)
-        val totals = mergeLegacy(base, bundle.legacy)
+        val totals = mergeLegacy(base, legacy)
         return merged.copy(hourlyMillis = totals.hours, dailyMillis = totals.hours.mapValues { it.value.sum() },
             tracks = totals.tracks, playCounts = totals.counts)
     }
@@ -136,7 +143,10 @@ object BackupCodec {
             val target = hours.getOrPut(date) { LongArray(24) }
             for (i in 0..23) target[i] = maxOf(target[i], incoming[i])
         }
-        val tracks = b.tracks + a.tracks
+        val tracks = b.tracks.toMutableMap()
+        a.tracks.forEach { (id, track) ->
+            tracks[id] = tracks[id]?.let { ListeningEvents.mergeTrack(track, it) } ?: track
+        }
         val counts = a.counts.toMutableMap()
         b.counts.forEach { (id, count) -> counts[id] = maxOf(counts[id] ?: 0, count) }
         return LegacyTotals(hours, tracks, counts)

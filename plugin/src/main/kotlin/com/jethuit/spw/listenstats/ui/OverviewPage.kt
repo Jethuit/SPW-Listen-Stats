@@ -381,7 +381,8 @@ private fun rangeLabel(
 ): String {
     return when (preset) {
         RangePreset.Selected -> formatDay(selectedDate ?: java.time.LocalDate.now())
-        RangePreset.Custom -> "自定义"
+        RangePreset.Custom -> if (customStart != null && customEnd != null)
+            "${formatDay(customStart)} – ${formatDay(customEnd)}" else "自定义"
         else -> preset.label
     }
 }

@@ -251,9 +251,10 @@ fun ListenStatsApp(
     var bottomScrollRequest by remember { mutableStateOf(0) }
     var reloadTick by remember { mutableStateOf(0) }
     var dateDialogOpen by remember { mutableStateOf(false) }
+    var backupBusy by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        Prefs.initialize()
+        withContext(Dispatchers.IO) { Prefs.initialize() }
         chartType = ChartType.fromStorage(Prefs.getString("chartType", ChartType.Line.storage))
         userGranularity = Granularity.fromStorage(Prefs.getString("granularity", Granularity.Day.storage))
         rankingMode = RankingMode.fromStorage(Prefs.getString("rankingMode", RankingMode.Song.storage))
@@ -352,13 +353,24 @@ fun ListenStatsApp(
                         ) {
                             PageHeader(
                                 onImport = {
-                                    if (BackupService.importBackup()) {
-                                        rankPage = 1
-                                        scrollTop()
-                                        reloadTick++
+                                    if (!backupBusy) scope.launch {
+                                        backupBusy = true
+                                        try {
+                                            if (BackupService.importBackup()) {
+                                                rankPage = 1
+                                                scrollTop()
+                                                reloadTick++
+                                            }
+                                        } finally { backupBusy = false }
                                     }
                                 },
-                                onExport = { BackupService.export(snapshot) }
+                                onExport = {
+                                    if (!backupBusy) scope.launch {
+                                        backupBusy = true
+                                        try { BackupService.export(snapshot) }
+                                        finally { backupBusy = false }
+                                    }
+                                }
                             )
                             PageNav(page) { newPage ->
                                 page = newPage
@@ -393,13 +405,13 @@ fun ListenStatsApp(
                                         if (selectedDate == date && rangePreset == RangePreset.Selected) {
                                             selectedDate = null
                                             rangePreset = RangePreset.Last30
-                                            Prefs.putString("range", rangePreset.storage)
-                                            Prefs.putString("selectedDate", "")
+                                            Prefs.putStringAsync("range", rangePreset.storage)
+                                            Prefs.putStringAsync("selectedDate", "")
                                         } else {
                                             selectedDate = date
                                             rangePreset = RangePreset.Selected
-                                            Prefs.putString("range", rangePreset.storage)
-                                            Prefs.putString("selectedDate", date.toString())
+                                            Prefs.putStringAsync("range", rangePreset.storage)
+                                            Prefs.putStringAsync("selectedDate", date.toString())
                                         }
                                     },
                                     onWeekSelected = { start, end ->
@@ -410,19 +422,19 @@ fun ListenStatsApp(
                                             customStart = null
                                             customEnd = null
                                             rangePreset = RangePreset.Last30
-                                            Prefs.putString("range", rangePreset.storage)
-                                            Prefs.putString("selectedDate", "")
-                                            Prefs.putString("customStart", "")
-                                            Prefs.putString("customEnd", "")
+                                            Prefs.putStringAsync("range", rangePreset.storage)
+                                            Prefs.putStringAsync("selectedDate", "")
+                                            Prefs.putStringAsync("customStart", "")
+                                            Prefs.putStringAsync("customEnd", "")
                                         } else {
                                             selectedDate = start
                                             customStart = start
                                             customEnd = end
                                             rangePreset = RangePreset.Custom
-                                            Prefs.putString("range", rangePreset.storage)
-                                            Prefs.putString("selectedDate", start.toString())
-                                            Prefs.putString("customStart", start.toString())
-                                            Prefs.putString("customEnd", end.toString())
+                                            Prefs.putStringAsync("range", rangePreset.storage)
+                                            Prefs.putStringAsync("selectedDate", start.toString())
+                                            Prefs.putStringAsync("customStart", start.toString())
+                                            Prefs.putStringAsync("customEnd", end.toString())
                                         }
                                     },
                                     onRangePreset = { preset ->
@@ -430,19 +442,23 @@ fun ListenStatsApp(
                                             selectedDate = today
                                         }
                                         rangePreset = preset
-                                        Prefs.putString("range", preset.storage)
-                                        selectedDate?.let { Prefs.putString("selectedDate", it.toString()) }
+                                        if (preset != RangePreset.Selected) {
+                                            selectedDate = null
+                                            Prefs.putStringAsync("selectedDate", "")
+                                        }
+                                        Prefs.putStringAsync("range", preset.storage)
+                                        selectedDate?.let { Prefs.putStringAsync("selectedDate", it.toString()) }
                                     },
                                     onCustomRange = {
                                         dateDialogOpen = true
                                     },
                                     onChartType = {
                                         chartType = it
-                                        Prefs.putString("chartType", it.storage)
+                                        Prefs.putStringAsync("chartType", it.storage)
                                     },
                                     onGranularity = {
                                         userGranularity = it
-                                        Prefs.putString("granularity", it.storage)
+                                        Prefs.putStringAsync("granularity", it.storage)
                                     },
                                     scrollState = if (embedded) scrollState else null
                                 )
@@ -453,14 +469,15 @@ fun ListenStatsApp(
                                         if (rankingMode != it) {
                                             rankingMode = it
                                             rankPage = 1
-                                            Prefs.putString("rankingMode", it.storage)
+                                            Prefs.putStringAsync("rankingMode", it.storage)
                                         }
                                     },
                                     query = query,
                                     onQueryChange = { query = it },
                                     page = safePage,
                                     onPageChange = {
-                                        val wasAtBottom = scrollState.value >= scrollState.maxValue - 2
+                                        val wasAtBottom = scrollState.maxValue > 0 &&
+                                            scrollState.value >= scrollState.maxValue - 2
                                         rankPage = it
                                         if (wasAtBottom) bottomScrollRequest++
                                     }
@@ -482,14 +499,17 @@ fun ListenStatsApp(
                     DateRangeDialog(
                         initialStart = dateRange.start,
                         initialEnd = dateRange.endInclusive,
+                        earliestYear = snapshot.dailyMillis.keys.minOfOrNull { it.year } ?: today.year,
                         onCancel = { dateDialogOpen = false },
                         onConfirm = { start, end ->
                             customStart = start
                             customEnd = end
                             rangePreset = RangePreset.Custom
-                            Prefs.putString("range", rangePreset.storage)
-                            Prefs.putString("customStart", start.toString())
-                            Prefs.putString("customEnd", end.toString())
+                            selectedDate = null
+                            Prefs.putStringAsync("selectedDate", "")
+                            Prefs.putStringAsync("range", rangePreset.storage)
+                            Prefs.putStringAsync("customStart", start.toString())
+                            Prefs.putStringAsync("customEnd", end.toString())
                             dateDialogOpen = false
                         }
                     )

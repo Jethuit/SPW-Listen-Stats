@@ -24,6 +24,7 @@ class MainPlugin(
         PluginState.pluginPath = pluginContext.pluginPath
         PluginState.pluginId = pluginContext.pluginId
         PluginState.spwVersion = pluginContext.spwVersion
+        PluginState.pluginVersion = pluginContext.pluginVersion
         PluginLog.info("start plugin ${pluginContext.pluginVersion} for SPW ${pluginContext.spwVersion}")
         com.jethuit.spw.listenstats.data.StatsStore.initialize(pluginContext.pluginPath)
         com.jethuit.spw.listenstats.data.PlaybackTracker.initialize()
@@ -84,6 +85,12 @@ class MainPlugin(
                 )
             }
         }
+        PluginState.registeredHooks = buildSet {
+            if (hookHandle != null) add("page")
+            if (navigationHandle != null) add("navigation")
+            if (materialHandle != null) add("material")
+            if (titlebarHandle != null) add("titlebar")
+        }
         WorkshopApi.ui.toast("听歌统计已启用", WorkshopApi.Ui.ToastType.Success)
     }
 
@@ -110,6 +117,7 @@ class MainPlugin(
     }
 
     private fun closeHooks() {
+        PluginState.registeredHooks = emptySet()
         val pending = listOfNotNull(titlebarHandle, hookHandle, materialHandle, navigationHandle)
         titlebarHandle = null
         hookHandle = null
@@ -133,8 +141,31 @@ class MainPlugin(
 
         @JvmStatic
         fun writeDiagnostics() {
-            PluginLog.info("diagnostics requested from preference")
-            WorkshopApi.ui.toast("诊断信息已写入插件数据目录", WorkshopApi.Ui.ToastType.Success)
+            Thread({
+                val result = runCatching {
+                    val dir = com.jethuit.spw.listenstats.data.DataFiles.directory()
+                    val permissions = com.xuncorp.spw.workshop.api.PluginPermission.values().associate { permission ->
+                        permission.name to runCatching { WorkshopApi.manager.isPermissionGranted(permission) }
+                            .fold({ it.toString() }, { "unavailable" })
+                    }
+                    val source = runCatching { java.nio.file.Files.readString(dir.resolve("source-id.txt")).trim() }
+                        .getOrDefault("unavailable")
+                    PluginLog.diagnostics(buildString {
+                        appendLine("plugin=${PluginState.pluginVersion}; spw=${PluginState.spwVersion}")
+                        appendLine("java=${System.getProperty("java.version")}; os=${System.getProperty("os.name")}")
+                        appendLine("zone=${java.time.ZoneId.systemDefault()}; permissions=$permissions")
+                        appendLine("dataDirectory=$dir; database=${com.jethuit.spw.listenstats.data.StatsStore.diagnosticPath()}")
+                        appendLine("sourceId=$source; registeredHooks=${PluginState.registeredHooks} (registration only)")
+                        appendLine("${com.jethuit.spw.listenstats.data.PlaybackTracker.diagnostics()}")
+                        append("storageError=${com.jethuit.spw.listenstats.data.LiveStore.storageError() ?: "none"}")
+                    })
+                }
+                javax.swing.SwingUtilities.invokeLater {
+                    val file = result.getOrNull()
+                    WorkshopApi.ui.toast(if (file != null) "诊断日志已写入：${file.absolutePath}" else "诊断日志写入失败，请查看宿主日志",
+                        if (file != null) WorkshopApi.Ui.ToastType.Success else WorkshopApi.Ui.ToastType.Warning)
+                }
+            }, "ListenStats-Diagnostics").apply { isDaemon = true }.start()
         }
     }
 }

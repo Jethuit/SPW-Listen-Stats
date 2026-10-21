@@ -41,6 +41,14 @@ fun main() = runBlocking(Dispatchers.IO) {
         check(CoverStore.load("missing", 44) == null)
         check(CoverStore.load("missing", 44) == null)
         check(calls.get() == 1)
+        check(CoverStore.retryDelayMillis("missing") > 4 * 60_000L)
+    }
+
+    test("foreign library IDs never reach the local cover API") {
+        fetch = { error("Foreign track must not be queried locally") }
+        val foreign = "00000000-0000-0000-0000-000000000001:track"
+        check(!CoverStore.canLoad(foreign))
+        check(CoverStore.load(foreign, 44) == null)
     }
 
     test("leaving the only row allows an immediate fresh request") {

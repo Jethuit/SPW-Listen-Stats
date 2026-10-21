@@ -15,6 +15,8 @@ import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import org.jetbrains.skiko.SystemTheme
+import org.jetbrains.skiko.currentSystemTheme
 
 data class StatsColors(
     val isDark: Boolean,
@@ -211,18 +213,5 @@ fun StatsTheme(inheritMaterial: Boolean = false, content: @Composable () -> Unit
 }
 
 private fun readSystemDarkTheme(): Boolean {
-    return try {
-        val process = Runtime.getRuntime().exec(
-            arrayOf(
-                "reg", "query",
-                "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-                "/v", "AppsUseLightTheme"
-            )
-        )
-        val output = process.inputStream.bufferedReader().use { it.readText() }
-        process.waitFor()
-        output.contains("0x0")
-    } catch (failure: Throwable) {
-        false
-    }
+    return runCatching { currentSystemTheme == SystemTheme.DARK }.getOrDefault(false)
 }

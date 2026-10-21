@@ -2,6 +2,13 @@
 
 > 给接手 GPT 的单一入口文档见 [`GPT-HANDOFF.md`](GPT-HANDOFF.md)；本文件保留逐版本修订记录。
 
+## 2026-10-21 审查后修复（未打包、未发布）
+
+- 基线 `da4992b`，已按用户授权修复交叉审查确认的问题，详见 [REVIEW-FIXES-2026-10-21.md](REVIEW-FIXES-2026-10-21.md)。移除 reg.exe 轮询，正常加载只聚合一次；备份缓存/后台 IO、元数据补全、诊断快照/路径、UTF-8 Manifest、日期/分页/周外框、字体与封面缓存一并处理。
+- 播放保留异步身份保护，缩短同曲恢复基线空窗，单独保留有时限的曲尾证据并排除显式 seek，增加可选 observedOrigin 宿主关联证据。不扩大宿主时间窗口，不猜测中途启用前的真实起点，不自动修复旧循环历史。
+- 一轮集中检查：41 文件编译，83 组回归及格式/Manifest 检查全部通过。原有排队位置、短暂 A→B→A、相邻重播、身份迁移、半小时 DST 与分叉恢复用例保持通过。日志 `build/tests/review-fixes/`。
+- 未改版本号、未覆盖既有 v0.1.5 包、未安装真实 SPW、未改真实历史，未推送/发布。视觉与原生运行待用户核对；宿主 Agent 自附加失败未在本轮修复。关闭重开全部浏览状态保留、猜测专辑归并和跨刷新数据库缓存不在本次实现内。
+
 ## 最新正式发布：v0.1.5
 
 - 已发布为正式 Latest：[v0.1.5 Release](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.5)，Release ID `418360748`，标签目标 `51265cc88460384049745709ec2085543c329b48`。唯一附件 `SPW-Stats-v0.1.5.spmod` 大小及 GitHub SHA-256 与本地一致；源码、README、说明已同步 main 和工作分支。回执 `build/releases/published-v0.1.5.json`。

@@ -136,6 +136,7 @@ fun YearHeatmap(
                         hoverRow = null
                         if (weekCell == null || row == null || !inRange(grid.gridStart.plusDays(week!! * 7L + row))) {
                             tooltip = null
+                            hoverWeek = null
                         } else {
                             showTooltipForWeek(weekCell, position.x, position.y)
                         }
@@ -255,6 +256,8 @@ fun YearHeatmap(
                             val selected = selectedDate != null &&
                                 selectedDate in weekCell.start..weekCell.end
                             val validRows = (0..6).filter { inRange(grid.gridStart.plusDays(week * 7L + it)) }
+                            val outlineTop = cellY(validRows.first())
+                            val outlineHeight = cellY(validRows.last()) + cell - outlineTop
                             for (row in 0..6) {
                                 if (row !in validRows) continue
                                 val y = cellY(row)
@@ -274,8 +277,8 @@ fun YearHeatmap(
                             if (selected) {
                                 drawRoundRect(
                                     color = colors.accent,
-                                    topLeft = Offset(x - 2f, gridTop - 2f),
-                                    size = Size(cell + 4f, gridHeight + 4f),
+                                    topLeft = Offset(x - 2f, outlineTop - 2f),
+                                    size = Size(cell + 4f, outlineHeight + 4f),
                                     cornerRadius = CornerRadius(min(8f, cell / 2f + 2f)),
                                     style = Stroke(width = 1f)
                                 )
@@ -283,8 +286,8 @@ fun YearHeatmap(
                             if (hoverWeek == week) {
                                 drawRoundRect(
                                     color = colors.accent.copy(alpha = 0.5f),
-                                    topLeft = Offset(x - 2f, gridTop - 2f),
-                                    size = Size(cell + 4f, gridHeight + 4f),
+                                    topLeft = Offset(x - 2f, outlineTop - 2f),
+                                    size = Size(cell + 4f, outlineHeight + 4f),
                                     cornerRadius = CornerRadius(min(8f, cell / 2f + 2f)),
                                     style = Stroke(width = 1.5f)
                                 )

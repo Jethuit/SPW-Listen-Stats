@@ -1,5 +1,7 @@
 # GPT 交接文档：听歌统计
 
+> **2026-10-21 存在正式 v0.1.5 之后的修复源码，未打包、未发布。** 用户授权修复审查确认问题；细节和限制见 [REVIEW-FIXES-2026-10-21.md](REVIEW-FIXES-2026-10-21.md)，最新状态见 [HANDOFF.md](HANDOFF.md)。41 文件编译、83 组回归及格式/Manifest 检查通过；只保存本地源码，不更改版本或既有正式包，不上传/安装，不宣称真实宿主已验收。首次换曲仍保留身份确认，宿主自附加 Agent 路径问题未修复。
+
 > **当前正式版 v0.1.5 已发布并设为 Latest。** [发布页面](https://github.com/Jethuit/SPW-Listen-Stats/releases/tag/v0.1.5)，Release ID `418360748`，标签目标 `51265cc88460384049745709ec2085543c329b48`。唯一附件 `SPW-Stats-v0.1.5.spmod`（17,253,804 字节），GitHub 摘要与本地一致。main／工作分支和 README 已同步，回执 `build/releases/published-v0.1.5.json`。已确认原 v0.1.4 保持用户设置的预发布状态，标签与原附件均未替换；下方禁止发布／待发布均为历史记录。未运行真实 SPW。
 
 > **v0.1.5 正式发布准备完成。** 用户最终决定独立升至 v0.1.5，不替换原 v0.1.4；GitHub v0.1.4 原标签／附件／预发布状态均应保留。正式包 `build/releases/v0.1.5/SPW-Stats-v0.1.5.spmod`（17,253,804 字节、162 项），41 文件编译、包结构／ZIP 完整性通过，与已通过 45 组回归的 dev.1 仅 manifest 版本不同。README 和发布说明已更新，公开结果以 `build/releases/published-v0.1.5.json` 为准。

@@ -8,6 +8,14 @@ import com.jethuit.spw.listenstats.data.HeatmapScale
 @OptIn(UnstableSpwWorkshopApi::class)
 object Prefs {
     private var helper: ConfigHelper? = null
+    private val writer = java.util.concurrent.Executors.newSingleThreadExecutor { task ->
+        Thread(task, "ListenStats-Preferences").apply { isDaemon = true }
+    }
+
+    /** Preserve callback order without doing config IO or waiting for its lock on the UI thread. */
+    fun putStringAsync(key: String, value: String) {
+        writer.execute { putString(key, value) }
+    }
 
     @Synchronized
     fun initialize() {

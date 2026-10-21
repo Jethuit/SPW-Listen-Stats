@@ -11,7 +11,7 @@ import java.time.ZoneId
 object HostDatabase {
     private const val DRIVER = "org.sqlite.JDBC"
 
-    fun load(databasePath: Path, zone: ZoneId = ZoneId.systemDefault()): StatsData {
+    fun load(databasePath: Path, zone: ZoneId = ZoneId.systemDefault(), aggregate: Boolean = true): StatsData {
         if (!Files.isRegularFile(databasePath)) {
             return StatsData.empty(
                 error = "没有找到播放器听歌数据库：$databasePath",
@@ -59,11 +59,12 @@ object HostDatabase {
                                     durationMs = rows.getLong("trackDuration")
                                 )
                                 tracks[trackId] = meta
-                                if (meta.durationMs > 0 && duration >= meta.durationMs / 2.0) {
+                                if (aggregate && meta.durationMs > 0 && duration >= meta.durationMs / 2.0) {
                                     playCounts[trackId] = (playCounts[trackId] ?: 0) + 1
                                 }
                             }
-                            splitIntoHours(entry, zone, daily, hourly)                        }
+                            if (aggregate) splitIntoHours(entry, zone, daily, hourly)
+                        }
                     }
                 }
 

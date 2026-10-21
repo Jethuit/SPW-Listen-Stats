@@ -23,7 +23,8 @@ data class LiveSession(
     val firstPositionMs: Long? = null,
     var lastPositionMs: Long? = null,
     val lifecycleId: String? = null,
-    var rejectedHostIds: Set<String> = emptySet()
+    var rejectedHostIds: Set<String> = emptySet(),
+    val observedOriginMs: Long? = null
 ) {
     fun copyForStore(): LiveSession = copy(spans = spans.toMutableList(), hostAliases = hostAliases.toSet())
     fun copyForDisplay(): LiveSession = copyForStore()
@@ -84,7 +85,8 @@ object LiveStore {
                     item["firstPosition"]?.jsonPrimitive?.longOrNull,
                     item["lastPosition"]?.jsonPrimitive?.longOrNull,
                     item["lifecycleId"]?.jsonPrimitive?.contentOrNull,
-                    item["rejectedHostIds"]?.jsonArray?.map { it.jsonPrimitive.content }?.toSet() ?: emptySet())
+                    item["rejectedHostIds"]?.jsonArray?.map { it.jsonPrimitive.content }?.toSet() ?: emptySet(),
+                    item["observedOrigin"]?.jsonPrimitive?.longOrNull)
             }
             sessions.putAll(loaded)
         } catch (failure: Exception) {
@@ -112,6 +114,7 @@ object LiveStore {
                         session.firstPositionMs?.let { put("firstPosition", it) }
                         session.lastPositionMs?.let { put("lastPosition", it) }
                         session.lifecycleId?.let { put("lifecycleId", it) }
+                        session.observedOriginMs?.let { put("observedOrigin", it) }
                         put("rejectedHostIds", buildJsonArray { session.rejectedHostIds.sorted().forEach { add(JsonPrimitive(it)) } })
                         session.hostId?.let { put("hostId", it) }
                         put("hostAliases", buildJsonArray { session.hostAliases.sorted().forEach { add(JsonPrimitive(it)) } })
@@ -197,7 +200,7 @@ object LiveStore {
 
     @Synchronized fun snapshot() = sessions.values.map { it.copyForDisplay() }
 
-    @Synchronized fun merge(host: StatsData): StatsData {
+    @Synchronized fun merge(host: StatsData, importedEvents: List<ListeningEvent> = emptyList()): StatsData {
         val source = DataFiles.sourceId()
         val hostEvents = host.listens.map { listen ->
             ListeningEvent("host:$source:${listen.id}", host.tracks[listen.trackId] ?: TrackMeta(
@@ -232,11 +235,12 @@ object LiveStore {
                 }
                 // A recent completed host row cannot own a new observation occurring after
                 // its recorded interval. Empty assignments are not proof of a shared play.
-                val root = members.isEmpty() && abs(listen.startTimeMs - session.startTimeMs) <= 10_000 &&
+                val origin = session.observedOriginMs ?: session.startTimeMs
+                val root = members.isEmpty() && abs(listen.startTimeMs - origin) <= 10_000 &&
                     (first < listen.startTimeMs + listen.durationMs ||
-                        abs(listen.startTimeMs - session.startTimeMs) <= 250)
+                        abs(listen.startTimeMs - origin) <= 250)
                 val laterPlay = nextHostStart[listen.id]?.let { next ->
-                    next > listen.startTimeMs && next <= first && next <= session.startTimeMs + 250
+                    next > listen.startTimeMs && next <= first && next <= origin + 250
                 } == true
                 disjoint && !laterPlay && (root || sameOrigin || continuation)
             }.minByOrNull { abs(it.startTimeMs - session.startTimeMs) }
@@ -273,6 +277,6 @@ object LiveStore {
                     approximate = events.any { it.approximate }
                 )
             }
-        return ListeningEvents.aggregate(host, hostEvents + liveEvents)
+        return ListeningEvents.aggregate(host, hostEvents + liveEvents + importedEvents)
     }
 }

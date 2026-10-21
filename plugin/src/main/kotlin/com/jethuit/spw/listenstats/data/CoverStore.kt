@@ -30,6 +30,7 @@ import kotlin.coroutines.coroutineContext
 object CoverStore {
     private data class Thumb(val bitmap: ImageBitmap, val bytes: Long)
     private class Request(val result: Deferred<ImageBitmap?>, var waiters: Int = 1)
+    private data class FetchResult(val bitmap: ImageBitmap?, val retryMs: Long)
 
     private val stateLock = Any()
     private val cache = object : LinkedHashMap<String, Thumb>(16, 0.75f, true) {}
@@ -40,13 +41,20 @@ object CoverStore {
     // themselves were mostly under 50 ms. Four is a measured, bounded increase.
     private const val MAX_PARALLEL_DECODES = 4
 
-    private val failedAt = HashMap<String, Long>()
+    private val failedUntil = LinkedHashMap<String, Long>()
+    private val foreignId = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F-]{27}:")
+    fun canLoad(trackId: String): Boolean = !foreignId.containsMatchIn(trackId)
+    fun retryDelayMillis(trackId: String): Long = synchronized(stateLock) {
+        failedUntil[trackId]?.let { TimeUnit.NANOSECONDS.toMillis(it - System.nanoTime()).coerceAtLeast(1) }
+            ?: FAILURE_COOLDOWN_MS
+    }
     private val inflight = HashMap<String, Request>()
     private var generation = 0L
     private var requestScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val decodeSemaphore = Semaphore(MAX_PARALLEL_DECODES)
 
     suspend fun load(trackId: String, targetPx: Int): ImageBitmap? = withContext(Dispatchers.IO) {
+        if (!canLoad(trackId)) return@withContext null
         val size = targetPx.coerceIn(16, 256)
         val key = "$trackId@$size"
         val request = synchronized(stateLock) {
@@ -54,8 +62,8 @@ object CoverStore {
                 CoverDiagnostics.log("cover cache=hit track=$trackId px=$size")
                 return@withContext it.bitmap
             }
-            val failed = failedAt[trackId]
-            if (failed != null && System.nanoTime() - failed < TimeUnit.MILLISECONDS.toNanos(FAILURE_COOLDOWN_MS)) {
+            val failed = failedUntil[trackId]
+            if (failed != null && System.nanoTime() < failed) {
                 CoverDiagnostics.log("cover cache=cooldown track=$trackId px=$size")
                 return@withContext null
             }
@@ -74,15 +82,16 @@ object CoverStore {
                 coroutineContext.ensureActive()
                 synchronized(stateLock) {
                     if (generation == requestGeneration && inflight[key] === created) {
-                        if (result != null) {
-                            cachePut(key, result)
-                            failedAt.remove(trackId)
+                        if (result.bitmap != null) {
+                            cachePut(key, result.bitmap)
+                            failedUntil.remove(trackId)
                         } else {
-                            failedAt[trackId] = System.nanoTime()
+                            failedUntil[trackId] = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(result.retryMs)
+                            while (failedUntil.size > 512) failedUntil.remove(failedUntil.keys.first())
                         }
                     }
                 }
-                result
+                result.bitmap
             }
             created = Request(result)
             inflight[key] = created
@@ -112,7 +121,7 @@ object CoverStore {
             generation++
             cache.clear()
             cacheBytes = 0L
-            failedAt.clear()
+            failedUntil.clear()
             inflight.clear()
             requestScope.also {
                 requestScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -121,7 +130,7 @@ object CoverStore {
         previousScope.cancel()
     }
 
-    private suspend fun fetchAndDecode(trackId: String, size: Int, requestStart: Long): ImageBitmap? {
+    private suspend fun fetchAndDecode(trackId: String, size: Int, requestStart: Long): FetchResult {
         val waitStart = System.nanoTime()
         var waitMs = 0L
         var apiMs = 0L
@@ -129,6 +138,7 @@ object CoverStore {
         var bytes: ByteArray? = null
         var result: ImageBitmap? = null
         var acquired = false
+        var retryMs = FAILURE_COOLDOWN_MS
         try {
             decodeSemaphore.acquire()
             acquired = true
@@ -142,6 +152,9 @@ object CoverStore {
             }
             apiMs = (System.nanoTime() - apiStart) / 1_000_000
             val coverBytes = bytes
+            // A successful empty result is more stable than an IO/API failure,
+            // but not permanent: tags or library permissions can change later.
+            if (coverBytes == null || coverBytes.isEmpty()) retryMs = 5 * 60_000L
             if (coverBytes != null && coverBytes.isNotEmpty()) {
                 coroutineContext.ensureActive()
                 val decodeStart = System.nanoTime()
@@ -160,7 +173,7 @@ object CoverStore {
                 "cover cache=miss track=$trackId px=$size wait_ms=$waitMs api_ms=$apiMs decode_ms=$decodeMs total_ms=$totalMs bytes=${bytes?.size ?: 0}"
             )
         }
-        return result
+        return FetchResult(result, retryMs)
     }
 
     private fun decodeThumbnail(bytes: ByteArray, size: Int): ImageBitmap? {

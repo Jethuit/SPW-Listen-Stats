@@ -52,6 +52,7 @@ def main() -> None:
                        or '/jdk25/' in n or '/.references/' in n for n in names), 'private or host files in package'
 
         manifest = archive.read('classes/META-INF/MANIFEST.MF').decode('utf-8')
+        assert all(len(line.encode('utf-8')) <= 70 for line in manifest.splitlines()), 'manifest UTF-8 line exceeds byte budget'
         fields = {}
         for line in manifest.splitlines():
             if line.startswith(' ') and fields:

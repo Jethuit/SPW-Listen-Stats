@@ -375,6 +375,7 @@ private fun Cover(trackId: String) {
     val targetPx = with(LocalDensity.current) { RankingCoverSize.roundToPx() }
     var image by remember(trackId, targetPx) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(trackId, targetPx) {
+        if (!CoverStore.canLoad(trackId)) return@LaunchedEffect
         while (image == null) {
             val started = System.nanoTime()
             image = CoverStore.load(trackId, targetPx)
@@ -384,7 +385,7 @@ private fun Cover(trackId: String) {
                 (System.nanoTime() - started) / 1_000_000,
                 image != null
             )
-            if (image == null) delay(30_000)
+            if (image == null) delay(CoverStore.retryDelayMillis(trackId))
         }
     }
     Surface(
