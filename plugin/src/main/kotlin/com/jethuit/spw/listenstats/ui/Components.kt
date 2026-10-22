@@ -3,6 +3,11 @@
 package com.jethuit.spw.listenstats.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -23,8 +28,8 @@ import com.moriafly.salt.ui.LocalTextStyle
 import com.moriafly.salt.ui.BasicButton
 import com.moriafly.salt.ui.ButtonColors
 import com.moriafly.salt.ui.ControlSize
-import com.moriafly.salt.ui.popup.PopupMenu
 import com.moriafly.salt.ui.popup.PopupMenuItem
+import com.moriafly.salt.ui.SaltTheme
 import com.moriafly.salt.ui.rememberScrollState
 import com.moriafly.salt.ui.verticalScroll
 import com.jethuit.spw.listenstats.ui.StatsText as Text
@@ -49,7 +54,6 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -72,15 +76,25 @@ private val ControlHeight = 34.dp
 @Composable
 fun BackupMenu(onImport: () -> Unit, onExport: () -> Unit) {
     val colors = LocalStatsColors.current
+    val density = LocalDensity.current
+    val measurer = rememberTextMeasurer()
+    val labelWidth = measurer.measure("导入", SaltTheme.textStyles.main).size.width
+    val menuWidth = with(density) { labelWidth.toDp() } + SaltTheme.dimens.padding * 2
     var expanded by remember { mutableStateOf(false) }
-    Box {
+    var anchor by remember { mutableStateOf<IntRect?>(null) }
+    val visibility = remember { MutableTransitionState(false) }
+    visibility.targetState = expanded
+    Box(Modifier.onGloballyPositioned {
+        val bounds = it.boundsInWindow()
+        anchor = IntRect(bounds.left.roundToInt(), bounds.top.roundToInt(),
+            bounds.right.roundToInt(), bounds.bottom.roundToInt())
+    }) {
         BasicButton(
             onClick = { expanded = !expanded },
             modifier = Modifier.size(40.dp).semantics { contentDescription = "更多操作" },
             size = ControlSize.Regular,
             shape = AppShape(8.dp),
             colors = ButtonColors(Color.Transparent, colors.text, Color.Transparent, colors.muted),
-            border = BorderStroke(1.dp, SolidColor(colors.line)),
             contentPadding = PaddingValues(0.dp)
         ) {
             Box(Modifier.size(20.dp).drawWith {
@@ -90,13 +104,29 @@ fun BackupMenu(onImport: () -> Unit, onExport: () -> Unit) {
                 }
             })
         }
-        PopupMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            offset = DpOffset(0.dp, 4.dp)
-        ) {
-            PopupMenuItem(onClick = { expanded = false; onImport() }, text = "导入")
-            PopupMenuItem(onClick = { expanded = false; onExport() }, text = "导出")
+        val bounds = anchor
+        if ((visibility.currentState || visibility.targetState) && bounds != null) {
+            Popup(
+                popupPositionProvider = remember(bounds, density) {
+                    SelectMenuPositionProvider(bounds, with(density) { 4.dp.roundToPx() }, alignEnd = true)
+                },
+                onDismissRequest = { expanded = false },
+                properties = PopupProperties(focusable = expanded, dismissOnClickOutside = true)
+            ) {
+                AnimatedVisibility(
+                    visibleState = visibility,
+                    enter = fadeIn(tween(StatsMotionDurationMillis)),
+                    exit = fadeOut(tween(StatsMotionDurationMillis))
+                ) {
+                    Surface(shape = AppShape(9.dp), color = SaltTheme.colors.popup, shadowElevation = 4.dp) {
+                        // Constrain Salt's default 180dp menu-item minimum to two glyphs plus native padding.
+                        Column(Modifier.width(menuWidth)) {
+                            PopupMenuItem(onClick = { if (expanded) { expanded = false; onImport() } }, text = "导入")
+                            PopupMenuItem(onClick = { if (expanded) { expanded = false; onExport() } }, text = "导出")
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -381,7 +411,8 @@ fun SelectBox(
 
 private class SelectMenuPositionProvider(
     private val anchor: IntRect,
-    private val gapPx: Int
+    private val gapPx: Int,
+    private val alignEnd: Boolean = false
 ) : PopupPositionProvider {
     override fun calculatePosition(
         anchorBounds: IntRect,
@@ -389,7 +420,7 @@ private class SelectMenuPositionProvider(
         layoutDirection: LayoutDirection,
         popupContentSize: IntSize
     ): IntOffset {
-        var x = anchor.left
+        var x = if (alignEnd) anchor.right - popupContentSize.width else anchor.left
         var y = anchor.bottom + gapPx
         if (y + popupContentSize.height > windowSize.height) {
             y = anchor.top - popupContentSize.height - gapPx

@@ -73,6 +73,13 @@ fun rankingTotalPages(count: Int): Int =
 fun rankingSafePage(count: Int, page: Int): Int =
     page.coerceIn(1, rankingTotalPages(count))
 
+private data class RankingPanel(
+    val mode: RankingMode,
+    val page: Int,
+    val rows: List<RankedEntry>,
+    val query: String
+)
+
 @Composable
 fun RankingPage(
     entries: List<RankedEntry>,
@@ -127,18 +134,30 @@ fun RankingPage(
                 ) { controls() }
             }
         }
-        SongTableHeader(mode)
-        rows.forEach { rank ->
-            key(rank.value.key) {
-                SongRow(rank.value, rank.position)
-            }
-        }
-        if (rows.isEmpty()) {
-            Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                Text(
-                    if (query.isBlank()) "还没有达到计次条件的${mode.label}" else "没有找到匹配的${mode.label}",
-                    style = AppType.bodySmall.copy(color = colors.muted)
-                )
+        DirectionalContent(
+            target = RankingPanel(mode, currentPage, rows, query),
+            contentKey = { it.mode to it.page },
+            direction = { from, to ->
+                if (from.mode == to.mode) to.page.compareTo(from.page)
+                else to.mode.ordinal.compareTo(from.mode.ordinal)
+            },
+            label = "ranking-panel"
+        ) { shown ->
+            Column(Modifier.fillMaxWidth()) {
+                SongTableHeader(shown.mode)
+                shown.rows.forEach { rank ->
+                    key(rank.value.key) {
+                        SongRow(rank.value, rank.position)
+                    }
+                }
+                if (shown.rows.isEmpty()) {
+                    Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                        Text(
+                            if (shown.query.isBlank()) "还没有达到计次条件的${shown.mode.label}" else "没有找到匹配的${shown.mode.label}",
+                            style = AppType.bodySmall.copy(color = colors.muted)
+                        )
+                    }
+                }
             }
         }
         Box(Modifier.height(1.dp))

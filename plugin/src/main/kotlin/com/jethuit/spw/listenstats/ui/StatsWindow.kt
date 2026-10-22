@@ -296,7 +296,8 @@ fun ListenStatsApp(
         if (bottomScrollRequest > 0) {
             // Wait for the new page to be laid out, then keep the reader at the
             // bottom instead of leaving them at an arbitrary scroll offset.
-            delay(60)
+            delay(StatsMotionDurationMillis.toLong())
+            androidx.compose.runtime.withFrameNanos { }
             scrollState.scrollTo(scrollState.maxValue)
         }
     }
@@ -584,6 +585,12 @@ private fun NavTab(icon: String, label: String, active: Boolean, onClick: () -> 
         contentColor = colors.text
     ) {
         Box(contentAlignment = Alignment.Center) {
+            if (active) {
+                Box(Modifier.align(Alignment.CenterStart).width(3.dp).height(18.dp).drawWith {
+                    drawRoundRect(color = colors.accent,
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.width / 2f))
+                })
+            }
             Row(
                 Modifier.padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),

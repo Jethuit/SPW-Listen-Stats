@@ -29,13 +29,14 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 
 private val PageEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
+const val StatsMotionDurationMillis = 330
 
 /** Composed only when the first data snapshot is ready; reloads do not replay it. */
 @Composable
 fun StatsPageEnter(content: @Composable () -> Unit) {
     val progress = remember { Animatable(0f) }
     val distance = with(LocalDensity.current) { 28.dp.toPx() }
-    LaunchedEffect(Unit) { progress.animateTo(1f, tween(220, easing = PageEasing)) }
+    LaunchedEffect(Unit) { progress.animateTo(1f, tween(StatsMotionDurationMillis, easing = PageEasing)) }
     Box(Modifier.fillMaxSize().graphicsLayer {
         alpha = progress.value
         translationY = distance * (1f - progress.value)
@@ -45,24 +46,38 @@ fun StatsPageEnter(content: @Composable () -> Unit) {
 /** Header/navigation stay outside. All UI choices and loaded data live in the parent. */
 @Composable
 fun StatsPageBody(page: StatsPage, content: @Composable (StatsPage) -> Unit) {
+    DirectionalContent(page, { it }, { from, to -> to.ordinal.compareTo(from.ordinal) },
+        "statistics-page", content)
+}
+
+/** Stable keys avoid replaying a transition on data refresh; each outgoing value keeps its snapshot. */
+@Composable
+fun <T> DirectionalContent(
+    target: T,
+    contentKey: (T) -> Any,
+    direction: (T, T) -> Int,
+    label: String,
+    content: @Composable (T) -> Unit
+) {
     val distance = with(LocalDensity.current) { 36.dp.roundToPx() }
     AnimatedContent(
-        targetState = page,
+        targetState = target,
+        contentKey = contentKey,
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.TopStart,
         transitionSpec = {
-            val direction = if (targetState.ordinal > initialState.ordinal) 1 else -1
-            ((slideIn(tween(200, easing = PageEasing)) { IntOffset(direction * distance, 0) } +
-                fadeIn(tween(200, easing = PageEasing))) togetherWith
-                (slideOut(tween(200, easing = PageEasing)) { IntOffset(-direction * distance, 0) } +
-                    fadeOut(tween(160)))).using(
-                        SizeTransform(clip = true) { _, _ -> tween(200, easing = PageEasing) }
+            val sign = if (direction(initialState, targetState) >= 0) 1 else -1
+            ((slideIn(tween(StatsMotionDurationMillis, easing = PageEasing)) { IntOffset(sign * distance, 0) } +
+                fadeIn(tween(StatsMotionDurationMillis, easing = PageEasing))) togetherWith
+                (slideOut(tween(StatsMotionDurationMillis, easing = PageEasing)) { IntOffset(-sign * distance, 0) } +
+                    fadeOut(tween(StatsMotionDurationMillis)))).using(
+                        SizeTransform(clip = true) { _, _ -> tween(StatsMotionDurationMillis, easing = PageEasing) }
                     )
         },
-        label = "statistics-page"
-    ) { shownPage ->
+        label = label
+    ) { shown ->
         Box(Modifier.fillMaxWidth().onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { event ->
-            if (shownPage != page) event.changes.forEach { it.consume() }
-        }) { content(shownPage) }
+            if (contentKey(shown) != contentKey(target)) event.changes.forEach { it.consume() }
+        }) { content(shown) }
     }
 }
