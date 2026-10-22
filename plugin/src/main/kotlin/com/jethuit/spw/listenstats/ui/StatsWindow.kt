@@ -346,7 +346,7 @@ fun ListenStatsApp(
         LaunchedEffect(totalPages) {
             if (rankPage > totalPages) rankPage = totalPages
         }
-        StatsPageEnter(exiting, onExited = {
+        StatsPageEnter(exiting, exitMotion = if (embedded) StatsHostState.exitMotion else StatsExitMotion.Return, onExited = {
             if (embedded) StatsHostState.finishClose(closeTicket) else onClose()
         }) {
         Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {

@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Composer
 import androidx.compose.runtime.currentComposer
@@ -26,6 +28,8 @@ import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.zIndex
 import com.xuncorp.spw.workshop.api.hook.ComposableHook
 import com.xuncorp.spw.workshop.api.hook.UiHookCall
 import java.lang.reflect.Method
@@ -102,18 +106,21 @@ fun RetainedHostContent(
     hidden: Boolean,
     drawWhileHidden: Boolean = false,
     opacity: () -> Float = { 1f },
+    aboveStatistics: Boolean = false,
+    translationY: () -> Float = { 0f },
     content: @Composable () -> Unit
 ) {
     val focus = LocalFocusManager.current
     LaunchedEffect(hidden) { if (hidden) focus.clearFocus(force = true) }
-    Box(Modifier.fillMaxSize().then(HostPlacement(hidden && !drawWhileHidden))
+    Box(Modifier.fillMaxSize().zIndex(if (aboveStatistics) 1f else 0f)
+        .then(HostPlacement(hidden && !drawWhileHidden))
         .onPreviewKeyEvent { hidden }
         .pointerInput(hidden) {
             if (hidden) awaitPointerEventScope {
                 while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
             }
         }
-        .graphicsLayer { alpha = opacity().coerceIn(0f, 1f) }
+        .graphicsLayer { alpha = opacity().coerceIn(0f, 1f); this.translationY = translationY() }
     ) { content() }
 }
 
@@ -126,11 +133,21 @@ fun HostMaterialLayer(content: @Composable () -> Unit) {
     }
     val visible = StatsHostState.visible
     val fade = LocalStatsHostFade.current
-    val isolated = StatsHostState.closing && !StatsHostState.revealHostOnExit
+    val navigating = StatsHostState.navigating
+    // Same-route tool pages do not participate in NavDisplay's entrance.
+    val toolOffset = remember(StatsHostState.navigationTicket) {
+        Animatable(IntOffset(0, if (navigating && !StatsHostState.nativeNavigation) StatsPageOffsetPixels else 0),
+            IntOffset.VectorConverter)
+    }
+    LaunchedEffect(toolOffset) {
+        toolOffset.animateTo(IntOffset.Zero, spring(dampingRatio = 1f, stiffness = StatsPageSpringStiffness))
+    }
     RetainedHostContent(
         hidden = visible,
-        drawWhileHidden = !isolated && fade != null && fade.value > 0f,
-        opacity = { if (visible) fade?.value ?: 0f else 1f },
+        drawWhileHidden = navigating || (fade != null && fade.value > 0f),
+        opacity = { if (!visible || navigating) 1f else fade?.value ?: 0f },
+        aboveStatistics = navigating,
+        translationY = { toolOffset.value.y.toFloat() },
         content = content
     )
 }

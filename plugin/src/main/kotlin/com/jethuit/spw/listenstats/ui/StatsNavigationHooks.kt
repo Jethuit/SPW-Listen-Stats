@@ -8,6 +8,8 @@ import com.xuncorp.spw.workshop.api.hook.MethodHookParam
 import com.xuncorp.spw.workshop.api.WorkshopApi
 import java.lang.ref.ReferenceQueue
 import java.lang.ref.WeakReference
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /** Bridges the embedded page to SPW 1.19.0's Navigator without editing its back stack. */
 object StatsNavigationHooks {
@@ -98,6 +100,7 @@ object StatsNavigationHooks {
             // Close before the host's same-route early return as well as actual transitions.
             for (method in listOf("navigate", "replace", "forward")) {
                 val parameters = if (method == "forward") emptyList() else listOf(ROUTE_CLASS)
+                val sameRouteCalls = Collections.newSetFromMap(IdentityHashMap<MethodHookParam, Boolean>())
                 handles += addHook(method, parameters, object : MethodHook(100) {
                     override fun before(call: MethodHookParam) {
                         // Observe ordinary navigation before another tool can defer it.
@@ -106,20 +109,19 @@ object StatsNavigationHooks {
                             val sameRoute = method == "navigate" && host != null &&
                                 call.thisObject === host.navigator && call.args.firstOrNull() == host.currentRoute()
                             if (sameRoute) {
-                                // Tools open synchronously after this no-op returns. Keep them
-                                // hidden by the containing Layer until our exit finishes.
-                                // Replaying later would dismiss the newly opened tool again.
-                                StatsHostState.requestClose(revealHost = false)
+                                // A tool opens synchronously after this no-op returns, outside
+                                // NavDisplay. Animate the containing layer over statistics.
+                                sameRouteCalls.add(call)
                             } else if (!StatsHostState.canAnimateClose) StatsHostState.close()
                         }
                     }
                     override fun after(call: MethodHookParam) {
                         // Only accepted navigation starts the exit. A lower-priority tool
                         // can defer/cancel the call, or replay it after draft confirmation.
-                        // Native and statistics transitions then run in parallel, with the
-                        // entire host layer isolated until the statistics spring completes.
+                        // The native incoming page covers statistics as it fades in place.
+                        val sameRoute = sameRouteCalls.remove(call)
                         if (!call.isOriginalSkipped && call.throwable == null && StatsHostState.visible) {
-                            StatsHostState.requestClose(revealHost = false)
+                            StatsHostState.requestNavigation(nativeTransition = !sameRoute)
                         }
                     }
                 })

@@ -11,12 +11,14 @@ import com.jethuit.spw.listenstats.ui.StatsNavigationHooks
 import com.jethuit.spw.listenstats.ui.StatsTitlebarEntry
 import com.jethuit.spw.listenstats.ui.StatsPageHook
 import com.jethuit.spw.listenstats.ui.HostUiTargets
+import com.jethuit.spw.listenstats.ui.StatsHostTransitionHooks
 
 class MainPlugin(
     pluginContext: PluginContext
 ) : SpwPlugin(pluginContext) {
     private var hookHandle: AutoCloseable? = null
     private var navigationHandle: AutoCloseable? = null
+    private var transitionHandle: AutoCloseable? = null
     private var titlebarHandle: AutoCloseable? = null
 
     override fun start() {
@@ -29,6 +31,10 @@ class MainPlugin(
         com.jethuit.spw.listenstats.data.PlaybackTracker.initialize()
         closeHooks()
         try {
+            HostUiTargets.forVersion(pluginContext.spwVersion)
+            transitionHandle = StatsHostTransitionHooks.register { method, parameters, callback ->
+                WorkshopApi.hookRegistrar.hookMethod(StatsHostTransitionHooks.TARGET_CLASS, method, parameters, callback)
+            }
             navigationHandle = StatsNavigationHooks.register { method, parameters, callback ->
                 WorkshopApi.hookRegistrar.hookMethod(
                     className = StatsNavigationHooks.NAVIGATOR_CLASS,
@@ -73,6 +79,7 @@ class MainPlugin(
         PluginState.registeredHooks = buildSet {
             if (hookHandle != null) add("page")
             if (navigationHandle != null) add("navigation")
+            if (transitionHandle != null) add("page-transition")
             if (hookHandle != null) add("page-isolation")
             if (titlebarHandle != null) add("titlebar")
         }
@@ -105,10 +112,11 @@ class MainPlugin(
 
     private fun closeHooks() {
         PluginState.registeredHooks = emptySet()
-        val pending = listOfNotNull(titlebarHandle, hookHandle, navigationHandle)
+        val pending = listOfNotNull(titlebarHandle, hookHandle, navigationHandle, transitionHandle)
         titlebarHandle = null
         hookHandle = null
         navigationHandle = null
+        transitionHandle = null
         for (handle in pending) {
             runCatching { handle.close() }.onFailure {
                 PluginLog.error("removing UI/navigation hooks failed", it)

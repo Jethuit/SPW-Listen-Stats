@@ -2,6 +2,10 @@
 
 import com.jethuit.spw.listenstats.ui.StatsHostState
 import com.jethuit.spw.listenstats.ui.StatsNavigationHooks
+import com.jethuit.spw.listenstats.ui.StatsExitMotion
+import com.jethuit.spw.listenstats.ui.StatsHostTransitionHooks
+import androidx.compose.animation.ContentTransform
+import java.lang.reflect.Proxy
 import com.xuncorp.spw.workshop.api.hook.MethodHook
 import com.xuncorp.spw.workshop.api.hook.MethodHookParam
 
@@ -127,6 +131,7 @@ fun main() {
     checkNativeNoOp(marker)
     checkExitNavigation()
     checkRapidPluginSwitches()
+    checkNativeForwardMotion()
 
     val rolledBack = mutableListOf<String>()
     val failure = runCatching {
@@ -137,6 +142,52 @@ fun main() {
     }.exceptionOrNull()
     check(failure != null && rolledBack == listOf("navigate@50", "forward@100", "replace@100", "navigate@100"))
     println("PASS failed registration rolls back every installed navigation hook")
+}
+
+/** Exercise the installed host's real transition factories and the outgoing-scene adapter. */
+private fun checkNativeForwardMotion() {
+    val scopeType = Class.forName("androidx.compose.animation.AnimatedContentTransitionScope")
+    val scope = Proxy.newProxyInstance(scopeType.classLoader, arrayOf(scopeType)) { _, method, _ ->
+        error("Native transition unexpectedly reads ${method.name}")
+    }
+    val presenter = StatsHostState.attachPresenter()
+    val handle = StatsHostTransitionHooks.register { name, parameters, hook ->
+        val types = parameters.map { if (it == "int") Int::class.javaPrimitiveType!! else Class.forName(it) }
+        val resolvedMethod = Class.forName(StatsHostTransitionHooks.TARGET_CLASS).getDeclaredMethod(name, *types.toTypedArray())
+        check(resolvedMethod.trySetAccessible())
+        val businessArgs: Array<Any?> = if (types.size == 2) arrayOf(scope, 0) else arrayOf(scope)
+        val original = resolvedMethod.invoke(null, *businessArgs) as ContentTransform
+        var returned: Any? = original
+        val call = object : MethodHookParam() {
+            override val method = resolvedMethod
+            override val thisObject: Any? = null
+            override val args = businessArgs
+            override val result: Any? get() = returned
+            override val throwable: Throwable? = null
+            override var isOriginalSkipped = false
+            override fun setResult(result: Any?) { returned = result; isOriginalSkipped = true }
+            override fun setThrowable(throwable: Throwable) { error("Unexpected exception") }
+            override fun invokeOriginal(): Any? = error("Must not replay native animation factory")
+        }
+        StatsHostState.close()
+        hook.after(call)
+        check(call.result === original)
+        StatsHostState.open()
+        StatsHostState.requestClose()
+        hook.after(call)
+        check(call.result === original) { "Explicit return's native transition was changed" }
+        StatsHostState.open()
+        StatsHostState.requestNavigation()
+        hook.after(call)
+        val adapted = call.result as ContentTransform
+        check(adapted !== original && adapted.targetContentEnter === original.targetContentEnter &&
+            adapted.initialContentExit !== original.initialContentExit && adapted.sizeTransform === original.sizeTransform)
+        AutoCloseable { }
+    }
+    handle.close()
+    StatsHostState.close()
+    presenter.close()
+    println("PASS real native transition factories: incoming motion retained, obsolete host scene removed only for forward cover")
 }
 
 private fun checkRapidPluginSwitches() {
@@ -153,6 +204,9 @@ private fun checkRapidPluginSwitches() {
                 val ticket = StatsHostState.closeTicket
                 check(guard.active && StatsHostState.visible && StatsHostState.closing)
                 check(!StatsHostState.revealHostOnExit) { "Prepared lyrics page must remain isolated" }
+                check(StatsHostState.exitMotion == StatsExitMotion.Navigate && !StatsHostState.nativeNavigation) {
+                    "Plugin switch must cover statistics instead of playing a return"
+                }
                 check(registration.host.originalCalls == calls + 1)
                 StatsNavigationHooks.openStats()
                 check(!guard.active && StatsHostState.visible && !StatsHostState.closing)
@@ -238,6 +292,7 @@ private fun checkExitNavigation() {
         check(host.currentRoute == songs && !StatsHostState.revealHostOnExit) {
             "Album -> statistics -> songs restored the old Album page"
         }
+        check(StatsHostState.exitMotion == StatsExitMotion.Navigate && StatsHostState.nativeNavigation)
         registration.dispatch("replace", arrayOf("artists")) { host.currentRoute = "artists" }
         check(StatsHostState.closeTicket == ticket)
         StatsHostState.finishClose(ticket)
@@ -262,6 +317,7 @@ private fun checkExitNavigation() {
         check(StatsHostState.visible && !StatsHostState.closing && host.originalCalls == 4)
         StatsHostState.requestClose()
         check(StatsHostState.revealHostOnExit) { "Ordinary back no longer restores the original page" }
+        check(StatsHostState.exitMotion == StatsExitMotion.Return)
         val next = StatsHostState.closeTicket
         StatsHostState.finishClose(interrupted)
         check(StatsHostState.visible && StatsHostState.closing)

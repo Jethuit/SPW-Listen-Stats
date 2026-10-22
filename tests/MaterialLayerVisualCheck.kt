@@ -82,6 +82,65 @@ fun main(args: Array<String>) {
         println("PASS host stays composed, does not receive clicks while hidden, and restores its state")
     } finally { SwingUtilities.invokeAndWait { scene.close() } }
     checkNestedMaterialHook(output)
+    checkForwardCover(output)
+}
+
+/** New content sits above the stationary outgoing page, rather than waiting for a pop. */
+private fun checkForwardCover(output: Path) {
+    var target by mutableStateOf(false)
+    lateinit var scene: ImageComposeScene
+    lateinit var presenter: AutoCloseable
+    SwingUtilities.invokeAndWait {
+        StatsHostState.close()
+        presenter = StatsHostState.attachPresenter()
+        scene = ImageComposeScene(400, 300, density = Density(1f)) {
+            Box(Modifier.fillMaxSize()) {
+                StatsPageLayers(hostContent = {
+                    Box(Modifier.fillMaxSize().drawWith { drawRect(if (target) Color.Blue else Color.Green) })
+                }, statistics = {
+                    if (StatsHostState.visible) StatsPageEnter(StatsHostState.closing,
+                        exitMotion = StatsHostState.exitMotion,
+                        onExited = { StatsHostState.finishClose(StatsHostState.closeTicket) }) {
+                        Box(Modifier.fillMaxSize().drawWith {
+                            drawRect(Color.Red)
+                            drawRect(Color.White, topLeft = Offset(0f, 30f), size = androidx.compose.ui.geometry.Size(400f, 20f))
+                        })
+                    }
+                })
+            }
+        }
+    }
+    var time = 0L
+    fun frame(): java.awt.image.BufferedImage {
+        time += 16_666_667L
+        var bytes = byteArrayOf()
+        SwingUtilities.invokeAndWait {
+            scene.render(time).use { image ->
+                image.encodeToData(EncodedImageFormat.PNG)!!.use { bytes = it.bytes }
+            }
+        }
+        Thread.sleep(3)
+        return ImageIO.read(java.io.ByteArrayInputStream(bytes))
+    }
+    try {
+        frame()
+        SwingUtilities.invokeAndWait { StatsHostState.open() }
+        repeat(60) { frame() }
+        SwingUtilities.invokeAndWait { target = true; StatsHostState.requestNavigation(nativeTransition = false) }
+        frame()
+        val covered = frame()
+        ImageIO.write(covered, "png", output.resolve("forward-cover.png").toFile())
+        val stripe = covered.getRGB(200, 35)
+        check((stripe and 255) > 80 && ((stripe shr 8) and 255) > 80) {
+            "Forward switch moved the outgoing stripe downward like a return"
+        }
+        check(covered.getRGB(200, 220) and 0xffffff == 0x0000ff) {
+            "Incoming page did not immediately cover outgoing content"
+        }
+        repeat(60) { frame() }
+        check(!StatsHostState.visible && frame().getRGB(200, 35) and 0xffffff == 0x0000ff)
+        println("PASS forward cover: outgoing marker remains in place, incoming content is above it, no sequential return")
+    } finally { SwingUtilities.invokeAndWait { presenter.close(); StatsHostState.close(); scene.close() } }
 }
 
 /** Exercise the actual native container callback with its original business arguments. */
@@ -162,7 +221,7 @@ private fun checkNestedMaterialHook(output: Path) {
                 }, statistics = {
                     if (StatsHostState.visible) {
                         // Drive the shared native spring fade; complete exits explicitly below.
-                        StatsPageEnter(StatsHostState.closing) {
+                        StatsPageEnter(StatsHostState.closing, exitMotion = StatsHostState.exitMotion) {
                             Box(Modifier.fillMaxSize().drawWith { drawRect(Color.Transparent) })
                         }
                     }
@@ -170,11 +229,16 @@ private fun checkNestedMaterialHook(output: Path) {
             }
         }
     }
+    var time = 0L
+    fun nextFrame(): org.jetbrains.skia.Image {
+        time += 16_666_667L
+        return scene.render(time)
+    }
     fun render(name: String): Int {
         var pixel = 0
         repeat(3) {
             SwingUtilities.invokeAndWait {
-                scene.render().use { image ->
+                nextFrame().use { image ->
                     image.encodeToData(EncodedImageFormat.PNG)!!.use { data ->
                         pixel = ImageIO.read(java.io.ByteArrayInputStream(data.bytes)).getRGB(200, 150) and 0xffffff
                         Files.write(output.resolve("switch-$name.png"), data.bytes)
@@ -191,7 +255,7 @@ private fun checkNestedMaterialHook(output: Path) {
     }
     fun settleMotion() {
         repeat(45) {
-            SwingUtilities.invokeAndWait { scene.render().close() }
+            SwingUtilities.invokeAndWait { nextFrame().close() }
             Thread.sleep(15)
         }
     }
@@ -212,22 +276,22 @@ private fun checkNestedMaterialHook(output: Path) {
             SwingUtilities.invokeAndWait { StatsHostState.open() }
             settleMotion()
             check(render("stats-$index") == 0x276B56)
-            SwingUtilities.invokeAndWait { StatsHostState.requestClose(revealHost = false); lyricsActive = true }
+            SwingUtilities.invokeAndWait { StatsHostState.requestNavigation(nativeTransition = false); lyricsActive = true }
             val ticket = StatsHostState.closeTicket
             check(StatsHostState.visible && StatsHostState.closing)
-            check(render("exiting-$index") == 0x276B56) { "Target plugin leaked through outgoing statistics" }
+            check(render("exiting-$index") == 0x2244BB) { "Incoming tool must cover outgoing statistics" }
             click(); check(lyricsClicks == 0 && hostClicks == 1)
             SwingUtilities.invokeAndWait { lyricsActive = false; StatsHostState.open(); StatsHostState.finishClose(ticket) }
             settleMotion()
             check(render("reopened-$index") == 0x276B56 && StatsHostState.visible)
         }
-        SwingUtilities.invokeAndWait { StatsHostState.requestClose(revealHost = false); lyricsActive = true }
-        check(render("last-exit") == 0x276B56)
+        SwingUtilities.invokeAndWait { StatsHostState.requestNavigation(nativeTransition = false); lyricsActive = true }
+        check(render("last-exit") == 0x2244BB)
         SwingUtilities.invokeAndWait { StatsHostState.finishClose(StatsHostState.closeTicket) }
         check(render("lyrics") == 0x2244BB)
         click(); check(lyricsClicks == 1)
         check(created == 1 && disposed == 0)
-        println("PASS full-page isolation: six rapid reversals, hidden target pixels/clicks, transparent backdrop, target reveal and retained host state")
+        println("PASS forward page covers statistics, blocks input during motion, retains host state and tolerates six reversals")
     } finally {
         SwingUtilities.invokeAndWait { presenter.close(); StatsHostState.close(); scene.close() }
     }

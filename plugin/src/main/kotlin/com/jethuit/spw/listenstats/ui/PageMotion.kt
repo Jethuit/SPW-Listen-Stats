@@ -76,9 +76,14 @@ fun SearchExpansion(expanded: Boolean, content: @Composable (Boolean) -> Unit) {
     ) { shown -> content(shown) }
 }
 
-/** SPW desktop motion: slide in without fading; slide/fade out on return. */
+/** Forward: fade in place under the incoming page. Return: slide/fade down. */
 @Composable
-fun StatsPageEnter(exiting: Boolean = false, onExited: () -> Unit = {}, content: @Composable () -> Unit) {
+fun StatsPageEnter(
+    exiting: Boolean = false,
+    exitMotion: StatsExitMotion = StatsExitMotion.Return,
+    onExited: () -> Unit = {},
+    content: @Composable () -> Unit
+) {
     val enabled = LocalStatsAnimationsEnabled.current
     val offset = remember {
         Animatable(IntOffset(0, if (enabled) StatsPageOffsetPixels else 0), IntOffset.VectorConverter)
@@ -87,8 +92,9 @@ fun StatsPageEnter(exiting: Boolean = false, onExited: () -> Unit = {}, content:
     val velocities = remember { PageSpringVelocity() }
     val hostFade = LocalStatsHostFade.current
     val finished by rememberUpdatedState(onExited)
-    LaunchedEffect(enabled, exiting, hostFade) {
-        val targetOffset = IntOffset(0, if (exiting) StatsPageOffsetPixels else 0)
+    LaunchedEffect(enabled, exiting, exitMotion, hostFade) {
+        val navigating = exiting && exitMotion == StatsExitMotion.Navigate
+        val targetOffset = if (navigating) offset.value else IntOffset(0, if (exiting) StatsPageOffsetPixels else 0)
         val targetOpacity = if (exiting) 0f else 1f
         val targetHostOpacity = if (exiting) 1f else 0f
         if (!enabled) {
@@ -102,7 +108,8 @@ fun StatsPageEnter(exiting: Boolean = false, onExited: () -> Unit = {}, content:
             // Use the same typed pixel/alpha springs as SPW, without a fixed duration.
             // A new target cancels this scope and continues from the current values/velocity.
             launch {
-                offset.animateTo(targetOffset, spring(dampingRatio = 1f, stiffness = StatsPageSpringStiffness),
+                if (navigating) offset.snapTo(targetOffset)
+                else offset.animateTo(targetOffset, spring(dampingRatio = 1f, stiffness = StatsPageSpringStiffness),
                     initialVelocity = velocities.offset) { velocities.offset = velocity }
                 velocities.offset = IntOffset.Zero
             }

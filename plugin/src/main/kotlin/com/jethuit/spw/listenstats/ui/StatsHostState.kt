@@ -4,6 +4,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
+enum class StatsExitMotion { Return, Navigate }
+
 /** Host-composed statistics page. No separate AWT window and no floating overlay. */
 object StatsHostState {
     // True only while the containing host-content wrapper is actually composed.
@@ -16,13 +18,18 @@ object StatsHostState {
         private set
     var closeTicket by mutableStateOf(0L)
         private set
-    // A new destination must stay isolated through the complete exit.
-    var revealHostOnExit by mutableStateOf(true)
+    var exitMotion by mutableStateOf(StatsExitMotion.Return)
+        private set
+    var nativeNavigation by mutableStateOf(true)
+        private set
+    var navigationTicket by mutableStateOf(0L)
         private set
     private var presenter: Any? = null
     private var animationsEnabled = true
 
     val canAnimateClose: Boolean get() = visible && presenter != null && animationsEnabled
+    val navigating: Boolean get() = visible && closing && exitMotion == StatsExitMotion.Navigate
+    val revealHostOnExit: Boolean get() = exitMotion == StatsExitMotion.Return
 
     /** Only a composed page can acknowledge completion; headless/unavailable pages close immediately. */
     fun attachPresenter(): AutoCloseable {
@@ -43,19 +50,32 @@ object StatsHostState {
     fun open() {
         closeTicket++
         closing = false
-        revealHostOnExit = true
+        exitMotion = StatsExitMotion.Return
+        nativeNavigation = true
         visible = true
     }
 
-    fun requestClose(revealHost: Boolean = true) {
+    fun requestClose() {
+        // A later back press consumes the statistics layer without changing an
+        // already accepted destination into a downward return animation.
+        if (navigating) return
+        beginClose(StatsExitMotion.Return)
+    }
+
+    fun requestNavigation(nativeTransition: Boolean = true) {
+        nativeNavigation = nativeTransition
+        if (canAnimateClose) navigationTicket++
+        beginClose(StatsExitMotion.Navigate)
+    }
+
+    private fun beginClose(motion: StatsExitMotion) {
         StatsNavigationHooks.cancelPendingOpen()
         if (!canAnimateClose) {
             close()
             return
         }
-        // Keep isolation latched after any new destination starts underneath.
-        revealHostOnExit = revealHostOnExit && revealHost
-        if (!closing) closeTicket++
+        if (!closing || exitMotion != motion) closeTicket++
+        exitMotion = motion
         closing = true
     }
 
@@ -75,7 +95,8 @@ object StatsHostState {
     private fun resetVisibility() {
         closeTicket++
         closing = false
-        revealHostOnExit = true
+        exitMotion = StatsExitMotion.Return
+        nativeNavigation = true
         visible = false
     }
 
