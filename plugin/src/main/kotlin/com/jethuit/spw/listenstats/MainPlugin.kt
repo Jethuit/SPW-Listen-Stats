@@ -11,6 +11,7 @@ import com.jethuit.spw.listenstats.ui.StatsOverlay
 import com.jethuit.spw.listenstats.ui.StatsNavigationHooks
 import com.jethuit.spw.listenstats.ui.StatsTitlebarEntry
 import com.jethuit.spw.listenstats.ui.StatsMaterialHook
+import com.jethuit.spw.listenstats.ui.HostUiTargets
 
 class MainPlugin(
     pluginContext: PluginContext
@@ -30,6 +31,7 @@ class MainPlugin(
         com.jethuit.spw.listenstats.data.PlaybackTracker.initialize()
         closeHooks()
         try {
+            val targets = HostUiTargets.forVersion(pluginContext.spwVersion)
             navigationHandle = StatsNavigationHooks.register { method, parameters, callback ->
                 WorkshopApi.hookRegistrar.hookMethod(
                     className = StatsNavigationHooks.NAVIGATOR_CLASS,
@@ -41,16 +43,16 @@ class MainPlugin(
             hookHandle = WorkshopApi.hookRegistrar.afterComposable(
                 className = "com.xuncorp.voxzen.ui.navigation.AppNavigationKt",
                 methodName = "AppNavigation",
-                inClass = "androidx.compose.ui.ۄ"
+                inClass = targets.pageCaller
             ) { _ ->
                 StatsOverlay()
             }
-            PluginLog.info("AppNavigation and Navigator hooks registered")
+            PluginLog.info("AppNavigation and Navigator hooks registered; pageCaller=${targets.pageCaller}")
         } catch (failure: Throwable) {
             closeHooks()
             PluginLog.error("AppNavigation hook failed", failure)
             WorkshopApi.ui.toast(
-                "听歌统计入口加载失败，请在插件配置中打开",
+                "听歌记录已启用，但统计页面加载失败，请在插件配置中写入诊断日志",
                 WorkshopApi.Ui.ToastType.Warning
             )
         }
@@ -91,7 +93,9 @@ class MainPlugin(
             if (materialHandle != null) add("material")
             if (titlebarHandle != null) add("titlebar")
         }
-        WorkshopApi.ui.toast("听歌统计已启用", WorkshopApi.Ui.ToastType.Success)
+        if (hookHandle != null) {
+            WorkshopApi.ui.toast("听歌统计已启用", WorkshopApi.Ui.ToastType.Success)
+        }
     }
 
     override fun stop() {
@@ -156,6 +160,7 @@ class MainPlugin(
                         appendLine("zone=${java.time.ZoneId.systemDefault()}; permissions=$permissions")
                         appendLine("dataDirectory=$dir; database=${com.jethuit.spw.listenstats.data.StatsStore.diagnosticPath()}")
                         appendLine("sourceId=$source; registeredHooks=${PluginState.registeredHooks} (registration only)")
+                        appendLine("hostUiTargets=${runCatching { HostUiTargets.forVersion(PluginState.spwVersion) }.getOrNull() ?: "unsupported"}")
                         appendLine("materialBridgeActive=${com.jethuit.spw.listenstats.ui.StatsHostState.materialBridgeAvailable}; materialHook=${StatsMaterialHook.TARGET_CLASS}.${StatsMaterialHook.TARGET_METHOD}")
                         appendLine("navigationReady=${StatsNavigationHooks.navigatorReady}; statisticsVisible=${com.jethuit.spw.listenstats.ui.StatsHostState.visible}")
                         appendLine("${com.jethuit.spw.listenstats.data.PlaybackTracker.diagnostics()}")

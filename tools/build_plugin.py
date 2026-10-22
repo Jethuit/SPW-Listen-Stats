@@ -13,6 +13,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import filecmp
 import os
 import shutil
 import subprocess
@@ -26,7 +27,7 @@ TOOLS = BUILD / 'tools'
 PLUGIN_SRC = ROOT / 'plugin' / 'src' / 'main' / 'kotlin'
 RESOURCES = ROOT / 'plugin' / 'src' / 'main' / 'resources'
 PLUGIN_ID = 'com.jethuit.spw.listenstats'
-PLUGIN_VERSION = '0.2.0'
+PLUGIN_VERSION = '0.2.1'
 PLUGIN_NAME = '听歌统计'
 PACKAGE_FILENAME = f'SPW-Stats-v{PLUGIN_VERSION}.spmod'
 PLUGIN_CLASS = 'com.jethuit.spw.listenstats.MainPlugin'
@@ -56,7 +57,7 @@ def ensure_host_jar(spw_dir: Path) -> Path:
         if not jar.exists():
             raise SystemExit(f'SPW payload not found: {source}')
         return jar
-    if not jar.exists() or source.stat().st_size != jar.stat().st_size:
+    if not jar.exists() or not filecmp.cmp(source, jar, shallow=False):
         TOOLS.mkdir(parents=True, exist_ok=True)
         print(f'copying host jar from {source}')
         shutil.copyfile(source, jar)
@@ -71,6 +72,17 @@ def compile_kotlin(jdk: Path, kotlinc: Path, host_jar: Path, output: Path) -> No
     if not sources:
         raise SystemExit('no Kotlin sources found')
     kotlin_home = kotlinc.parent.parent
+    # SPW 1.19.1 strips runtime.kotlin_module's package index while retaining
+    # class metadata. Rebuild only that compiler index from the current host.
+    index_jar = TOOLS / 'spw-compose-compile-index.jar'
+    index_classes = BUILD / 'host-index-tools'
+    index_classes.mkdir(parents=True, exist_ok=True)
+    subprocess.run([str(jdk / 'bin' / 'javac.exe'), '-encoding', 'UTF-8',
+                    '-cp', str(kotlin_home / 'lib' / '*'), '-d', str(index_classes),
+                    str(ROOT / 'tools' / 'RestoreComposeIndex.java')], check=True)
+    subprocess.run([str(jdk / 'bin' / 'java.exe'), '-cp',
+                    str(index_classes) + os.pathsep + str(kotlin_home / 'lib' / '*'),
+                    'RestoreComposeIndex', str(host_jar), str(index_jar)], check=True)
     compose_plugin = kotlin_home / 'lib' / 'compose-compiler-plugin.jar'
     sqlite_jar = TOOLS / 'sqlite-jdbc.jar'
     # Put the compiler's own stdlib first. The host jar also contains a Kotlin
@@ -78,7 +90,7 @@ def compile_kotlin(jdk: Path, kotlinc: Path, host_jar: Path, output: Path) -> No
     # inliner bug; the compiler stdlib has the same ABI at runtime.
     stdlib_jar = kotlin_home / 'lib' / 'kotlin-stdlib.jar'
     classpath = str(stdlib_jar) + os.pathsep + os.pathsep.join(str(p) for p in saltui_jars())
-    classpath += os.pathsep + str(host_jar)
+    classpath += os.pathsep + str(index_jar) + os.pathsep + str(host_jar)
     if sqlite_jar.exists():
         classpath += os.pathsep + str(sqlite_jar)
     # Invoke the compiler through java.exe: kotlinc.bat breaks when the

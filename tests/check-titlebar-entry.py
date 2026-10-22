@@ -16,6 +16,7 @@ scratch = root / 'build/tests/titlebar-entry'
 scratch.mkdir(parents=True, exist_ok=True)
 subprocess.run([sys.executable, str(root / 'tests/probe-titlebar-hook.py'), '--before-quick'], check=True)
 classpath = os.pathsep.join(map(str, [kotlin / 'lib/kotlin-stdlib.jar', root / 'build/plugin-classes',
+                                   root / 'build/tools/spw-compose-compile-index.jar',
                                    *builder.saltui_jars(), root / 'build/tools/spw-host.jar']))
 java = str(jdk / 'bin/java.exe')
 subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',

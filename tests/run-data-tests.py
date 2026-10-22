@@ -30,6 +30,7 @@ state = scratch / (suite + '-state')
 if state.exists():
     shutil.rmtree(state)
 classpath = os.pathsep.join(map(str, [kotlin / 'lib/kotlin-stdlib.jar', classes,
+                                    ROOT / 'build/tools/spw-compose-compile-index.jar',
                                     ROOT / 'build/tools/spw-host.jar', ROOT / 'build/tools/sqlite-jdbc.jar']))
 java = str(jdk / 'bin/java.exe')
 subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',

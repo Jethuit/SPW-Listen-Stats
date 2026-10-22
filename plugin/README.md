@@ -1,6 +1,6 @@
 # 听歌统计模组源码
 
-Kotlin / Compose / Salt UI 实现，目标宿主为 SPW 1.19.0。安装与功能介绍见[项目首页](../README.md)，产品规则见[需求](../docs/REQUIREMENTS.md)，依赖与许可证见[第三方组件](../docs/THIRD-PARTY.md)。
+Kotlin / Compose / Salt UI 实现，目标宿主为 SPW 1.19.0 / 1.19.1。安装与功能介绍见[项目首页](../README.md)，产品规则见[需求](../docs/REQUIREMENTS.md)，依赖与许可证见[第三方组件](../docs/THIRD-PARTY.md)。
 
 ## 目录
 
@@ -20,7 +20,9 @@ py -3.12 tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\
 py -3.12 tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-构建使用 JDK 25、缓存的 Kotlin 编译器、SaltUI 及对应宿主 jar。工具链缓存位于 `build/tools/`，不提交 Git。版本号以 `tools/build_plugin.py` 的 `PLUGIN_VERSION` 为准；安装包输出到 `build/libs/SPW-Stats-v<版本>.spmod`，解包目录为 `build/install/spw-listen-stats/`。
+构建使用 JDK 25、缓存的 Kotlin 编译器、SaltUI 及对应宿主 jar。每次构建比较安装目录与缓存宿主文件的内容，更新后自动刷新缓存，避免相同文件大小的宿主更新被漏过。工具链缓存位于 `build/tools/`，不提交 Git。版本号以 `tools/build_plugin.py` 的 `PLUGIN_VERSION` 为准；安装包输出到 `build/libs/SPW-Stats-v<版本>.spmod`，解包目录为 `build/install/spw-listen-stats/`。
+
+SPW 1.19.1 随附的 `runtime.kotlin_module` 缺少 Compose 顶层函数索引。构建通过 `tools/RestoreComposeIndex.java` 从当前宿主类的 Kotlin 注解重建编译索引，输出 `build/tools/spw-compose-compile-index.jar`；不需要旧宿主，也不修改安装文件。该文件只用于编译，不进入 `.spmod`，运行时仍使用宿主 Compose 类。
 
 默认只生成本地产物，不安装或发布。通过 SPW 创意工坊／模组管理本地导入 `.spmod` 并授权 `library-read`、`class-transform`。`py -3.12 tools/prepare_release.py` 仅将当前包整理到 `build/releases/v<版本>/`，不会上传 GitHub。
 
@@ -33,6 +35,7 @@ py -3.12 tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt 
 ## 接入与数据
 
 - 顶部听歌统计图标和模组配置的“打开听歌统计”共用入口。页面经宿主 Hook 嵌入内容区，保留侧栏和播放栏；Hook 与宿主内部签名绑定，升级 SPW 后须核实兼容性。
+- v0.2.1 按宿主版本分别选择 1.19.0 / 1.19.1 的页面和标题栏调用位置。1.19.1 改变了混淆类名，v0.2.0 会在注册页面 Hook 时失败并撤销导航 Hook，因此配置入口同样无法打开；不能将此故障提示为“仍可从配置打开”。其他宿主版本保留记录器并明确报告页面接入不受支持，不盲用旧位置。宿主解析器检查不代表真实窗口、AOT 模式及多插件共存已验收。
 - 退出保留页面直到 300ms 向下淡出完成，再恢复宿主原页面；侧栏导航等待动画结束后重放完整 Hook 链，不绕过其他插件确认。退出期间屏蔽统计控件、收起弹层，重复操作只保留最后目标，重新打开会取消旧退出和跳转；禁用或卸载立即清理。导航标签不绘制悬停灰底。
 - 首次进入直接展示标题、返回键和无间隙导航，正文使用静态占位；读取完成后替换为真实统计，不另显示加载页或虚假的零数据。数据库仍在 IO 线程读取，备份操作在数据就绪后开放。
 - 宿主历史来源于内部 `Listen` 数据表的只读查询，受保留范围和表结构影响；实时会话由播放回调记录。单次加载合并宿主、实时与导入事件后统一聚合。
@@ -57,6 +60,9 @@ py -3.12 tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt 
 ```powershell
 py -3.12 tests/run-data-tests.py data
 py -3.12 tests/spmod-structure.py build/libs/SPW-Stats-v<版本>.spmod
+py -3.12 tests/probe-titlebar-hook.py --host-version 1.19.1 --before-quick
 ```
 
 数据入口也支持 `integrity`、`astra`、`review`、`cover`、`ui`、`ranking`、`heatmap`、`format`、`navigation`。检查使用 `build/tests/` 下的合成状态和模拟宿主；离屏检查不能代替真实 SPW 验收。真实配置、数据库、听歌历史和私人备份不用于提交或合成回归。
+
+Hook 检查可用 `--host-jar <对应版本的本地宿主文件> --host-version 1.19.0` 检查旧宿主；先构建插件。该检查使用宿主自身的解析器，检查页面、材质、标题栏和导航签名及按钮顺序，不启动播放器或安装 Hook。

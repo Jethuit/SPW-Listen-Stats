@@ -22,19 +22,19 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.xuncorp.spw.workshop.api.hook.ComposableHook
 import com.xuncorp.spw.workshop.api.hook.UiHookCall
+import com.jethuit.spw.listenstats.PluginState
 import java.lang.reflect.Method
 
-/** Version-bound SPW 1.19.0 call site, immediately before the Quick button. */
+/** Version-bound call site, immediately before the Quick button. */
 object StatsTitlebarEntry {
-    const val TARGET_CLASS = "androidx.compose.ui.\u04f4"
     const val TARGET_METHOD = "\u037f"
-    const val CALLER_CLASS = "androidx.compose.ui.\u0205"
     const val ICON_RESOURCE = "/com/jethuit/spw/listenstats/icons/stats-entry.svg"
 
     fun register(addHook: (String, String, String, List<String>, ComposableHook) -> AutoCloseable): AutoCloseable {
         // Resolve before installing; incompatibility must leave the main statistics hook running.
         HostCaptionButton.prepare()
-        return addHook(TARGET_CLASS, TARGET_METHOD, CALLER_CLASS, emptyList(), object : ComposableHook() {
+        val targets = HostUiTargets.forVersion(PluginState.spwVersion)
+        return addHook(targets.debugCaption, TARGET_METHOD, targets.titlebarCaller, emptyList(), object : ComposableHook() {
             @Composable
             override fun Content(call: UiHookCall) {
                 StatsTitlebarButton()

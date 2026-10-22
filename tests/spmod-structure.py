@@ -50,6 +50,7 @@ def main() -> None:
         assert class_entry in names, f'missing plugin class: {class_entry}'
         assert not any(n.endswith(('spw-host.jar', '.db', '.db-wal', '.db-shm'))
                        or '/jdk25/' in n or '/.references/' in n for n in names), 'private or host files in package'
+        assert not any('spw-compose-compile-index' in n or 'RestoreComposeIndex' in n for n in names), 'compile-only tool in package'
 
         manifest = archive.read('classes/META-INF/MANIFEST.MF').decode('utf-8')
         assert all(len(line.encode('utf-8')) <= 70 for line in manifest.splitlines()), 'manifest UTF-8 line exceeds byte budget'
