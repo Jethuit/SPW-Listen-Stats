@@ -37,6 +37,7 @@ py -3.12 tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt 
 - 本机来源身份用于隔离曲库 ID。跨设备或重建曲库后不按同名歌曲强行对应；未知播放起点、插件启用前的片段及已丢失的旧记录不能可靠补回。
 - 封面取自内嵌图片，成功结果有容量受限缓存，空封面与失败请求分别冷却重试；异库曲目 ID 不查询本机封面。
 - 始终跟随宿主深浅主题。支持材质的页面继承宿主背景，接入不可用时回退实色；真实 DWM、播放回调时序及多插件共存仍需实机核对。
+- 材质包装位于 AppNavigation 内部的 SharedTransitionLayout 调用处，保留原始布局参数与内容，不占用 AppNavigation 外层替换位置。SPW-Lyrics 在 v1.2.0 标签后的未发布主分支也替换该外层位置，旧统计版本的材质包装会被优先级 80 的替换挤出。这里的兼容修复通过隔离渲染检查验证，双插件实机及歌词草稿离开确认仍需核对；不能仅凭相同的 1.2.0 包名判断歌词插件构建内容。
 - 宿主标题栏的内容模糊由 Salt UI BasicScreen 和 Haze 实现：正文作为 hazeSource，标题栏叠加 hazeBlur；Windows 默认 Mask 模式为 8dp 半径、无噪点与纵向渐变遮罩。它与亚克力／云母窗口背景材质属于不同层；当前统计页正文仍裁在标题栏下面，尚未接入这层内容模糊。
 
 数据通常位于 `%APPDATA%\Salt Player for Windows\workshop\data\com.jethuit.spw.listenstats\`；有宿主插件路径时按该安装的数据根目录解析。实时文件为 `live-sessions.json`，导入数据为 `imported.json`，来源身份为 `source-id.txt` 及冗余副本。配置页“写入诊断日志”将状态写入该目录的 `status.log`，成功提示包含实际路径；数据目录不可用时日志可回退系统临时目录。

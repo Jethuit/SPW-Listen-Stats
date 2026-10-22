@@ -10,7 +10,7 @@ import com.xuncorp.spw.workshop.api.WorkshopApi
 import com.jethuit.spw.listenstats.ui.StatsOverlay
 import com.jethuit.spw.listenstats.ui.StatsNavigationHooks
 import com.jethuit.spw.listenstats.ui.StatsTitlebarEntry
-import com.jethuit.spw.listenstats.ui.HostMaterialLayer
+import com.jethuit.spw.listenstats.ui.StatsMaterialHook
 
 class MainPlugin(
     pluginContext: PluginContext
@@ -56,11 +56,11 @@ class MainPlugin(
         }
         if (hookHandle != null) {
             try {
-                materialHandle = WorkshopApi.hookRegistrar.replaceComposable(
-                    className = "com.xuncorp.voxzen.ui.navigation.AppNavigationKt",
-                    methodName = "AppNavigation",
-                    inClass = "androidx.compose.ui.ۄ"
-                ) { _ -> HostMaterialLayer() }
+                materialHandle = StatsMaterialHook.register { target, method, caller, parameters, content ->
+                    WorkshopApi.hookRegistrar.replaceComposable(
+                        target, method, caller, parameters, 50, content
+                    )
+                }
                 PluginLog.info("Optional native material layer registered")
             } catch (failure: Throwable) {
                 PluginLog.error("Native material layer unavailable; retaining opaque page background", failure)
@@ -156,6 +156,7 @@ class MainPlugin(
                         appendLine("zone=${java.time.ZoneId.systemDefault()}; permissions=$permissions")
                         appendLine("dataDirectory=$dir; database=${com.jethuit.spw.listenstats.data.StatsStore.diagnosticPath()}")
                         appendLine("sourceId=$source; registeredHooks=${PluginState.registeredHooks} (registration only)")
+                        appendLine("materialBridgeActive=${com.jethuit.spw.listenstats.ui.StatsHostState.materialBridgeAvailable}; materialHook=${StatsMaterialHook.TARGET_CLASS}.${StatsMaterialHook.TARGET_METHOD}")
                         appendLine("${com.jethuit.spw.listenstats.data.PlaybackTracker.diagnostics()}")
                         append("storageError=${com.jethuit.spw.listenstats.data.LiveStore.storageError() ?: "none"}")
                     })
