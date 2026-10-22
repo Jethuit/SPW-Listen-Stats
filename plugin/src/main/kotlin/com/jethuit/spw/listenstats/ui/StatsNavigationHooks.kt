@@ -110,7 +110,7 @@ object StatsNavigationHooks {
                                 // Tools open synchronously after this no-op returns. Keep them
                                 // hidden by the containing Layer until our exit finishes.
                                 // Replaying later would dismiss the newly opened tool again.
-                                StatsHostState.requestClose()
+                                StatsHostState.requestClose(revealHost = false)
                             } else if (StatsHostState.canAnimateClose) {
                                 val receiver = call.thisObject
                                 val target = call.method

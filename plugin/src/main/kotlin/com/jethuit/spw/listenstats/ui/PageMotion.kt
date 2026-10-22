@@ -11,7 +11,10 @@ import androidx.compose.animation.slideIn
 import androidx.compose.animation.slideOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,11 +37,23 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 
 internal val PageEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 const val StatsMotionDurationMillis = 300
+const val StatsPageOffsetPixels = 150
+const val StatsPageSpringStiffness = 500f
 val LocalStatsAnimationsEnabled = staticCompositionLocalOf { true }
 val LocalStatsPageExiting = staticCompositionLocalOf { false }
+internal val LocalStatsHostFade = staticCompositionLocalOf<Animatable<Float, AnimationVector1D>?> { null }
+
+// Animatable resets velocity on cancellation; retain the last frame for a reversed spring.
+private class PageSpringVelocity {
+    var offset = IntOffset.Zero
+    var opacity = 0f
+    var hostOpacity = 0f
+}
 
 @Composable
 fun statsMotionDurationMillis(): Int = if (LocalStatsAnimationsEnabled.current) StatsMotionDurationMillis else 0
@@ -61,25 +76,56 @@ fun SearchExpansion(expanded: Boolean, content: @Composable (Boolean) -> Unit) {
     ) { shown -> content(shown) }
 }
 
-/** The page shell enters once; replacing placeholders with data does not replay it. */
+/** SPW desktop motion: slide in without fading; slide/fade out on return. */
 @Composable
 fun StatsPageEnter(exiting: Boolean = false, onExited: () -> Unit = {}, content: @Composable () -> Unit) {
-    val duration = statsMotionDurationMillis()
-    val progress = remember { Animatable(if (duration == 0) 1f else 0f) }
-    val distance = with(LocalDensity.current) { 28.dp.toPx() }
+    val enabled = LocalStatsAnimationsEnabled.current
+    val offset = remember {
+        Animatable(IntOffset(0, if (enabled) StatsPageOffsetPixels else 0), IntOffset.VectorConverter)
+    }
+    val opacity = remember { Animatable(1f) }
+    val velocities = remember { PageSpringVelocity() }
+    val hostFade = LocalStatsHostFade.current
     val finished by rememberUpdatedState(onExited)
-    LaunchedEffect(duration, exiting) {
-        val target = if (exiting) 0f else 1f
-        if (duration == 0) progress.snapTo(target)
-        else progress.animateTo(target, tween(duration, easing = PageEasing))
+    LaunchedEffect(enabled, exiting, hostFade) {
+        val targetOffset = IntOffset(0, if (exiting) StatsPageOffsetPixels else 0)
+        val targetOpacity = if (exiting) 0f else 1f
+        val targetHostOpacity = if (exiting) 1f else 0f
+        if (!enabled) {
+            offset.snapTo(targetOffset)
+            opacity.snapTo(targetOpacity)
+            hostFade?.snapTo(targetHostOpacity)
+            velocities.offset = IntOffset.Zero
+            velocities.opacity = 0f
+            velocities.hostOpacity = 0f
+        } else coroutineScope {
+            // Use the same typed pixel/alpha springs as SPW, without a fixed duration.
+            // A new target cancels this scope and continues from the current values/velocity.
+            launch {
+                offset.animateTo(targetOffset, spring(dampingRatio = 1f, stiffness = StatsPageSpringStiffness),
+                    initialVelocity = velocities.offset) { velocities.offset = velocity }
+                velocities.offset = IntOffset.Zero
+            }
+            launch {
+                opacity.animateTo(targetOpacity, spring(dampingRatio = 1f, stiffness = StatsPageSpringStiffness),
+                    initialVelocity = velocities.opacity) { velocities.opacity = velocity }
+                velocities.opacity = 0f
+            }
+            launch {
+                hostFade?.animateTo(targetHostOpacity, spring(dampingRatio = 1f, stiffness = StatsPageSpringStiffness),
+                    initialVelocity = velocities.hostOpacity) { velocities.hostOpacity = velocity }
+                velocities.hostOpacity = 0f
+            }
+        }
+        // A canceled/reversed exit cannot acknowledge completion or replay navigation.
         if (exiting) finished()
     }
     Box(Modifier.fillMaxSize().clipToBounds().onPreviewKeyEvent { exiting }
         .onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { event ->
             if (exiting) event.changes.forEach { it.consume() }
         }.graphicsLayer {
-        alpha = progress.value
-        translationY = distance * (1f - progress.value)
+        alpha = opacity.value.coerceIn(0f, 1f)
+        translationY = offset.value.y.toFloat()
     }) {
         CompositionLocalProvider(LocalStatsPageExiting provides exiting) { content() }
     }

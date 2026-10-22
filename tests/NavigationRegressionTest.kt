@@ -152,15 +152,19 @@ private fun checkRapidPluginSwitches() {
                 guard.open()
                 val ticket = StatsHostState.closeTicket
                 check(guard.active && StatsHostState.visible && StatsHostState.closing)
+                check(!StatsHostState.revealHostOnExit) { "Prepared lyrics page must remain isolated" }
                 check(registration.host.originalCalls == calls + 1)
                 StatsNavigationHooks.openStats()
                 check(!guard.active && StatsHostState.visible && !StatsHostState.closing)
+                check(StatsHostState.revealHostOnExit) { "Accepted reopen did not restore ordinary host fading" }
                 StatsHostState.finishClose(ticket)
                 check(StatsHostState.visible && !guard.active) { "Stale exit overrode rapid reopen" }
             }
 
             guard.open()
             val ticket = StatsHostState.closeTicket
+            StatsHostState.consumeBack()
+            check(!StatsHostState.revealHostOnExit) { "Back exposed a synchronously prepared tool during exit" }
             val calls = registration.host.originalCalls
             StatsHostState.finishClose(ticket)
             check(!StatsHostState.visible && guard.active && registration.host.originalCalls == calls) {
@@ -224,6 +228,7 @@ private fun checkExitNavigation() {
         registration.dispatch("navigate", arrayOf("albums")) { error("Navigation ran before exit") }
         val ticket = StatsHostState.closeTicket
         check(StatsHostState.visible && StatsHostState.closing && host.originalCalls == 0)
+        check(StatsHostState.revealHostOnExit) { "Ordinary return must allow the retained host to fade in" }
         registration.dispatch("replace", arrayOf("artists")) { error("Replacement ran before exit") }
         check(StatsHostState.closeTicket == ticket)
         StatsHostState.finishClose(ticket)

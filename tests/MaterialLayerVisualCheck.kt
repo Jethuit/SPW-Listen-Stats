@@ -149,16 +149,22 @@ private fun checkNestedMaterialHook(output: Path) {
                     DisposableEffect(Unit) { onDispose { disposed++ } }
                     Box(Modifier.fillMaxSize()) {
                         // Other plugin replaces AppNavigation at the original inner call.
-                        Box(Modifier.fillMaxSize().onPointerEvent(PointerEventType.Release) { hostClicks++ }
+                        Box(Modifier.fillMaxSize().onPointerEvent(PointerEventType.Release) { event ->
+                            if (event.changes.none { it.isConsumed }) hostClicks++
+                        }
                             .drawWith { if (!lyricsActive) drawRect(Color(0xFFBB2244)) })
                         if (lyricsActive) Box(Modifier.fillMaxSize()
-                            .onPointerEvent(PointerEventType.Release) { lyricsClicks++ }
+                            .onPointerEvent(PointerEventType.Release) { event ->
+                                if (event.changes.none { it.isConsumed }) lyricsClicks++
+                            }
                             .drawWith { drawRect(Color(0xFF2244BB)) })
                     }
                 }, statistics = {
                     if (StatsHostState.visible) {
-                        // Transparent statistics/animation must reveal the window, never the target tool.
-                        Box(Modifier.fillMaxSize().drawWith { drawRect(Color.Transparent) })
+                        // Drive the shared native spring fade; complete exits explicitly below.
+                        StatsPageEnter(StatsHostState.closing) {
+                            Box(Modifier.fillMaxSize().drawWith { drawRect(Color.Transparent) })
+                        }
                     }
                 })
             }
@@ -183,21 +189,39 @@ private fun checkNestedMaterialHook(output: Path) {
         scene.sendPointerEvent(PointerEventType.Press, Offset(200f, 150f))
         scene.sendPointerEvent(PointerEventType.Release, Offset(200f, 150f))
     }
+    fun settleMotion() {
+        repeat(45) {
+            SwingUtilities.invokeAndWait { scene.render().close() }
+            Thread.sleep(15)
+        }
+    }
     try {
         check(render("host") == 0xBB2244)
         click(); check(hostClicks == 1)
+        SwingUtilities.invokeAndWait { StatsHostState.open() }
+        check(render("enter-host-fade") != 0x276B56) { "Original host disappeared before its entrance fade" }
+        click(); check(hostClicks == 1) { "Fading host accepted input" }
+        settleMotion()
+        check(render("entered") == 0x276B56)
+        SwingUtilities.invokeAndWait { StatsHostState.requestClose() }
+        check(render("return-host-fade") != 0x276B56) { "Ordinary return did not fade in the retained host" }
+        click(); check(hostClicks == 1) { "Restoring host accepted input before statistics exit completed" }
+        SwingUtilities.invokeAndWait { StatsHostState.finishClose(StatsHostState.closeTicket) }
+        check(render("returned-host") == 0xBB2244)
         repeat(6) { index ->
             SwingUtilities.invokeAndWait { StatsHostState.open() }
+            settleMotion()
             check(render("stats-$index") == 0x276B56)
-            SwingUtilities.invokeAndWait { StatsHostState.requestClose(); lyricsActive = true }
+            SwingUtilities.invokeAndWait { StatsHostState.requestClose(revealHost = false); lyricsActive = true }
             val ticket = StatsHostState.closeTicket
             check(StatsHostState.visible && StatsHostState.closing)
             check(render("exiting-$index") == 0x276B56) { "Target plugin leaked through outgoing statistics" }
             click(); check(lyricsClicks == 0 && hostClicks == 1)
             SwingUtilities.invokeAndWait { lyricsActive = false; StatsHostState.open(); StatsHostState.finishClose(ticket) }
+            settleMotion()
             check(render("reopened-$index") == 0x276B56 && StatsHostState.visible)
         }
-        SwingUtilities.invokeAndWait { StatsHostState.requestClose(); lyricsActive = true }
+        SwingUtilities.invokeAndWait { StatsHostState.requestClose(revealHost = false); lyricsActive = true }
         check(render("last-exit") == 0x276B56)
         SwingUtilities.invokeAndWait { StatsHostState.finishClose(StatsHostState.closeTicket) }
         check(render("lyrics") == 0x2244BB)

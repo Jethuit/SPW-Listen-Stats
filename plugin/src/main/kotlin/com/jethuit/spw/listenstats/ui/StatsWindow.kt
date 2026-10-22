@@ -346,10 +346,10 @@ fun ListenStatsApp(
         LaunchedEffect(totalPages) {
             if (rankPage > totalPages) rankPage = totalPages
         }
-        Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {
         StatsPageEnter(exiting, onExited = {
             if (embedded) StatsHostState.finishClose(closeTicket) else onClose()
         }) {
+        Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {
         StatsPageFrame(requestExit, actions = {
             if (snapshot != null) {
             BackupMenu(

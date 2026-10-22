@@ -16,6 +16,9 @@ object StatsHostState {
         private set
     var closeTicket by mutableStateOf(0L)
         private set
+    // A synchronously prepared tool must stay isolated through the complete exit.
+    var revealHostOnExit by mutableStateOf(true)
+        private set
     private var presenter: Any? = null
     private var animationsEnabled = true
     private var afterClose: (() -> Unit)? = null
@@ -44,17 +47,20 @@ object StatsHostState {
         closeTicket++
         afterClose = null
         closing = false
+        revealHostOnExit = true
         visible = true
     }
 
-    fun requestClose(onClosed: (() -> Unit)? = null) {
+    fun requestClose(revealHost: Boolean = true, onClosed: (() -> Unit)? = null) {
         StatsNavigationHooks.cancelPendingOpen()
         if (!canAnimateClose) {
             close()
             onClosed?.invoke()
             return
         }
-        afterClose = onClosed // A newer destination replaces the previous one without restarting the fade.
+        afterClose = onClosed // A newer destination replaces the previous one without restarting motion.
+        // Keep isolation latched if any tool has already opened under the statistics page.
+        revealHostOnExit = revealHostOnExit && revealHost
         if (!closing) closeTicket++
         closing = true
     }
@@ -78,6 +84,7 @@ object StatsHostState {
         closeTicket++
         afterClose = null
         closing = false
+        revealHostOnExit = true
         visible = false
     }
 

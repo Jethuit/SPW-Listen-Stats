@@ -81,7 +81,7 @@ fun main(args: Array<String>) {
             if (file != null) Files.write(out.resolve("$name-$file.png"), bytes)
             return ImageIO.read(ByteArrayInputStream(bytes))
         }
-        fun settle(): BufferedImage { repeat(30) { frame() }; return frame() }
+        fun settle(): BufferedImage { repeat(60) { frame() }; return frame() }
         fun sameRegion(a: BufferedImage, b: BufferedImage, left: Int, top: Int, right: Int, bottom: Int): Boolean =
             (left until right).all { x -> (top until bottom).all { y -> a.getRGB(x, y) == b.getRGB(x, y) } }
         fun underline(image: BufferedImage): Pair<IntRange, Int> {
