@@ -41,7 +41,8 @@ fun main(args: Array<String>) {
             val scene = ImageComposeScene(800, 520, density = Density(1.25f)) {
                 SaltTheme {
                     MaterialTheme(colorScheme = if (colors.isDark) darkColorScheme() else lightColorScheme()) {
-                        CompositionLocalProvider(LocalStatsColors provides colors) {
+                        CompositionLocalProvider(LocalStatsColors provides colors,
+                            LocalStatsAnimationsEnabled provides false) {
                             Box(Modifier.fillMaxSize().drawWith { drawRect(backdrop) }) {
                                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                                     SummaryStrip(4) { width ->

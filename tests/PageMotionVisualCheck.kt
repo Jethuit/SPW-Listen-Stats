@@ -82,6 +82,13 @@ fun main(args: Array<String>) {
         fun settle(): BufferedImage { repeat(30) { frame() }; return frame() }
         fun sameRegion(a: BufferedImage, b: BufferedImage, left: Int, top: Int, right: Int, bottom: Int): Boolean =
             (left until right).all { x -> (top until bottom).all { y -> a.getRGB(x, y) == b.getRGB(x, y) } }
+        fun underline(image: BufferedImage): Pair<IntRange, Int> {
+            for (y in 50 until 125) {
+                val xs = (20 until 380).filter { x -> image.getRGB(x, y) == colors.accent.toArgb() }
+                if (xs.size > 70) return (xs.first()..xs.last()) to y
+            }
+            error("Full-width bottom indicator is missing")
+        }
         try {
             val entryStart = frame("entry-start")
             repeat(3) { frame() }
@@ -105,6 +112,14 @@ fun main(args: Array<String>) {
             Thread.sleep(300)
             repeat(16) { frame() }
             val ranking = frame("ranking")
+            val (overviewBar, barY) = underline(overview)
+            val (rankingBar, _) = underline(ranking)
+            val (movingBar, _) = underline(forward)
+            check(overviewBar.count() == rankingBar.count() && overviewBar.first < movingBar.first &&
+                movingBar.first < rankingBar.first) { "Underline did not slide between the full button widths" }
+            check(overview.getRGB(overviewBar.first, barY - 34) != colors.pageBackground.toArgb()) {
+                "Selected navigation background still has a rounded top corner"
+            }
             check(!sameRegion(forward, ranking, 20, 130, 380, 240)) { "Body did not animate" }
             check(sameRegion(overview, ranking, 20, 20, 350, 40)) { "Header moved during tab switch" }
             SwingUtilities.invokeAndWait { page = StatsPage.Overview }
@@ -156,6 +171,86 @@ fun main(args: Array<String>) {
     check(StatsMotionDurationMillis == 300)
     rankingMotionCheck(out, LightStatsColors, "light")
     rankingMotionCheck(out, DarkStatsColors, "dark")
+    heatmapMotionCheck(out)
+}
+
+/** Actual calendar drawing: ordered column reveal, retargets, refresh and disabled animations. */
+private fun heatmapMotionCheck(out: Path) {
+    val today = java.time.LocalDate.of(2026, 10, 22)
+    val firstDay = java.time.LocalDate.of(2026, 1, 1)
+    var data by mutableStateOf(StatsData.empty().copy(dailyMillis = (0L..294L)
+        .associate { firstDay.plusDays(it) to ((it % 5 + 1) * 1_800_000L) }))
+    var weekly by mutableStateOf(false)
+    var year by mutableStateOf(2026)
+    var animations by mutableStateOf(true)
+    lateinit var scene: ImageComposeScene
+    SwingUtilities.invokeAndWait {
+        scene = ImageComposeScene(1000, 250, Density(1f)) {
+            SaltTheme {
+                MaterialTheme {
+                    CompositionLocalProvider(LocalStatsColors provides LightStatsColors,
+                        LocalStatsAnimationsEnabled provides animations) {
+                        Box(Modifier.fillMaxSize().drawWith { drawRect(LightStatsColors.pageBackground) }.padding(20.dp)) {
+                            YearHeatmap(data, year, weekly, today, null, {}, { _, _ -> })
+                        }
+                    }
+                }
+            }
+        }
+    }
+    var time = 0L
+    fun frame(name: String? = null): BufferedImage {
+        time += 16_666_667L
+        var bytes = byteArrayOf()
+        SwingUtilities.invokeAndWait {
+            scene.render(time).use { image -> image.encodeToData(EncodedImageFormat.PNG)!!.use { bytes = it.bytes } }
+        }
+        Thread.sleep(3)
+        if (time <= 750_000_015L) {
+            Files.write(out.resolve("heatmap-reveal-%03d.png".format(time / 16_666_667L)), bytes)
+        }
+        if (name != null) Files.write(out.resolve("heatmap-$name.png"), bytes)
+        return ImageIO.read(ByteArrayInputStream(bytes))
+    }
+    fun settle(): BufferedImage { repeat(45) { frame() }; return frame() }
+    fun same(a: BufferedImage, b: BufferedImage) =
+        (47 until 980).all { x -> (47 until 180).all { y -> a.getRGB(x, y) == b.getRGB(x, y) } }
+    fun ink(image: BufferedImage, from: Int, to: Int) =
+        (from until to).sumOf { x -> (47 until 180).count { y -> image.getRGB(x, y) != LightStatsColors.pageBackground.toArgb() } }
+    try {
+        val blank = frame("start")
+        repeat(10) { frame() }
+        val early = frame("early")
+        check(ink(early, 47, 300) > 1000 && ink(early, 750, 980) == 0) { "Heatmap did not reveal from left to right" }
+        repeat(24) { frame() }
+        val late = frame("late")
+        val daily = settle()
+        frame("daily")
+        check(!same(late, daily)) { "Heatmap reveal completed before the requested 650ms" }
+        check((47 until 980).all { x -> (20 until 45).all { y -> blank.getRGB(x, y) == daily.getRGB(x, y) } }) {
+            "Month labels moved or faded with the cells"
+        }
+        SwingUtilities.invokeAndWait { weekly = true }
+        repeat(10) { frame() }
+        val weekEarly = frame("week-early")
+        check(ink(weekEarly, 750, 980) == 0)
+        val week = settle()
+        check(!same(daily, week))
+        SwingUtilities.invokeAndWait { year = 2025 }
+        frame(); frame()
+        SwingUtilities.invokeAndWait { year = 2026; weekly = false }
+        check(same(daily, settle())) { "Interrupted heatmap reveal did not reach the latest mode/year" }
+        SwingUtilities.invokeAndWait { data = data.copy(dailyMillis = data.dailyMillis + (firstDay to 43_200_000L)) }
+        frame(); frame()
+        val refreshed = frame()
+        check(!same(daily, refreshed) && same(refreshed, settle())) { "Ordinary refresh replayed the calendar reveal" }
+        SwingUtilities.invokeAndWait { animations = false; weekly = true }
+        frame(); frame()
+        val immediate = frame()
+        check(same(immediate, settle())) { "Disabled heatmap still animated" }
+        check(HeatmapRevealDurationMillis == 650)
+        println("PASS heatmap: left-to-right 650ms reveal, stable labels, mode/year reversals, in-place refresh and animation switch")
+    } finally { SwingUtilities.invokeAndWait { scene.close() } }
 }
 
 /** Render the actual ranking list, including a 25-row page and a short final page. */

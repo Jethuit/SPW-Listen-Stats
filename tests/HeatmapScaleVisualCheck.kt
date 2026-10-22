@@ -29,7 +29,8 @@ fun main(args: Array<String>) {
         scene = ImageComposeScene(1000, 300, density = Density(1.25f)) {
             SaltTheme {
                 MaterialTheme {
-                    CompositionLocalProvider(LocalStatsColors provides LightStatsColors) {
+                    CompositionLocalProvider(LocalStatsColors provides LightStatsColors,
+                        LocalStatsAnimationsEnabled provides false) {
                         Box(Modifier.fillMaxSize().drawWith { drawRect(LightStatsColors.pageBackground) }) {
                             Box(Modifier.fillMaxWidth().padding(20.dp)) {
                                 YearHeatmap(data, 2026, false, today, null, {}, { _, _ -> }, dailyHighMillis = high)

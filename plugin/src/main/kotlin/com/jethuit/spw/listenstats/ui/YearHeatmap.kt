@@ -3,10 +3,14 @@
 package com.jethuit.spw.listenstats.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +40,14 @@ import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 
+const val HeatmapRevealDurationMillis = 650
+
+private fun columnReveal(progress: Float, week: Int, count: Int): Float {
+    val delay = if (count <= 1) 0f else 0.72f * week / (count - 1)
+    val local = ((progress - delay) / 0.28f).coerceIn(0f, 1f)
+    return local * local * (3f - 2f * local)
+}
+
 @Composable
 fun YearHeatmap(
     data: StatsData,
@@ -53,14 +65,20 @@ fun YearHeatmap(
     val measurer = rememberTextMeasurer()
     val labelStyle = AppType.tiny.copy(fontFamily = LocalTextStyle.current.fontFamily)
     val grid = remember(year, rolling, today) { StatsCalculations.heatmapGrid(year, rolling, today) }
+    val animations = LocalStatsAnimationsEnabled.current
+    val reveal = remember(grid.firstDay, grid.lastDay, weekly) { Animatable(if (animations) 0f else 1f) }
+    LaunchedEffect(reveal, animations) {
+        if (!animations) reveal.snapTo(1f)
+        else reveal.animateTo(1f, tween(HeatmapRevealDurationMillis, easing = LinearEasing))
+    }
     fun inRange(date: LocalDate): Boolean =
         !date.isBefore(grid.firstDay) && !date.isAfter(grid.lastDay)
     val weeks = remember(data, grid, today, weekly) {
         if (weekly) StatsCalculations.weeklyCells(data, grid, today) else emptyList()
     }
-    var tooltip by remember(year, weekly, viewportRevision, data) { mutableStateOf<TooltipData?>(null) }
-    var hoverWeek by remember(year, weekly, viewportRevision) { mutableStateOf<Int?>(null) }
-    var hoverRow by remember(year, weekly, viewportRevision) { mutableStateOf<Int?>(null) }
+    var tooltip by remember(grid.firstDay, grid.lastDay, weekly, viewportRevision, data) { mutableStateOf<TooltipData?>(null) }
+    var hoverWeek by remember(grid.firstDay, grid.lastDay, weekly, viewportRevision) { mutableStateOf<Int?>(null) }
+    var hoverRow by remember(grid.firstDay, grid.lastDay, weekly, viewportRevision) { mutableStateOf<Int?>(null) }
 
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val density = LocalDensity.current
@@ -127,7 +145,7 @@ fun YearHeatmap(
                 .height(heightDp)
                 .onPointerEvent(PointerEventType.Move) { event ->
                     val position = event.changes.firstOrNull()?.position ?: return@onPointerEvent
-                    val week = weekIndex(position.x)
+                    val week = weekIndex(position.x)?.takeIf { columnReveal(reveal.value, it, grid.weeks) > 0.05f }
                     val row = rowIndex(position.y)
                     hoverWeek = week
                     hoverRow = row
@@ -161,6 +179,7 @@ fun YearHeatmap(
                 .onPointerEvent(PointerEventType.Press) { event ->
                     val position = event.changes.firstOrNull()?.position ?: return@onPointerEvent
                     val week = weekIndex(position.x) ?: return@onPointerEvent
+                    if (columnReveal(reveal.value, week, grid.weeks) <= 0.05f) return@onPointerEvent
                     val row = rowIndex(position.y) ?: return@onPointerEvent
                     val pressedDate = grid.gridStart.plusDays(week * 7L + row)
                     if (!inRange(pressedDate)) return@onPointerEvent
@@ -211,6 +230,9 @@ fun YearHeatmap(
                     // Grid cells
                     if (!weekly) {
                         for (week in 0 until grid.weeks) {
+                            val appearance = columnReveal(reveal.value, week, grid.weeks)
+                            val scale = 0.82f + 0.18f * appearance
+                            val inset = cell * (1f - scale) / 2f
                             for (row in 0..6) {
                                 val date = grid.gridStart.plusDays((week * 7 + row).toLong())
                                 if (!inRange(date)) continue
@@ -222,10 +244,10 @@ fun YearHeatmap(
                                 val radius = CornerRadius(min(radiusPx, cell / 2f))
                                 drawRoundRect(
                                     color = colors.cells[level],
-                                    topLeft = Offset(x, y),
-                                    size = Size(cell, cell),
-                                    cornerRadius = radius,
-                                    alpha = alpha
+                                    topLeft = Offset(x + inset, y + inset),
+                                    size = Size(cell * scale, cell * scale),
+                                    cornerRadius = CornerRadius(radius.x * scale),
+                                    alpha = alpha * appearance
                                 )
                                 val isSelected = date == selectedDate
                                 val isHovered = hoverWeek == week && hoverRow == row
@@ -235,7 +257,7 @@ fun YearHeatmap(
                                         topLeft = Offset(x - 3f, y - 3f),
                                         size = Size(cell + 6f, cell + 6f),
                                         cornerRadius = CornerRadius(min(9f, cell / 2f + 3f)),
-                                        style = Stroke(width = 2.5f)
+                                        style = Stroke(width = 2.5f), alpha = appearance
                                     )
                                 }
                                 if (isSelected) {
@@ -244,13 +266,16 @@ fun YearHeatmap(
                                         topLeft = Offset(x - 2f, y - 2f),
                                         size = Size(cell + 4f, cell + 4f),
                                         cornerRadius = CornerRadius(min(8f, cell / 2f + 2f)),
-                                        style = Stroke(width = 1f)
+                                        style = Stroke(width = 1f), alpha = appearance
                                     )
                                 }
                             }
                         }
                     } else {
                         for (week in 0 until grid.weeks) {
+                            val appearance = columnReveal(reveal.value, week, grid.weeks)
+                            val scale = 0.82f + 0.18f * appearance
+                            val inset = cell * (1f - scale) / 2f
                             val weekCell = weeks[week]
                             val x = cellX(week)
                             val selected = selectedDate != null &&
@@ -268,10 +293,10 @@ fun YearHeatmap(
                                 val alpha = if (weekCell.start.isAfter(today)) 0.35f else 1f
                                 drawRoundRect(
                                     color = color,
-                                    topLeft = Offset(x, y),
-                                    size = Size(cell, cell),
-                                    cornerRadius = CornerRadius(min(radiusPx, cell / 2f)),
-                                    alpha = alpha
+                                    topLeft = Offset(x + inset, y + inset),
+                                    size = Size(cell * scale, cell * scale),
+                                    cornerRadius = CornerRadius(min(radiusPx, cell / 2f) * scale),
+                                    alpha = alpha * appearance
                                 )
                             }
                             if (selected) {
@@ -280,7 +305,7 @@ fun YearHeatmap(
                                     topLeft = Offset(x - 2f, outlineTop - 2f),
                                     size = Size(cell + 4f, outlineHeight + 4f),
                                     cornerRadius = CornerRadius(min(8f, cell / 2f + 2f)),
-                                    style = Stroke(width = 1f)
+                                    style = Stroke(width = 1f), alpha = appearance
                                 )
                             }
                             if (hoverWeek == week) {
@@ -289,7 +314,7 @@ fun YearHeatmap(
                                     topLeft = Offset(x - 2f, outlineTop - 2f),
                                     size = Size(cell + 4f, outlineHeight + 4f),
                                     cornerRadius = CornerRadius(min(8f, cell / 2f + 2f)),
-                                    style = Stroke(width = 1.5f)
+                                    style = Stroke(width = 1.5f), alpha = appearance
                                 )
                             }
                         }

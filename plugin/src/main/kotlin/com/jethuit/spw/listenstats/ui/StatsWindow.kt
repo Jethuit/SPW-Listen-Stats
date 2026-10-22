@@ -3,6 +3,8 @@
 package com.jethuit.spw.listenstats.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -538,19 +540,42 @@ fun ListenStatsApp(
 
 @Composable
 fun PageNav(page: StatsPage, onPage: (StatsPage) -> Unit) {
+    val colors = LocalStatsColors.current
+    val density = LocalDensity.current
+    var overviewWidth by remember { mutableStateOf(0) }
+    var rankingWidth by remember { mutableStateOf(0) }
+    val gap = with(density) { 8.dp.roundToPx() }
+    Box {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            NavTab(IconPaths.Dashboard, "听歌概览", page == StatsPage.Overview) {
+            NavTab(IconPaths.Dashboard, "听歌概览", page == StatsPage.Overview,
+                Modifier.onSizeChanged { overviewWidth = it.width }) {
                 onPage(StatsPage.Overview)
             }
-            NavTab(IconPaths.Leaderboard, "听歌排行", page == StatsPage.Ranking) {
+            NavTab(IconPaths.Leaderboard, "听歌排行", page == StatsPage.Ranking,
+                Modifier.onSizeChanged { rankingWidth = it.width }) {
                 onPage(StatsPage.Ranking)
             }
         }
+        if (overviewWidth > 0 && rankingWidth > 0) {
+            val duration = statsMotionDurationMillis()
+            val left by animateFloatAsState(
+                if (page == StatsPage.Overview) 0f else (overviewWidth + gap).toFloat(),
+                tween(duration, easing = PageEasing), label = "navigation-indicator-left")
+            val width by animateFloatAsState(
+                (if (page == StatsPage.Overview) overviewWidth else rankingWidth).toFloat(),
+                tween(duration, easing = PageEasing), label = "navigation-indicator-width")
+            Box(Modifier.matchParentSize().drawWith {
+                val thickness = 2.dp.toPx()
+                drawRect(colors.accent, topLeft = androidx.compose.ui.geometry.Offset(left, size.height - thickness),
+                    size = androidx.compose.ui.geometry.Size(width, thickness))
+            })
+        }
+    }
     Box(Modifier.height(24.dp))
 }
 
 @Composable
-private fun NavTab(icon: String, label: String, active: Boolean, onClick: () -> Unit) {
+private fun NavTab(icon: String, label: String, active: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val colors = LocalStatsColors.current
     var hovered by remember { mutableStateOf(false) }
     val background = when {
@@ -563,21 +588,15 @@ private fun NavTab(icon: String, label: String, active: Boolean, onClick: () -> 
     }
     Surface(
         onClick = onClick,
-        modifier = Modifier.height(36.dp)
+        modifier = modifier.height(36.dp)
             .onPointerEvent(PointerEventType.Enter) { hovered = true }
             .onPointerEvent(PointerEventType.Exit) { hovered = false }
             .semantics { selected = active; role = androidx.compose.ui.semantics.Role.Tab },
-        shape = AppShape(8.dp),
+        shape = AppShape(0.dp),
         color = background,
         contentColor = colors.text
     ) {
         Box(contentAlignment = Alignment.Center) {
-            if (active) {
-                Box(Modifier.align(Alignment.CenterStart).width(3.dp).height(16.dp).drawWith {
-                    drawRoundRect(color = colors.accent,
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.width / 2f))
-                })
-            }
             Row(
                 Modifier.padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
