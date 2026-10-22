@@ -13,7 +13,7 @@ data class ListeningEvent(
     val aliases: Set<String> = emptySet(),
     val approximate: Boolean = false,
     val libraryId: String = DataFiles.sourceId(),
-    // Retain precise evidence even when a longer approximate host snapshot is displayed.
+    // Observed evidence is retained separately from the estimated remainder in spans.
     val preciseSpans: List<ListeningSpan>? = null
 ) {
     val durationMs: Long get() = spans.sumOf { it.durationMs }
@@ -46,6 +46,38 @@ object ListeningEvents {
         return result
     }
 
+    /** Keep observed locations; distribute only the missing total into uncovered host intervals. */
+    private fun withApproximateRemainder(snapshot: ListeningEvent, precise: List<ListeningSpan>): List<ListeningSpan> {
+        if (precise.isEmpty()) return snapshot.spans
+        val gaps = mutableListOf<ListeningSpan>()
+        var index = 0
+        for (span in unionSpans(snapshot.spans)) {
+            var start = span.startMs
+            val end = start + span.durationMs
+            while (index < precise.size && precise[index].startMs + precise[index].durationMs <= start) index++
+            var cursor = index
+            while (cursor < precise.size && precise[cursor].startMs < end) {
+                val observed = precise[cursor++]
+                if (observed.startMs > start) gaps += ListeningSpan(start, observed.startMs - start)
+                start = maxOf(start, observed.startMs + observed.durationMs)
+            }
+            if (start < end) gaps += ListeningSpan(start, end - start)
+        }
+        var remaining = snapshot.durationMs - precise.sumOf { it.durationMs }
+        var capacity = gaps.sumOf { it.durationMs }
+        val estimates = gaps.mapNotNull { gap ->
+            // Use a shrinking budget so rounding cannot change the total or exceed a gap.
+            val duration = if (capacity == gap.durationMs) remaining else
+                (remaining.toDouble() * (gap.durationMs.toDouble() / capacity)).toLong()
+                    .coerceIn(0L, minOf(remaining, gap.durationMs))
+            capacity -= gap.durationMs
+            remaining -= duration
+            gap.copy(durationMs = duration).takeIf { duration > 0 }
+        }
+        check(remaining == 0L) { "Approximate listening remainder exceeds its snapshot" }
+        return unionSpans(precise + estimates)
+    }
+
     /** Exact branches of one confirmed play form a union; approximate snapshots remain alternatives. */
     fun union(events: List<ListeningEvent>): List<ListeningEvent> {
         val groups = LinkedHashMap<String, ListeningEvent>()
@@ -64,13 +96,13 @@ object ListeningEvents {
                 it.libraryId == localLibrary && (it.id.startsWith("host:$localLibrary:") ||
                     it.aliases.any { alias -> alias.startsWith("host:$localLibrary:") })
             } ?: chosen
-            val metadata = candidates.filter { it.track.id == identity.track.id }
-                .fold(identity.track) { known, candidate -> mergeTrack(known, candidate.track) }
+            val metadata = candidates.filter { it.track.id == identity.track.id }.map { it.track }
+                .reduce(::mergeTrack)
             val precise = unionSpans(candidates.flatMap { it.observedSpans() })
             val usePrecise = precise.sumOf { it.durationMs } >= chosen.durationMs
             val merged = chosen.copy(track = metadata, libraryId = identity.libraryId,
                 aliases = allKeys - chosen.id,
-                spans = if (usePrecise) precise else chosen.spans,
+                spans = if (usePrecise) precise else withApproximateRemainder(chosen, precise),
                 approximate = if (usePrecise) false else chosen.approximate,
                 preciseSpans = if (usePrecise || precise.isEmpty()) null else precise)
             groups[merged.id] = merged
@@ -80,21 +112,27 @@ object ListeningEvents {
     }
 
     fun aggregate(base: StatsData, input: List<ListeningEvent>, zone: ZoneId = ZoneId.systemDefault()): StatsData {
-        val snapshots = union(input)
         val daily = linkedMapOf<LocalDate, Long>()
         val hourly = linkedMapOf<LocalDate, LongArray>()
         val tracks = linkedMapOf<String, TrackMeta>()
+        val metadata = linkedMapOf<String, TrackMeta>()
         val counts = linkedMapOf<String, Int>()
         val localLibrary = DataFiles.sourceId()
         fun localTrackId(event: ListeningEvent) =
             if (event.libraryId == localLibrary) event.track.id else "${event.libraryId}:${event.track.id}"
-        for (event in snapshots) {
+        // Current library / already resolved local metadata wins. Incoming backups only fill gaps.
+        // Resolve before the session union so choosing a longer old snapshot cannot choose its tags.
+        for (event in input) {
             val trackId = localTrackId(event)
             val meta = event.track.copy(id = trackId)
-            tracks[trackId] = tracks[trackId]?.let { mergeTrack(meta, it) } ?: meta
+            metadata[trackId] = (metadata[trackId] ?: base.tracks[trackId])?.let { mergeTrack(it, meta) } ?: meta
         }
-        val events = snapshots.map { event ->
-            event.copy(track = tracks.getValue(localTrackId(event)).copy(id = event.track.id))
+        val events = union(input).map { event ->
+            val trackId = localTrackId(event)
+            val meta = event.track.copy(id = trackId)
+            val resolved = metadata[trackId]?.let { mergeTrack(it, meta) } ?: meta
+            tracks[trackId] = resolved
+            event.copy(track = resolved.copy(id = event.track.id))
         }
         for (event in events) {
             val trackId = if (event.libraryId == localLibrary) event.track.id else "${event.libraryId}:${event.track.id}"

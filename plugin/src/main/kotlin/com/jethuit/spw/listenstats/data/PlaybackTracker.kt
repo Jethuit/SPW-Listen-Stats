@@ -15,7 +15,9 @@ class PlaybackAccumulator(
     constructor(persist: (LiveSession) -> Unit) : this(persist, { null })
 
     private var current: LiveSession? = null
-    private var playing = false
+    // WorkshopApi has no playing-state getter and enable may miss the last callback.
+    // Until the first explicit state, only observed, plausible progress can establish playback.
+    private var playing: Boolean? = null
     private var position = -1L
     private var nano = 0L
     private var wall = 0L
@@ -53,7 +55,7 @@ class PlaybackAccumulator(
     }
 
     fun sample(track: TrackMeta?, nextPosition: Long, nowWall: Long, nowNano: Long) {
-        if (track == null || track.id.isBlank() || !playing) {
+        if (track == null || track.id.isBlank() || playing == false) {
             resetBaseline()
             return
         }
@@ -95,6 +97,7 @@ class PlaybackAccumulator(
         val delta = nextPosition - position
         // Position confirms progress; monotonic time caps actual listening. Discard sleep and seeks.
         if (position >= 0 && elapsed in 1..3_000 && delta in 1..maxOf(3_000, elapsed * 4 + 250)) {
+            playing = true
             val listened = elapsed
             session.durationMs += listened
             val previous = session.spans.lastOrNull()

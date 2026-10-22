@@ -34,7 +34,9 @@ object BackupService {
 
     @Synchronized fun importFile(file: Path): BackupBundle {
         val incoming = BackupCodec.read(file)
-        val merged = BackupCodec.union(imported(), incoming)
+        val existing = imported()
+        val merged = BackupCodec.union(existing.copy(events = LiveStore.correctImportedEvents(existing.events)),
+            incoming.copy(events = LiveStore.correctImportedEvents(incoming.events)))
         val text = BackupCodec.encode(merged)
         BackupCodec.decode(text) // Validate the result before replacing any durable state.
         if (Files.isRegularFile(importedFile())) {
@@ -46,7 +48,9 @@ object BackupService {
     }
 
     @Synchronized fun exportFile(file: Path, data: StatsData) {
-        val bundle = BackupCodec.union(imported(), BackupBundle(data.events))
+        val existing = imported()
+        val bundle = BackupCodec.union(BackupBundle(LiveStore.correctImportedEvents(data.events)),
+            existing.copy(events = LiveStore.correctImportedEvents(existing.events)))
         val text = BackupCodec.encode(bundle)
         BackupCodec.decode(text)
         DataFiles.writeAtomic(file, text)

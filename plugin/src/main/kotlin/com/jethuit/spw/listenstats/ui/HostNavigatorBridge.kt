@@ -18,9 +18,30 @@ fun CaptureHostNavigator() {
         val handle = navigator?.let { host ->
             StatsNavigationHooks.bindNavigator(host,
                 currentRoute = { (HostNavigatorAccess.history.invoke(host) as List<*>).lastOrNull() },
-                navigate = { route -> HostNavigatorAccess.navigate.invoke(host, route) })
+                navigate = { route -> HostNavigatorAccess.navigate.invoke(host, route) },
+                hostHandlesBack = { HostBackPriority.hasOverlay(host) })
         }
         onDispose { handle?.close() }
+    }
+}
+
+/** Match Navigator.back's higher layers before consuming the embedded statistics page. */
+object HostBackPriority {
+    private val loader = StatsNavigationHooks::class.java.classLoader
+    private val navigatorType by lazy { Class.forName(StatsNavigationHooks.NAVIGATOR_CLASS, false, loader) }
+    private val history by lazy { navigatorType.getDeclaredMethod("getNavBackStack") }
+    private val playerState by lazy { navigatorType.getDeclaredMethod("getPlayerSheetState") }
+    // Verified in Navigator.back in both supported hosts (SPW 1.19.0 / 1.19.1).
+    private val expanded by lazy { playerState.returnType.getDeclaredMethod("\u0528") }
+    private val dialog by lazy {
+        Class.forName("com.xuncorp.voxzen.ui.navigation.ScreenRouteKt", false, loader)
+            .getDeclaredMethod("isDialogRoute", Class.forName("androidx.navigation3.runtime.NavKey", false, loader))
+    }
+
+    fun hasOverlay(navigator: Any): Boolean {
+        val route = (history.invoke(navigator) as List<*>).lastOrNull()
+        return (route != null && dialog.invoke(null, route) == true) ||
+            expanded.invoke(playerState.invoke(navigator)) == true
     }
 }
 

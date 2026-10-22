@@ -200,6 +200,21 @@ object LiveStore {
 
     @Synchronized fun snapshot() = sessions.values.map { it.copyForDisplay() }
 
+    /** Apply local identity repairs before stale backup aliases can join unrelated plays. */
+    @Synchronized fun correctImportedEvents(events: List<ListeningEvent>): List<ListeningEvent> {
+        val repairs = sessions.values.filter { it.rejectedHostIds.isNotEmpty() }.associateBy { "live:${it.id}" }
+        if (repairs.isEmpty()) return events
+        return events.map { event ->
+            val keys = event.aliases + event.id
+            val rejected = keys.mapNotNull { repairs[it] }.flatMap { it.rejectedHostIds }.toSet()
+            if (rejected.isEmpty()) event else {
+                val accepted = keys.filterNot { rejectedHostAlias(it, rejected) }.toSet()
+                val id = event.id.takeIf { it in accepted } ?: accepted.first { it in repairs }
+                event.copy(id = id, aliases = accepted - id)
+            }
+        }
+    }
+
     @Synchronized fun merge(host: StatsData, importedEvents: List<ListeningEvent> = emptyList()): StatsData {
         val source = DataFiles.sourceId()
         val hostEvents = host.listens.map { listen ->
@@ -277,6 +292,6 @@ object LiveStore {
                     approximate = events.any { it.approximate }
                 )
             }
-        return ListeningEvents.aggregate(host, hostEvents + liveEvents + importedEvents)
+        return ListeningEvents.aggregate(host, hostEvents + liveEvents + correctImportedEvents(importedEvents))
     }
 }

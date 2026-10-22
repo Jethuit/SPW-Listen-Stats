@@ -66,6 +66,7 @@ fun YearHeatmap(
     val grid = remember(year, rolling, today) { StatsCalculations.heatmapGrid(year, rolling, today) }
     val dailyScale = remember(data.dailyMillis, today) { HeatmapScale.daily(data.dailyMillis, today) }
     val animations = LocalStatsAnimationsEnabled.current
+    val exiting = LocalStatsPageExiting.current
     val reveal = remember(grid.firstDay, grid.lastDay, weekly) { Animatable(if (animations) 0f else 1f) }
     LaunchedEffect(reveal, animations) {
         if (!animations) reveal.snapTo(1f)
@@ -79,6 +80,9 @@ fun YearHeatmap(
     var tooltip by remember(grid.firstDay, grid.lastDay, weekly, viewportRevision, data) { mutableStateOf<TooltipData?>(null) }
     var hoverWeek by remember(grid.firstDay, grid.lastDay, weekly, viewportRevision) { mutableStateOf<Int?>(null) }
     var hoverRow by remember(grid.firstDay, grid.lastDay, weekly, viewportRevision) { mutableStateOf<Int?>(null) }
+    LaunchedEffect(exiting) {
+        if (exiting) { tooltip = null; hoverWeek = null; hoverRow = null }
+    }
 
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val density = LocalDensity.current
@@ -144,6 +148,7 @@ fun YearHeatmap(
                 .fillMaxWidth()
                 .height(heightDp)
                 .onPointerEvent(PointerEventType.Move) { event ->
+                    if (exiting || event.changes.any { it.isConsumed }) return@onPointerEvent
                     val position = event.changes.firstOrNull()?.position ?: return@onPointerEvent
                     val week = weekIndex(position.x)?.takeIf { columnReveal(reveal.value, it, grid.weeks) > 0.05f }
                     val row = rowIndex(position.y)
@@ -177,6 +182,7 @@ fun YearHeatmap(
                     hoverRow = null
                 }
                 .onPointerEvent(PointerEventType.Press) { event ->
+                    if (exiting || event.changes.any { it.isConsumed }) return@onPointerEvent
                     val position = event.changes.firstOrNull()?.position ?: return@onPointerEvent
                     val week = weekIndex(position.x) ?: return@onPointerEvent
                     if (columnReveal(reveal.value, week, grid.weeks) <= 0.05f) return@onPointerEvent
@@ -319,6 +325,6 @@ fun YearHeatmap(
                     }
                 }
         )
-        StatsTooltip(tooltip)
+        StatsTooltip(if (exiting) null else tooltip)
     }
 }

@@ -7,6 +7,7 @@ import com.xuncorp.spw.workshop.api.hook.MethodHookParam
 class TestNavigationHost {
     val pages = mutableListOf("songs", "settings", "plugin-config")
     var originalCalls = 0
+    var overlayOpen = false
     var currentRoute: Any = Class.forName("com.xuncorp.voxzen.ui.navigation.ScreenRoute\$Track").getField("INSTANCE").get(null)
     fun original() { originalCalls++ }
     var replay: ((String, Array<Any?>) -> Unit)? = null
@@ -52,7 +53,8 @@ class TestNavigationRegistration(val host: TestNavigationHost = TestNavigationHo
         hooks += entry
         AutoCloseable { closed += "$method@${callback.priority}"; hooks.remove(entry) }
     }
-    private val binding = if (!bind) null else StatsNavigationHooks.bindNavigator(host, { host.currentRoute }) { route ->
+    private val binding = if (!bind) null else StatsNavigationHooks.bindNavigator(host, { host.currentRoute },
+        hostHandlesBack = { host.overlayOpen }) { route ->
         lastRequest = route
         dispatch("navigate", arrayOf(route)) {
             check(route == host.currentRoute) { "Open request was not an equal copy of the current host route" }

@@ -4,6 +4,7 @@ import com.jethuit.spw.listenstats.ui.StatsHostState
 import com.jethuit.spw.listenstats.ui.StatsNavigationHooks
 import com.jethuit.spw.listenstats.ui.StatsExitMotion
 import com.jethuit.spw.listenstats.ui.StatsHostTransitionHooks
+import com.jethuit.spw.listenstats.ui.HostBackPriority
 import androidx.compose.animation.ContentTransform
 import java.lang.reflect.Proxy
 import com.xuncorp.spw.workshop.api.hook.MethodHook
@@ -38,15 +39,81 @@ private class LyricsGuard(private val registration: TestNavigationRegistration) 
     }
 }
 
+private fun checkNavigationGuards() {
+    TestNavigationRegistration().use { registration ->
+        val presenter = StatsHostState.attachPresenter()
+        try {
+            StatsHostState.setAnimationsEnabled(false)
+            StatsHostState.open()
+            val rejection = TestNavigationRegistration.Entry("navigate", object : MethodHook(80) {
+                override fun before(call: MethodHookParam) { call.setResult(null) }
+            })
+            registration.extra += rejection
+            registration.dispatch("navigate", arrayOf("rejected")) { error("Rejected navigation reached host") }
+            check(StatsHostState.visible && !StatsHostState.closing)
+            registration.extra.remove(rejection)
+            registration.dispatch("navigate", arrayOf("accepted"))
+            check(!StatsHostState.visible)
+            StatsHostState.open()
+            registration.host.overlayOpen = true
+            registration.dispatch("back") { registration.host.overlayOpen = false }
+            check(StatsHostState.visible && !StatsHostState.closing)
+            registration.dispatch("back") { error("Statistics back popped native history") }
+            check(!StatsHostState.visible)
+            StatsHostState.setAnimationsEnabled(true)
+            var deferred: Array<Any?>? = null
+            var hold = true
+            registration.extra += TestNavigationRegistration.Entry("navigate", object : MethodHook(80) {
+                override fun before(call: MethodHookParam) {
+                    if (hold && call.args.firstOrNull() === registration.lastRequest) {
+                        deferred = call.args.copyOf(); call.setResult(null)
+                    }
+                }
+            })
+            StatsNavigationHooks.openStats()
+            check(!StatsHostState.visible && deferred != null)
+            registration.dispatch("navigate", arrayOf(registration.host.currentRoute))
+            hold = false
+            registration.dispatch("navigate", deferred!!)
+            check(!StatsHostState.visible) { "Same-route navigation did not invalidate the older deferred open" }
+        } finally { presenter.close(); StatsHostState.setAnimationsEnabled(true) }
+    }
+    val native = TestNativeNavigator()
+    val dialogs = Class.forName("com.xuncorp.voxzen.ui.navigation.ScreenRouteKt")
+        .getDeclaredMethod("getDialogScreenRoutes").invoke(null) as Set<*>
+    native.history += dialogs.first()!!
+    check(HostBackPriority.hasOverlay(native.navigator))
+    native.navigator.javaClass.getDeclaredMethod("back").invoke(native.navigator)
+    check(native.history.size == 1 && native.history.single() === native.initial)
+    // Check the exact state getter consumed by the installed host, not an arbitrary boolean accessor.
+    val playerCalls = mutableListOf<String>()
+    val navigatorClass = StatsNavigationHooks.NAVIGATOR_CLASS.replace('.', '/')
+    ClassLoader.getSystemResourceAsStream("$navigatorClass.class").use { stream ->
+        net.bytebuddy.jar.asm.ClassReader(checkNotNull(stream)).accept(object : net.bytebuddy.jar.asm.ClassVisitor(net.bytebuddy.jar.asm.Opcodes.ASM9) {
+            override fun visitMethod(access: Int, name: String, descriptor: String, signature: String?, exceptions: Array<out String>?): net.bytebuddy.jar.asm.MethodVisitor? {
+                if (name != "back") return null
+                return object : net.bytebuddy.jar.asm.MethodVisitor(net.bytebuddy.jar.asm.Opcodes.ASM9) {
+                    override fun visitMethodInsn(opcode: Int, owner: String, name: String, descriptor: String, isInterface: Boolean) {
+                        if (owner.endsWith("/PlayerSheetState") && descriptor == "()Z") playerCalls += name
+                    }
+                }
+            }
+        }, net.bytebuddy.jar.asm.ClassReader.SKIP_DEBUG or net.bytebuddy.jar.asm.ClassReader.SKIP_FRAMES)
+    }
+    check(playerCalls == listOf("\u0528"))
+    println("PASS disabled animation respects rejected navigation; native overlays get back priority; stale same-route opens stay canceled")
+}
+
 fun main() {
     val registration = TestNavigationRegistration()
     check(registration.hooks.size == 5)
     val host = registration.host
     for (method in listOf("navigate", "replace", "forward")) {
         StatsHostState.open()
-        registration.dispatch(method) { check(!StatsHostState.visible) }
+        registration.dispatch(method) { check(StatsHostState.visible) }
+        check(!StatsHostState.visible)
     }
-    println("PASS ordinary sidebar, same-route, replacement and forward close statistics before host navigation")
+    println("PASS ordinary navigation closes statistics only after the host accepts the request")
 
     StatsHostState.open()
     val before = host.pages.toList()
@@ -132,6 +199,7 @@ fun main() {
     checkExitNavigation()
     checkRapidPluginSwitches()
     checkNativeForwardMotion()
+    checkNavigationGuards()
 
     val rolledBack = mutableListOf<String>()
     val failure = runCatching {
@@ -337,7 +405,8 @@ private fun checkExitNavigation() {
 
         StatsHostState.setAnimationsEnabled(false)
         StatsHostState.open()
-        registration.dispatch("forward") { check(!StatsHostState.visible) }
+        registration.dispatch("forward") { check(StatsHostState.visible) }
+        check(!StatsHostState.visible)
         check(host.originalCalls == 6 && !StatsHostState.closing)
         StatsHostState.setAnimationsEnabled(true)
         StatsHostState.open()

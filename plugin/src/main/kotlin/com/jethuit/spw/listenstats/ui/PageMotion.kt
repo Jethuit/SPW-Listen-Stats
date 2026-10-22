@@ -155,6 +155,7 @@ fun <T> DirectionalContent(
     content: @Composable (T) -> Unit
 ) {
     val duration = statsMotionDurationMillis()
+    val pageExiting = LocalStatsPageExiting.current
     val distance = with(LocalDensity.current) { 36.dp.roundToPx() }
     AnimatedContent(
         targetState = target,
@@ -174,6 +175,10 @@ fun <T> DirectionalContent(
     ) { shown ->
         Box(Modifier.fillMaxWidth().onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { event ->
             if (contentKey(shown) != contentKey(target)) event.changes.forEach { it.consume() }
-        }) { content(shown) }
+        }) {
+            CompositionLocalProvider(LocalStatsPageExiting provides (pageExiting || contentKey(shown) != contentKey(target))) {
+                content(shown)
+            }
+        }
     }
 }

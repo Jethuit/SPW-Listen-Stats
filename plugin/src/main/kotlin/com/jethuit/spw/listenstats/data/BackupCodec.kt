@@ -124,7 +124,7 @@ object BackupCodec {
 
     fun apply(data: StatsData, bundle: BackupBundle): StatsData {
         val merged = if (bundle.events.isEmpty()) data
-            else ListeningEvents.aggregate(data, data.events + bundle.events)
+            else ListeningEvents.aggregate(data, data.events + LiveStore.correctImportedEvents(bundle.events))
         return applyLegacy(merged, bundle.legacy)
     }
 

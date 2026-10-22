@@ -15,7 +15,8 @@ import java.util.IdentityHashMap
 object StatsNavigationHooks {
     const val NAVIGATOR_CLASS = "com.xuncorp.voxzen.ui.navigation.Navigator"
     private const val ROUTE_CLASS = "com.xuncorp.voxzen.ui.navigation.ScreenRoute"
-    private class Binding(val navigator: Any, val currentRoute: () -> Any?, val navigate: (Any) -> Unit)
+    private class Binding(val navigator: Any, val currentRoute: () -> Any?, val navigate: (Any) -> Unit,
+                          val hostHandlesBack: () -> Boolean)
     private class RouteKey(route: Any, queue: ReferenceQueue<Any>? = null) : WeakReference<Any>(route, queue) {
         private val identity = System.identityHashCode(route)
         override fun hashCode(): Int = identity
@@ -30,9 +31,10 @@ object StatsNavigationHooks {
     private var registered = false
     val navigatorReady: Boolean get() = registered && binding != null
 
-    fun bindNavigator(navigator: Any, currentRoute: () -> Any?, navigate: (Any) -> Unit): AutoCloseable {
+    fun bindNavigator(navigator: Any, currentRoute: () -> Any?, hostHandlesBack: () -> Boolean = { false },
+                      navigate: (Any) -> Unit): AutoCloseable {
         cancelPendingOpen()
-        val current = Binding(navigator, currentRoute, navigate)
+        val current = Binding(navigator, currentRoute, navigate, hostHandlesBack)
         binding = current
         return AutoCloseable {
             if (binding === current) { binding = null; cancelPendingOpen() }
@@ -105,6 +107,7 @@ object StatsNavigationHooks {
                     override fun before(call: MethodHookParam) {
                         // Observe ordinary navigation before another tool can defer it.
                         if (method != "navigate" || requestOf(call.args.firstOrNull()) == null) {
+                            cancelPendingOpen()
                             val host = binding
                             val sameRoute = method == "navigate" && host != null &&
                                 call.thisObject === host.navigator && call.args.firstOrNull() == host.currentRoute()
@@ -112,7 +115,7 @@ object StatsNavigationHooks {
                                 // A tool opens synchronously after this no-op returns, outside
                                 // NavDisplay. Animate the containing layer over statistics.
                                 sameRouteCalls.add(call)
-                            } else if (!StatsHostState.canAnimateClose) StatsHostState.close()
+                            }
                         }
                     }
                     override fun after(call: MethodHookParam) {
@@ -142,9 +145,10 @@ object StatsNavigationHooks {
             handles += addHook("back", emptyList(), object : MethodHook(100) {
                 override fun before(call: MethodHookParam) {
                     cancelPendingOpen()
+                    val host = binding
+                    if (host != null && (call.thisObject !== host.navigator || host.hostHandlesBack())) return
                     if (StatsHostState.consumeBack()) {
-                        // The statistics page is the top layer. One back action closes only it.
-                        // This also works when the underlying host is already at its root.
+                        // Native dialogs and the expanded player have priority over statistics.
                         call.setResult(null)
                     }
                 }

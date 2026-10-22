@@ -1,5 +1,6 @@
 @file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class,
     androidx.compose.animation.ExperimentalSharedTransitionApi::class,
+    com.moriafly.salt.ui.UnstableSaltUiApi::class,
     com.xuncorp.spw.workshop.api.UnstableSpwWorkshopApi::class)
 
 import androidx.compose.foundation.layout.*
@@ -15,6 +16,10 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.jethuit.spw.listenstats.ui.*
+import com.jethuit.spw.listenstats.data.StatsData
+import com.moriafly.salt.ui.SaltTheme
+import androidx.compose.ui.input.pointer.PointerEventPass
+import java.time.LocalDate
 import org.jetbrains.skia.EncodedImageFormat
 import java.nio.file.Files
 import java.nio.file.Path
@@ -83,6 +88,62 @@ fun main(args: Array<String>) {
     } finally { SwingUtilities.invokeAndWait { scene.close() } }
     checkNestedMaterialHook(output)
     checkForwardCover(output)
+    checkHeatmapExitInput()
+}
+
+/** Raw pointer handlers must respect both page exit state and an already consumed press. */
+private fun checkHeatmapExitInput() {
+    for (weekly in listOf(false, true)) {
+        var exiting by mutableStateOf(false)
+        var blocked by mutableStateOf(false)
+        var selected = 0
+        var completed = 0
+        lateinit var scene: ImageComposeScene
+        SwingUtilities.invokeAndWait {
+            scene = ImageComposeScene(1080, 400, density = Density(1f)) {
+                SaltTheme { MaterialTheme {
+                    CompositionLocalProvider(LocalStatsColors provides LightStatsColors,
+                        LocalStatsAnimationsEnabled provides true) {
+                        StatsPageEnter(exiting = exiting, onExited = { completed++ }) {
+                            Column(Modifier.fillMaxSize().onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { event ->
+                                if (blocked) event.changes.forEach { it.consume() }
+                            }) {
+                                YearHeatmap(StatsData.empty(), 2026, weekly, LocalDate.of(2026, 10, 22), null,
+                                    { selected++ }, { _, _ -> selected++ })
+                            }
+                        }
+                    }
+                } }
+            }
+        }
+        var time = 0L
+        fun frame() {
+            time += 16_666_667L
+            SwingUtilities.invokeAndWait { scene.render(time).close() }
+            Thread.sleep(3)
+        }
+        fun click() {
+            SwingUtilities.invokeAndWait {
+                scene.sendPointerEvent(PointerEventType.Press, Offset(135f, 55f))
+                scene.sendPointerEvent(PointerEventType.Release, Offset(135f, 55f))
+            }
+        }
+        try {
+            repeat(60) { frame() }
+            click(); check(selected == 1) { "Heatmap was not clickable before exit (weekly=$weekly)" }
+            SwingUtilities.invokeAndWait { blocked = true }
+            repeat(3) { frame() }
+            click(); check(selected == 1) { "Heatmap ignored a consumed press (weekly=$weekly)" }
+            SwingUtilities.invokeAndWait { blocked = false; exiting = true }
+            repeat(3) { frame() }
+            click()
+            check(selected == 1 && completed == 0) { "Exiting heatmap changed selection (weekly=$weekly)" }
+            SwingUtilities.invokeAndWait { exiting = false }
+            repeat(60) { frame() }
+            click(); check(selected == 2) { "Canceled exit did not restore heatmap interaction (weekly=$weekly)" }
+        } finally { SwingUtilities.invokeAndWait { scene.close() } }
+    }
+    println("PASS daily/weekly heatmaps ignore consumed and exiting presses, and recover after a reversed exit")
 }
 
 /** New content sits above the stationary outgoing page, rather than waiting for a pop. */
