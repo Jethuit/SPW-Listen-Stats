@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
  */
 @Composable
 fun StatsOverlay() {
+    CaptureHostNavigator()
     if (!StatsHostState.visible) return
     Box(Modifier.fillMaxSize()) {
         ListenStatsApp(

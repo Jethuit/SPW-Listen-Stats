@@ -18,6 +18,7 @@ object StatsHostState {
     }
 
     fun close() {
+        StatsNavigationHooks.cancelPendingOpen()
         visible = false
     }
 

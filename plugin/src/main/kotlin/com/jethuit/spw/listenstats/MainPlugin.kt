@@ -135,7 +135,7 @@ class MainPlugin(
         fun openStats() {
             PluginLog.info("openStats requested from preference")
             javax.swing.SwingUtilities.invokeLater {
-                com.jethuit.spw.listenstats.ui.StatsHostState.open()
+                StatsNavigationHooks.openStats()
             }
         }
 
@@ -157,6 +157,7 @@ class MainPlugin(
                         appendLine("dataDirectory=$dir; database=${com.jethuit.spw.listenstats.data.StatsStore.diagnosticPath()}")
                         appendLine("sourceId=$source; registeredHooks=${PluginState.registeredHooks} (registration only)")
                         appendLine("materialBridgeActive=${com.jethuit.spw.listenstats.ui.StatsHostState.materialBridgeAvailable}; materialHook=${StatsMaterialHook.TARGET_CLASS}.${StatsMaterialHook.TARGET_METHOD}")
+                        appendLine("navigationReady=${StatsNavigationHooks.navigatorReady}; statisticsVisible=${com.jethuit.spw.listenstats.ui.StatsHostState.visible}")
                         appendLine("${com.jethuit.spw.listenstats.data.PlaybackTracker.diagnostics()}")
                         append("storageError=${com.jethuit.spw.listenstats.data.LiveStore.storageError() ?: "none"}")
                     })

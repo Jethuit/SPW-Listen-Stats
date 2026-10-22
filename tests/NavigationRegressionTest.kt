@@ -4,113 +4,135 @@ import com.jethuit.spw.listenstats.ui.StatsHostState
 import com.jethuit.spw.listenstats.ui.StatsNavigationHooks
 import com.xuncorp.spw.workshop.api.hook.MethodHook
 import com.xuncorp.spw.workshop.api.hook.MethodHookParam
-import java.lang.reflect.Method
 
-private class HostHistory {
-    val pages = mutableListOf("songs", "settings", "plugin-config")
-    var originalCalls = 0
-    fun original() { originalCalls++ }
-}
-
-private class Call(val host: HostHistory, val original: () -> Unit) : MethodHookParam() {
-    override val method: Method = HostHistory::class.java.getDeclaredMethod("original")
-    override val thisObject: Any = host
-    override val args: Array<Any?> = emptyArray()
-    private var returned: Any? = null
-    private var thrown: Throwable? = null
-    override val result: Any? get() = returned
-    override val throwable: Throwable? get() = thrown
-    override var isOriginalSkipped = false
-        private set
-    override fun setResult(result: Any?) { returned = result; isOriginalSkipped = true }
-    override fun setThrowable(throwable: Throwable) { thrown = throwable; isOriginalSkipped = true }
-    override fun invokeOriginal(): Any? { host.original(); original(); return null }
-}
-
-private class Registration : AutoCloseable {
-    val hooks = linkedMapOf<String, MethodHook>()
-    val closed = mutableListOf<String>()
-    val handle = StatsNavigationHooks.register { method, parameters, callback ->
-        check(parameters == if (method in listOf("navigate", "replace"))
-            listOf("com.xuncorp.voxzen.ui.navigation.ScreenRoute") else emptyList())
-        val loader = StatsNavigationHooks::class.java.classLoader
-        val navigator = Class.forName(StatsNavigationHooks.NAVIGATOR_CLASS, false, loader)
-        val types = parameters.map { Class.forName(it, false, loader) }.toTypedArray()
-        check(navigator.getDeclaredMethod(method, *types).returnType == Void.TYPE)
-        hooks[method] = callback
-        AutoCloseable { closed += method; hooks.remove(method) }
+private class LyricsGuard(private val registration: TestNavigationRegistration) : MethodHook(80) {
+    var active = true
+    var dirty = false
+    var pending: (() -> Unit)? = null
+    private var replaying = false
+    override fun before(call: MethodHookParam) {
+        if (!active || replaying) return
+        val args = call.args.copyOf()
+        call.setResult(null)
+        val leave = {
+            active = false
+            replaying = true
+            try { registration.dispatch("navigate", args); Unit } finally { replaying = false }
+        }
+        if (dirty) pending = leave else leave()
     }
-    fun dispatch(method: String, host: HostHistory, original: () -> Unit) {
-        val call = Call(host, original)
-        val hook = hooks[method]
-        hook?.before(call)
-        if (!call.isOriginalSkipped) call.invokeOriginal()
-        hook?.after(call)
-    }
-    override fun close() = handle.close()
+    fun confirm() { val action = pending; pending = null; action?.invoke() }
+    fun cancel() { pending = null }
 }
 
 fun main() {
-    val registration = Registration()
-    check(registration.hooks.keys == setOf("navigate", "replace", "forward", "back"))
+    val registration = TestNavigationRegistration()
+    check(registration.hooks.size == 5)
+    val host = registration.host
     for (method in listOf("navigate", "replace", "forward")) {
-        val host = HostHistory()
         StatsHostState.open()
-        registration.dispatch(method, host) {
-            check(!StatsHostState.visible) // No statistics layer over the new destination.
-            host.pages.clear()
-            host.pages += "genres"
-        }
-        check(host.pages == listOf("genres") && host.originalCalls == 1)
+        registration.dispatch(method) { check(!StatsHostState.visible) }
     }
-    println("PASS sidebar navigation, replacement and forward keep host actions")
-
-    val host = HostHistory()
-    StatsHostState.open()
-    registration.dispatch("navigate", host) { /* Host's same-route no-op. */ }
-    check(!StatsHostState.visible && host.originalCalls == 1)
-    println("PASS selecting the already active destination still closes statistics")
+    println("PASS ordinary sidebar, same-route, replacement and forward close statistics before host navigation")
 
     StatsHostState.open()
     val before = host.pages.toList()
-    registration.dispatch("back", host) { host.pages.removeLast() }
-    check(!StatsHostState.visible && host.pages == before && host.originalCalls == 1)
-    registration.dispatch("back", host) { host.pages.removeLast() }
-    check(host.pages == before.dropLast(1) && host.originalCalls == 2)
-    println("PASS first back closes statistics, second back reaches host history")
-
-    host.pages.clear()
-    host.pages += "songs"
+    val calls = host.originalCalls
+    registration.dispatch("back") { error("First back must not reach host history") }
+    check(!StatsHostState.visible && host.pages == before && host.originalCalls == calls)
+    registration.dispatch("back") { host.pages.removeLast() }
+    check(host.pages == before.dropLast(1) && host.originalCalls == calls + 1)
+    host.pages.clear(); host.pages += "songs"
     StatsHostState.open()
-    registration.dispatch("back", host) { error("Root back must not execute with statistics open") }
+    registration.dispatch("back") { error("Root back must not execute with statistics open") }
+    println("PASS first back closes only statistics, including above host root; next back reaches host")
+
+    StatsNavigationHooks.openStats()
+    check(StatsHostState.visible && host.pages == listOf("songs"))
+    val marker = checkNotNull(registration.lastRequest)
+    StatsHostState.close()
+    val track = host.currentRoute
+    host.currentRoute = Class.forName("com.xuncorp.voxzen.ui.navigation.ScreenRoute\$ModConfigContent")
+        .getConstructor(String::class.java).newInstance("synthetic-statistics-plugin")
+    StatsNavigationHooks.openStats()
+    check(StatsHostState.visible && registration.lastRequest !== host.currentRoute &&
+        registration.lastRequest == host.currentRoute)
+    StatsHostState.close()
+    host.currentRoute = track
+    println("PASS native singleton and parameterized plugin-config routes retain their values with distinct request identities")
+    val guard = LyricsGuard(registration)
+    registration.extra += TestNavigationRegistration.Entry("navigate", guard)
+    StatsNavigationHooks.openStats()
+    check(!guard.active && StatsHostState.visible && host.pages == listOf("songs"))
+    StatsHostState.close()
+    println("PASS opening Lyrics then statistics dismisses Lyrics before statistics becomes visible")
+
+    guard.active = true; guard.dirty = true
+    StatsNavigationHooks.openStats()
+    check(guard.active && !StatsHostState.visible && guard.pending != null)
+    guard.cancel()
+    check(guard.active && !StatsHostState.visible)
+    guard.dirty = false
+    registration.dispatch("navigate", arrayOf("songs"))
+    check(!StatsHostState.visible)
+    guard.active = true; guard.dirty = true
+    StatsNavigationHooks.openStats()
+    check(!StatsHostState.visible)
+    guard.confirm()
+    check(!guard.active && StatsHostState.visible && host.pages == listOf("songs"))
+    StatsHostState.close()
+    println("PASS dirty lyrics draft: wait for confirmation, cancel stays in Lyrics, confirm opens statistics")
+
+    guard.active = true; guard.dirty = true
+    StatsNavigationHooks.openStats()
+    val stale = checkNotNull(guard.pending)
+    StatsNavigationHooks.openStats()
+    stale()
+    check(!StatsHostState.visible) { "Earlier deferred request won over a newer request" }
+    guard.confirm()
+    check(StatsHostState.visible)
+    StatsHostState.close()
+    guard.active = true
+    StatsNavigationHooks.openStats()
+    val canceledByNavigation = checkNotNull(guard.pending)
+    registration.dispatch("replace", arrayOf("albums"))
+    canceledByNavigation()
+    check(!StatsHostState.visible)
+    println("PASS repeated opens, stale callbacks and intervening host navigation cannot reopen the wrong page")
+
+    guard.active = true
+    StatsNavigationHooks.openStats()
+    val afterStop = checkNotNull(guard.pending)
+    registration.close(); registration.close()
+    afterStop()
     check(!StatsHostState.visible && host.pages == listOf("songs"))
-    println("PASS back closes statistics even above the host root")
-
-    val closedCalls = host.originalCalls
-    registration.dispatch("navigate", host) { host.pages += "albums" }
-    registration.dispatch("back", host) { host.pages.removeLast() }
-    check(host.originalCalls == closedCalls + 2 && host.pages == listOf("songs"))
-    println("PASS host navigation is unchanged when statistics is closed")
-
-    registration.close()
-    registration.close()
     check(registration.hooks.isEmpty())
-    check(registration.closed == listOf("back", "forward", "replace", "navigate"))
-    Registration().use { fresh ->
-        StatsHostState.open()
-        fresh.dispatch("back", host) { error("Re-enabled hook must consume back") }
-        check(!StatsHostState.visible)
+    check(registration.closed == listOf("back@100", "navigate@50", "forward@100", "replace@100", "navigate@100"))
+    TestNavigationRegistration().use {
+        StatsNavigationHooks.openStats()
+        check(StatsHostState.visible)
+        StatsHostState.close()
     }
-    println("PASS disable cleans all hooks once and re-enable registers fresh hooks")
+    println("PASS disable/re-enable clears deferred activation and unregisters both navigation stages")
+
+    checkNativeNoOp(marker)
 
     val rolledBack = mutableListOf<String>()
     val failure = runCatching {
-        StatsNavigationHooks.register { method, _, _ ->
+        StatsNavigationHooks.register { method, _, callback ->
             if (method == "back") error("simulated missing host target")
-            AutoCloseable { rolledBack += method }
+            AutoCloseable { rolledBack += "$method@${callback.priority}" }
         }
     }.exceptionOrNull()
-    check(failure != null && rolledBack == listOf("forward", "replace", "navigate"))
+    check(failure != null && rolledBack == listOf("navigate@50", "forward@100", "replace@100", "navigate@100"))
     println("PASS failed registration rolls back every installed navigation hook")
-    println("7 navigation regression groups passed; physical mouse input still needs host verification")
+}
+
+/** Exercise SPW's real navigate implementation with an expired request and synthetic history. */
+private fun checkNativeNoOp(marker: Any) {
+    val native = TestNativeNavigator()
+    native.navigate.invoke(native.navigator, marker)
+    check(native.history.size == 1 && native.history[0] === native.initial)
+    check(marker !== native.initial && marker == native.initial)
+    println("PASS actual SPW navigate: deferred request is an equal current route and keeps same-route history unchanged")
 }

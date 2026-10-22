@@ -20,7 +20,8 @@ classpath = os.pathsep.join(map(str, [kotlin / 'lib/kotlin-stdlib.jar', root / '
 java = str(jdk / 'bin/java.exe')
 subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
     '-no-stdlib', '-classpath', classpath, f'-Xplugin={kotlin / "lib/compose-compiler-plugin.jar"}',
-    '-jvm-target', '25', '-d', str(scratch), str(root / 'tests/TitlebarEntryVisualCheck.kt')], check=True)
+    '-jvm-target', '25', '-d', str(scratch), str(root / 'tests/TitlebarEntryVisualCheck.kt'),
+    str(root / 'tests/NavigationTestSupport.kt')], check=True)
 environment = os.environ.copy()
 environment['APPDATA'] = str(scratch / 'appdata')
 environment['LOCALAPPDATA'] = str(scratch / 'localappdata')

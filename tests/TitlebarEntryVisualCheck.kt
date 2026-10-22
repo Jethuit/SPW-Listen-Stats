@@ -49,6 +49,7 @@ fun main(args: Array<String>) {
         for ((width, scale, dark) in listOf(
             Triple(360, 1f, false), Triple(780, 1.25f, false), Triple(360, 1.5f, true)
         )) {
+            val navigation = TestNavigationRegistration()
             var active by mutableStateOf<ComposableHook?>(null)
             fun register() = StatsTitlebarEntry.register { target, method, caller, parameters, content ->
                 check(target == "androidx.compose.ui.\u04f4" && method == "\u037f")
@@ -105,7 +106,23 @@ fun main(args: Array<String>) {
                 handle.close()
                 scene.close()
                 StatsHostState.close()
+                navigation.close()
             }
+        }
+        TestNavigationRegistration(bind = false).use {
+            val native = TestNativeNavigator()
+            @Suppress("UNCHECKED_CAST")
+            val local = Class.forName("com.xuncorp.voxzen.ui.navigation.AppNavigationKt")
+                .getDeclaredMethod("getLocalNavigator").invoke(null) as ProvidableCompositionLocal<Any?>
+            check(!StatsNavigationHooks.navigatorReady)
+            val capture = ImageComposeScene(100, 100, Density(1f)) {
+                CompositionLocalProvider(local provides native.navigator) { CaptureHostNavigator() }
+            }
+            repeat(3) { capture.render().close() }
+            check(StatsNavigationHooks.navigatorReady) { "Real host navigation context was not captured" }
+            capture.close()
+            check(!StatsNavigationHooks.navigatorReady) { "Disposed host retained its navigation context" }
+            println("PASS actual host navigation CompositionLocal capture and disposal")
         }
     }
 }

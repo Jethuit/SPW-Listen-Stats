@@ -45,7 +45,7 @@ object StatsTitlebarEntry {
 
 /** Uses SPW's own caption control, including its width, height, indication and tooltip. */
 @Composable
-fun StatsTitlebarButton(onClick: () -> Unit = StatsHostState::open) {
+fun StatsTitlebarButton(onClick: () -> Unit = StatsNavigationHooks::openStats) {
     val density = LocalDensity.current
     val painter = remember(density) {
         HostCaptionButton.iconBytes.inputStream().use { loadSvgPainter(it, density) }
