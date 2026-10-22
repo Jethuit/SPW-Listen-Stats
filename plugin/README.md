@@ -50,6 +50,22 @@ SPW 1.19.1 随附的 `runtime.kotlin_module` 缺少 Compose 顶层函数索引�
 - 统计入口经宿主导航请求其他工具页离开，等待歌词插件的未保存确认后再显示，取消不切页。请求使用当前宿主路由的等值副本，以独立身份关联延迟回调；在优先级 50 处消费，优先级 100 的普通导航观察器负责取消旧请求，其间允许歌词插件的优先级 80 离开保护执行。不会插入自定义统计路由；同页请求仍保留 SPW 1.19 原生的无操作语义。检查使用模拟离开保护、宿主真实 navigate 方法和隔离渲染，真实双插件及 DWM 仍需实机验收。
 - 宿主标题栏的内容模糊由 Salt UI BasicScreen 和 Haze 实现：正文作为 hazeSource，标题栏叠加 hazeBlur；Windows 默认 Mask 模式为 8dp 半径、无噪点与纵向渐变遮罩。它与亚克力／云母窗口背景材质属于不同层；当前统计页正文仍裁在标题栏下面，尚未接入这层内容模糊。
 
+### 宿主整页导航动画
+
+本机 SPW 1.19.1 安装文件的 `AppNavigationKt`、`Navigator`、Navigation3 与 Compose 字节码可确认以下机制；缓存的 1.19.0 中三套桌面转场参数相同。这是普通页面导航的实现，弹窗、Sheet、搜索控件及列表自身的动画另行处理。
+
+- 调用链为 `Navigator` 更新 `NavBackStack` → 路由对应 `NavEntry` → `SceneState` → `NavDisplay` → `SeekableTransitionState` / `Transition` → `AnimatedContent`。外层 `SharedTransitionLayout` 提供共享元素作用域，不表示每次切页都执行共享元素动画。
+- Windows 选用 `voxzenTransitionSpec`：新页从 `IntOffset(0, 150)` 滑入，旧页原位淡出；新页没有额外的整页淡入。返回选用 `voxzenPopTransitionSpec`：上一页原位淡入，离开的页面向 `IntOffset(0, 150)` 滑出并淡出。桌面的预测返回使用相同动画组合。
+- 位移为直接构造的 150 个布局像素，不经过 dp 转换，也不按页面高度取比例。位移和透明度均使用 `spring(stiffness = 500f)`，默认阻尼比为 1，属于临界阻尼；500 是刚度，不是毫秒。动画完成时间由弹簧收敛、阈值及中断状态决定。
+- 普通导航与返回的转场同时处理进入页和退出页。`NavDisplay` 维护场景键和层级：前进时新页高一层，返回时恢复页低一层；主场景的 `sizeTransform` 为 null，不采用插件内部切页的尺寸补间。动画运行时主场景生命周期上限为 STARTED，稳定且无覆盖场景时恢复 RESUMED。
+- 每次目标场景变化由 `LaunchedEffect(scene)` 驱动同一份可中断转场状态；返回当前场景时按已有进度回退或完成，不通过固定延时排队。`AnimatedContent` 按内容键复用仍存在的页面，并在退出完成后移除旧内容；`NavDisplay` 在转场停止后清理旧场景及层级记录。可保存状态由 `SaveableStateHolderNavEntryDecorator` 按内容键保存，顶层页面被移出返回栈时保留其可保存状态；这与让所有旧页面永久留在组合中不同。
+- `Navigator.navigate` 对与当前路由相等的请求直接返回；顶层导航清除子页面并替换根路由，普通子页面追加到栈。Navigation3 通过旧、新内容键栈的前缀关系识别返回，未按侧栏位置决定左右方向。
+- 同一文件中的 iOS 分支采用 500ms 横向转场、四分之一宽度的背景视差与暗幕；Windows 不走此分支。Navigation3 随附的桌面默认转场本身为 None，SPW 显式传入上述自定义组合。
+
+当前统计页的动画仍按已确认需求实现：外壳为 28dp 位移、300ms 的 `Animatable` 淡入／淡出，内部切页为 36dp 横移与 `AnimatedContent`。统计页与当前研究的歌词插件工具页在原生路由之外组合，不会自动成为 `NavDisplay` 管理的场景；跨插件隔离和交接仍须单独协调。只修改时长不能完整复现宿主的动画、层级与生命周期。本次调查没有改动这些行为；真实窗口中的帧率与跨插件视觉效果仍需运行核对。
+
+### 数据目录与诊断
+
 数据通常位于 `%APPDATA%\Salt Player for Windows\workshop\data\com.jethuit.spw.listenstats\`；有宿主插件路径时按该安装的数据根目录解析。实时文件为 `live-sessions.json`，导入数据为 `imported.json`，来源身份为 `source-id.txt` 及冗余副本。配置页“写入诊断日志”将状态写入该目录的 `status.log`，成功提示包含实际路径；数据目录不可用时日志可回退系统临时目录。
 
 宿主自附加 Agent 在部分非 ASCII 路径下的安装失败尚未解决；该问题不能通过插件 Manifest 的 UTF-8 折行修复来解释。
