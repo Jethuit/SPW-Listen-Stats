@@ -29,6 +29,8 @@ private class CachedConfig(private val saved: MutableMap<String, Any>, private v
 
 fun main(args: Array<String>) {
     val today = LocalDate.of(2026, 10, 22)
+    check(ChartType.fromStorage(null) == ChartType.Bar && ChartType.fromStorage("invalid") == ChartType.Bar)
+    check(RangePreset.fromStorage(null) == RangePreset.Today && RangePreset.fromStorage("invalid") == RangePreset.Today)
     val scale = HeatmapScale.fromSamples(listOf(10L, 20L, 30L, 40L))
     check(scale.thresholds == listOf(17.5, 25.0, 32.5))
     check(listOf(10L, 20L, 30L, 40L).map(scale::level) == listOf(1, 2, 3, 4))
@@ -70,14 +72,14 @@ fun main(args: Array<String>) {
     println("PASS separate natural-week quartiles, unchanged heights, view-independent colors and unchanged data")
 
     for (preset in listOf(RangePreset.Selected, RangePreset.Custom)) {
-        check(StatsCalculations.rangeAfterHeatmapModeChange(preset, today) == RangePreset.Last30)
+        check(StatsCalculations.rangeAfterHeatmapModeChange(preset, today) == RangePreset.Today)
     }
     for (preset in listOf(RangePreset.Last7, RangePreset.Last30, RangePreset.Month, RangePreset.Today, RangePreset.Custom)) {
         check(StatsCalculations.rangeAfterHeatmapModeChange(preset, null) == preset)
     }
     val clearedRange = StatsCalculations.range(
         StatsCalculations.rangeAfterHeatmapModeChange(RangePreset.Selected, today), today, null, null, null)
-    check(clearedRange == DateRange(today.minusDays(29), today))
+    check(clearedRange == DateRange(today, today))
     println("PASS mode switch resets heatmap-linked day/week ranges and preserves manual ranges")
 
     val saved = mutableMapOf<String, Any>("dailyHighHours" to "6", "chartType" to "bar")

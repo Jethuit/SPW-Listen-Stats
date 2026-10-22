@@ -57,7 +57,7 @@ enum class RangePreset(val storage: String, val label: String, val visibleWhenNo
 
     companion object {
         fun fromStorage(value: String?): RangePreset =
-            entries.firstOrNull { it.storage == value } ?: Last30
+            entries.firstOrNull { it.storage == value } ?: Today
     }
 }
 
@@ -68,7 +68,7 @@ enum class ChartType(val storage: String) {
 
     companion object {
         fun fromStorage(value: String?): ChartType =
-            entries.firstOrNull { it.storage == value } ?: Line
+            entries.firstOrNull { it.storage == value } ?: Bar
     }
 }
 
@@ -212,7 +212,7 @@ object StatsCalculations {
     /** Only a heatmap-linked range is reset when switching day/week presentation. */
     fun rangeAfterHeatmapModeChange(preset: RangePreset, selectedDate: LocalDate?): RangePreset =
         if (selectedDate != null && (preset == RangePreset.Selected || preset == RangePreset.Custom)) {
-            RangePreset.Last30
+            RangePreset.Today
         } else preset
 
     fun range(

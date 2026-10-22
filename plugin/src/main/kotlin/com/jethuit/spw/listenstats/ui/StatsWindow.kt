@@ -241,9 +241,9 @@ fun ListenStatsApp(
             }
         )
     }
-    var chartType by remember { mutableStateOf(ChartType.Line) }
+    var chartType by remember { mutableStateOf(ChartType.Bar) }
     var userGranularity by remember { mutableStateOf(Granularity.Day) }
-    var rangePreset by remember { mutableStateOf(RangePreset.Last30) }
+    var rangePreset by remember { mutableStateOf(RangePreset.Today) }
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
     var heatmapYear by remember { mutableStateOf(today.year) }
     var heatmapRolling by remember { mutableStateOf(false) }
@@ -260,10 +260,10 @@ fun ListenStatsApp(
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) { Prefs.initialize() }
-        chartType = ChartType.fromStorage(Prefs.getString("chartType", ChartType.Line.storage))
+        chartType = ChartType.fromStorage(Prefs.getString("chartType", ChartType.Bar.storage))
         userGranularity = Granularity.fromStorage(Prefs.getString("granularity", Granularity.Day.storage))
         rankingMode = RankingMode.fromStorage(Prefs.getString("rankingMode", RankingMode.Song.storage))
-        rangePreset = RangePreset.fromStorage(Prefs.getString("range", RangePreset.Last30.storage))
+        rangePreset = RangePreset.fromStorage(Prefs.getString("range", RangePreset.Today.storage))
         selectedDate = Prefs.getString("selectedDate", "")
             .takeIf { it.isNotBlank() }
             ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
@@ -426,7 +426,7 @@ fun ListenStatsApp(
                                     onDaySelected = { date ->
                                         if (selectedDate == date && rangePreset == RangePreset.Selected) {
                                             selectedDate = null
-                                            rangePreset = RangePreset.Last30
+                                            rangePreset = RangePreset.Today
                                             Prefs.putStringAsync("range", rangePreset.storage)
                                             Prefs.putStringAsync("selectedDate", "")
                                         } else {
@@ -443,7 +443,7 @@ fun ListenStatsApp(
                                             selectedDate = null
                                             customStart = null
                                             customEnd = null
-                                            rangePreset = RangePreset.Last30
+                                            rangePreset = RangePreset.Today
                                             Prefs.putStringAsync("range", rangePreset.storage)
                                             Prefs.putStringAsync("selectedDate", "")
                                             Prefs.putStringAsync("customStart", "")

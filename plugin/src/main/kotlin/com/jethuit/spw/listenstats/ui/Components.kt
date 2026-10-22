@@ -38,6 +38,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -94,6 +97,7 @@ fun CompactMenuButton(
     selected: String? = null,
     onSelected: (String) -> Unit,
     buttonSize: Dp = 36.dp,
+    checkable: Boolean = false,
     icon: @Composable () -> Unit
 ) {
     val colors = LocalStatsColors.current
@@ -101,7 +105,9 @@ fun CompactMenuButton(
     val density = LocalDensity.current
     val measurer = rememberTextMeasurer()
     val labelWidth = options.maxOfOrNull { measurer.measure(it.second, SaltTheme.textStyles.main).size.width } ?: 0
-    val menuWidth = with(density) { labelWidth.toDp() } + SaltTheme.dimens.padding * 2
+    val menuWidth = if (checkable) {
+        (with(density) { labelWidth.toDp() } + 56.dp).coerceAtLeast(112.dp)
+    } else with(density) { labelWidth.toDp() } + SaltTheme.dimens.padding * 2
     var expanded by remember { mutableStateOf(false) }
     var anchor by remember { mutableStateOf<IntRect?>(null) }
     val visibility = remember { MutableTransitionState(false) }
@@ -124,8 +130,9 @@ fun CompactMenuButton(
         val bounds = anchor
         if ((visibility.currentState || visibility.targetState) && bounds != null) {
             Popup(
-                popupPositionProvider = remember(bounds, density) {
-                    SelectMenuPositionProvider(bounds, with(density) { 4.dp.roundToPx() }, alignEnd = true)
+                popupPositionProvider = remember(bounds, density, checkable) {
+                    SelectMenuPositionProvider(bounds, with(density) { 4.dp.roundToPx() },
+                        alignEnd = !checkable, alignCenter = checkable)
                 },
                 onDismissRequest = { expanded = false },
                 properties = PopupProperties(focusable = expanded, dismissOnClickOutside = true)
@@ -135,19 +142,59 @@ fun CompactMenuButton(
                     enter = fadeIn(tween(duration)),
                     exit = fadeOut(tween(duration))
                 ) {
-                    Surface(shape = AppShape(9.dp), color = SaltTheme.colors.popup, shadowElevation = 4.dp) {
-                        // Constrain Salt's default 180dp menu-item minimum to two glyphs plus native padding.
-                        Column(Modifier.width(menuWidth)) {
+                    Surface(shape = AppShape(9.dp), color = SaltTheme.colors.popup, shadowElevation = 4.dp,
+                        border = if (checkable) BorderStroke(Dp.Hairline, SolidColor(SaltTheme.colors.stroke)) else null) {
+                        // Backup actions stay compact; selectable toolbar menus reserve a check column.
+                        Column(Modifier.width(menuWidth).then(if (checkable) Modifier.padding(4.dp) else Modifier)) {
                             options.forEach { (value, label) ->
-                                Surface(color = if (value == selected) colors.controlBackground else Color.Transparent) {
-                                    PopupMenuItem(onClick = {
+                                if (checkable) {
+                                    CheckedMenuItem(label, value == selected) {
                                         if (expanded) { expanded = false; onSelected(value) }
-                                    }, text = label)
+                                    }
+                                } else {
+                                    Surface(color = if (value == selected) colors.controlBackground else Color.Transparent) {
+                                        PopupMenuItem(onClick = {
+                                            if (expanded) { expanded = false; onSelected(value) }
+                                        }, text = label)
+                                    }
                                 }
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Desktop menu geometry: a reserved leading check column, compact rows and an inset hover fill. */
+@Composable
+private fun CheckedMenuItem(label: String, checked: Boolean, onClick: () -> Unit) {
+    val colors = SaltTheme.colors
+    HoverColor(Color.Transparent, colors.text.copy(alpha = 0.06f)) { background ->
+        BasicButton(onClick = onClick,
+            modifier = Modifier.fillMaxWidth().height(32.dp).semantics {
+                selected = checked
+                role = Role.RadioButton
+            },
+            size = ControlSize.Small,
+            shape = AppShape(3.dp),
+            colors = ButtonColors(background, colors.text, background, colors.subText),
+            contentPadding = PaddingValues(horizontal = 8.dp)
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) {
+                    if (checked) Box(Modifier.size(18.dp).drawWith {
+                        val path = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(size.width * 0.16f, size.height * 0.51f)
+                            lineTo(size.width * 0.40f, size.height * 0.74f)
+                            lineTo(size.width * 0.85f, size.height * 0.25f)
+                        }
+                        drawPath(path, colors.text, style = androidx.compose.ui.graphics.drawscope.Stroke(1.3.dp.toPx()))
+                    })
+                }
+                Box(Modifier.width(8.dp))
+                Text(label, style = SaltTheme.textStyles.main.copy(color = colors.text))
             }
         }
     }
@@ -434,7 +481,8 @@ fun SelectBox(
 private class SelectMenuPositionProvider(
     private val anchor: IntRect,
     private val gapPx: Int,
-    private val alignEnd: Boolean = false
+    private val alignEnd: Boolean = false,
+    private val alignCenter: Boolean = false
 ) : PopupPositionProvider {
     override fun calculatePosition(
         anchorBounds: IntRect,
@@ -442,7 +490,11 @@ private class SelectMenuPositionProvider(
         layoutDirection: LayoutDirection,
         popupContentSize: IntSize
     ): IntOffset {
-        var x = if (alignEnd) anchor.right - popupContentSize.width else anchor.left
+        var x = when {
+            alignCenter -> (anchor.left + anchor.right - popupContentSize.width) / 2
+            alignEnd -> anchor.right - popupContentSize.width
+            else -> anchor.left
+        }
         var y = anchor.bottom + gapPx
         if (y + popupContentSize.height > windowSize.height) {
             y = anchor.top - popupContentSize.height - gapPx
