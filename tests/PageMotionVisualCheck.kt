@@ -25,6 +25,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import javax.imageio.ImageIO
 import javax.swing.SwingUtilities
+import kotlin.math.roundToInt
 
 fun main(args: Array<String>) {
     val out = Path.of(args.single())
@@ -159,6 +160,9 @@ fun main(args: Array<String>) {
 
 /** Render the actual ranking list, including a 25-row page and a short final page. */
 private fun rankingMotionCheck(out: Path, colors: StatsColors, palette: String) {
+    // Match the user's 125% desktop scaling: hairline borders must stay one pixel.
+    val scale = 1.25f
+    fun px(value: Int) = (value * scale).roundToInt()
     var page by mutableStateOf(1)
     var mode by mutableStateOf(RankingMode.Song)
     var revision by mutableStateOf(0)
@@ -166,7 +170,7 @@ private fun rankingMotionCheck(out: Path, colors: StatsColors, palette: String) 
     var animations by mutableStateOf(true)
     lateinit var scene: ImageComposeScene
     SwingUtilities.invokeAndWait {
-        scene = ImageComposeScene(900, 400, density = Density(1f)) {
+        scene = ImageComposeScene(px(900), px(400), density = Density(scale)) {
             SaltTheme(configs = saltConfigs(colors.isDark)) {
                 MaterialTheme(colorScheme = if (colors.isDark) darkColorScheme() else lightColorScheme()) {
                     CompositionLocalProvider(LocalStatsColors provides colors, LocalStatsAnimationsEnabled provides animations) {
@@ -198,7 +202,7 @@ private fun rankingMotionCheck(out: Path, colors: StatsColors, palette: String) 
     }
     fun settle(): BufferedImage { repeat(30) { frame() }; return frame() }
     fun same(a: BufferedImage, b: BufferedImage) =
-        (40 until 860).all { x -> (100 until 290).all { y -> a.getRGB(x, y) == b.getRGB(x, y) } }
+        (px(40) until px(860)).all { x -> (px(100) until px(290)).all { y -> a.getRGB(x, y) == b.getRGB(x, y) } }
     try {
         val first = settle()
         SwingUtilities.invokeAndWait { page = 2 }
@@ -225,8 +229,8 @@ private fun rankingMotionCheck(out: Path, colors: StatsColors, palette: String) 
         check(!same(first, refresh) && same(refresh, settle())) { "Data refresh should update in place without replaying" }
         fun click(x: Float, y: Float) {
             SwingUtilities.invokeAndWait {
-                scene.sendPointerEvent(PointerEventType.Press, Offset(x, y))
-                scene.sendPointerEvent(PointerEventType.Release, Offset(x, y))
+                scene.sendPointerEvent(PointerEventType.Press, Offset(x * scale, y * scale))
+                scene.sendPointerEvent(PointerEventType.Release, Offset(x * scale, y * scale))
             }
         }
         val collapsed = frame("toolbar-collapsed")
@@ -236,12 +240,12 @@ private fun rankingMotionCheck(out: Path, colors: StatsColors, palette: String) 
         val expanded = settle()
         frame("search-expanded")
         fun sameSearchEdge(a: BufferedImage, b: BufferedImage) =
-            (670 until 832).all { x -> (32 until 35).all { y -> a.getRGB(x, y) == b.getRGB(x, y) } }
+            (px(670) until px(832)).all { x -> (px(32) until px(35)).all { y -> a.getRGB(x, y) == b.getRGB(x, y) } }
         check(!sameSearchEdge(collapsed, searchMid) && !sameSearchEdge(searchMid, expanded)) {
             "Search must expand through an intermediate frame instead of appearing instantly"
         }
         // The right edge of the close button stays at the old search action position.
-        check(expanded.getRGB(879, 50) != colors.pageBackground.toArgb()) { "Close button right edge moved" }
+        check(expanded.getRGB(px(879), px(50)) != colors.pageBackground.toArgb()) { "Close button right edge moved" }
         SwingUtilities.invokeAndWait {
             val native = java.awt.event.KeyEvent(
                 java.awt.Canvas(), java.awt.event.KeyEvent.KEY_TYPED, System.currentTimeMillis(), 0,

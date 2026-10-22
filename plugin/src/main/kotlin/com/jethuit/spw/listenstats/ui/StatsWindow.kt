@@ -496,7 +496,6 @@ fun ListenStatsApp(
                                     }
                                 )
                             }
-                            if (shownPage == StatsPage.Overview) PageFooter(snapshot)
                             }
                             }
                         }
@@ -593,38 +592,6 @@ private fun NavTab(icon: String, label: String, active: Boolean, onClick: () -> 
                     )
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun PageFooter(data: StatsData) {
-    val colors = LocalStatsColors.current
-    Column {
-        Box(Modifier.height(36.dp))
-        Box(Modifier.height(1.dp))
-        Box(Modifier.height(18.dp))
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier
-                        .size(5.dp)
-                        .drawWith { drawCircle(color = colors.muted, radius = size.minDimension / 2f) }
-                )
-                Box(Modifier.width(7.dp))
-                Text(
-                    if (data.databaseFound) "真实听歌记录 · 已连接 SPW 播放器" else "播放器数据不可用",
-                    style = AppType.tiny.copy(color = colors.muted)
-                )
-            }
-            Text(
-                "仅记录实际收听 · 播放次数按歌曲独立累计",
-                style = AppType.tiny.copy(color = colors.muted)
-            )
         }
     }
 }

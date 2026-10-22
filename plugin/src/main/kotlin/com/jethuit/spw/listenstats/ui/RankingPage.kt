@@ -50,6 +50,7 @@ import androidx.compose.ui.focus.focusRequester
 import com.moriafly.salt.ui.BasicButton
 import com.moriafly.salt.ui.ButtonColors
 import com.moriafly.salt.ui.ControlSize
+import com.moriafly.salt.ui.button.PillButton
 import com.moriafly.salt.ui.SaltTheme
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -210,8 +211,8 @@ private fun RankingSearch(
     Surface(
         modifier = Modifier.width(width).height(36.dp),
         shape = AppShape(100.dp),
-        border = BorderStroke(1.dp, SolidColor(SaltTheme.colors.stroke)),
-        color = Color.Transparent
+        border = BorderStroke(Dp.Hairline, SolidColor(SaltTheme.colors.stroke)),
+        color = SaltTheme.colors.subBackground
     ) {
         Row(
             Modifier.fillMaxSize().padding(horizontal = 10.dp),
@@ -265,13 +266,22 @@ private fun RankingIconButton(
     label: String, onClick: () -> Unit, outlined: Boolean = false, icon: @Composable () -> Unit
 ) {
     val colors = LocalStatsColors.current
+    if (outlined) {
+        // The host's ScreenSearchBar.CloseButton delegates to this native control:
+        // circular sub-material fill, one physical pixel stroke and native feedback.
+        PillButton(
+            onClick = onClick,
+            modifier = Modifier.semantics { contentDescription = label },
+            icon = icon
+        )
+        return
+    }
     BasicButton(
         onClick = onClick,
         modifier = Modifier.size(36.dp).semantics { contentDescription = label },
         size = ControlSize.Regular,
-        shape = if (outlined) AppShape(100.dp) else AppShape(8.dp),
+        shape = AppShape(8.dp),
         colors = ButtonColors(Color.Transparent, colors.text, Color.Transparent, colors.muted),
-        border = if (outlined) BorderStroke(1.dp, SolidColor(SaltTheme.colors.stroke)) else null,
         contentPadding = PaddingValues(0.dp)
     ) { icon() }
 }
