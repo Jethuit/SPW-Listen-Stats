@@ -34,6 +34,7 @@ import com.moriafly.salt.ui.rememberScrollState
 import com.moriafly.salt.ui.verticalScroll
 import com.jethuit.spw.listenstats.ui.StatsText as Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.ui.semantics.semantics
@@ -109,8 +110,10 @@ fun CompactMenuButton(
         (with(density) { labelWidth.toDp() } + 56.dp).coerceAtLeast(112.dp)
     } else with(density) { labelWidth.toDp() } + SaltTheme.dimens.padding * 2
     var expanded by remember { mutableStateOf(false) }
+    val exiting = LocalStatsPageExiting.current
+    LaunchedEffect(exiting) { if (exiting) expanded = false }
     var anchor by remember { mutableStateOf<IntRect?>(null) }
-    val visibility = remember { MutableTransitionState(false) }
+    val visibility = remember(exiting) { MutableTransitionState(false) }
     visibility.targetState = expanded
     Box(Modifier.onGloballyPositioned {
         val bounds = it.boundsInWindow()
@@ -128,7 +131,7 @@ fun CompactMenuButton(
             icon()
         }
         val bounds = anchor
-        if ((visibility.currentState || visibility.targetState) && bounds != null) {
+        if (!exiting && (visibility.currentState || visibility.targetState) && bounds != null) {
             Popup(
                 popupPositionProvider = remember(bounds, density, checkable) {
                     SelectMenuPositionProvider(bounds, with(density) { 4.dp.roundToPx() },
@@ -366,6 +369,8 @@ fun SelectBox(
         naturalMenuWidth
     }
     var expanded by remember { mutableStateOf(false) }
+    val exiting = LocalStatsPageExiting.current
+    LaunchedEffect(exiting) { if (exiting) expanded = false }
     var anchorBounds by remember { mutableStateOf<IntRect?>(null) }
     Box(
         modifier.onGloballyPositioned {
@@ -414,7 +419,7 @@ fun SelectBox(
                 )
             }
         }
-        if (expanded) {
+        if (expanded && !exiting) {
             val anchor = anchorBounds
             if (anchor != null) {
                 Popup(

@@ -21,6 +21,8 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import com.jethuit.spw.listenstats.DisplayPreferences
 import com.jethuit.spw.listenstats.ui.StatsText as Text
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +39,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.role
@@ -54,6 +57,10 @@ import com.jethuit.spw.listenstats.data.StatsData
 import com.jethuit.spw.listenstats.data.StatsStore
 import com.jethuit.spw.listenstats.util.formatDay
 import com.moriafly.salt.ui.Card as SaltCard
+import com.moriafly.salt.ui.BasicButton
+import com.moriafly.salt.ui.ButtonColors
+import com.moriafly.salt.ui.ControlSize
+import com.moriafly.salt.ui.SaltDynamicColors
 import com.moriafly.salt.ui.SaltTheme
 import com.moriafly.salt.ui.rememberScrollState
 import com.moriafly.salt.ui.saltConfigs
@@ -257,6 +264,19 @@ fun ListenStatsApp(
     var reloadTick by remember { mutableStateOf(0) }
     var dateDialogOpen by remember { mutableStateOf(false) }
     var backupBusy by remember { mutableStateOf(false) }
+    var localExiting by remember { mutableStateOf(false) }
+    val exiting = if (embedded) StatsHostState.closing else localExiting
+    val closeTicket = StatsHostState.closeTicket
+    val requestExit: () -> Unit = { if (embedded) onClose() else localExiting = true }
+    val focus = LocalFocusManager.current
+    DisposableEffect(embedded) {
+        val presenter = if (embedded) StatsHostState.attachPresenter() else null
+        onDispose { presenter?.close() }
+    }
+    SideEffect { if (embedded) StatsHostState.setAnimationsEnabled(displayPreferences.pageAnimations) }
+    LaunchedEffect(exiting) {
+        if (exiting) { dateDialogOpen = false; focus.clearFocus(force = true) }
+    }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) { Prefs.initialize() }
@@ -327,8 +347,10 @@ fun ListenStatsApp(
             if (rankPage > totalPages) rankPage = totalPages
         }
         Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {
-        StatsPageEnter {
-        StatsPageFrame(onClose, actions = {
+        StatsPageEnter(exiting, onExited = {
+            if (embedded) StatsHostState.finishClose(closeTicket) else onClose()
+        }) {
+        StatsPageFrame(requestExit, actions = {
             if (snapshot != null) {
             BackupMenu(
                 onImport = {
@@ -514,7 +536,7 @@ fun ListenStatsApp(
         }
                 }
                 }
-                if (dateDialogOpen && snapshot != null) {
+                if (dateDialogOpen && snapshot != null && !exiting) {
                     val dateRange = StatsCalculations.range(
                         rangePreset,
                         today,
@@ -585,15 +607,18 @@ fun PageNav(page: StatsPage, onPage: (StatsPage) -> Unit) {
 private fun NavTab(icon: String, label: String, active: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val colors = LocalStatsColors.current
     var hovered by remember { mutableStateOf(false) }
-    Surface(
+    SaltTheme(configs = SaltTheme.configs.copy(indication = PlainNavIndication),
+        dynamicColors = SaltDynamicColors(SaltTheme.colors, SaltTheme.colors)) {
+    BasicButton(
         onClick = onClick,
         modifier = modifier.height(36.dp)
             .onPointerEvent(PointerEventType.Enter) { hovered = true }
             .onPointerEvent(PointerEventType.Exit) { hovered = false }
             .semantics { selected = active; role = androidx.compose.ui.semantics.Role.Tab },
         shape = AppShape(0.dp),
-        color = Color.Transparent,
-        contentColor = colors.text
+        size = ControlSize.Small,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+        colors = ButtonColors(Color.Transparent, colors.text, Color.Transparent, colors.muted)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Row(
@@ -611,6 +636,7 @@ private fun NavTab(icon: String, label: String, active: Boolean, modifier: Modif
                 )
             }
         }
+    }
     }
 }
 

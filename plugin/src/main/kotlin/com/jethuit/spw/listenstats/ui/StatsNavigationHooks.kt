@@ -41,7 +41,10 @@ object StatsNavigationHooks {
 
     /** Ask other tools to leave first; they may synchronously accept or defer for draft confirmation. */
     fun openStats() {
-        if (StatsHostState.visible) return
+        if (StatsHostState.visible) {
+            if (StatsHostState.closing) StatsHostState.open()
+            return
+        }
         val host = binding
         if (!registered || host == null) {
             WorkshopApi.ui.toast("统计页面导航尚未准备好，请稍后重试", WorkshopApi.Ui.ToastType.Warning)
@@ -99,8 +102,23 @@ object StatsNavigationHooks {
                 handles += addHook(method, parameters, object : MethodHook(100) {
                     override fun before(call: MethodHookParam) {
                         // Observe ordinary navigation before another tool can defer it.
-                        if (method != "navigate" || requestOf(call.args.firstOrNull()) == null)
-                            StatsHostState.close()
+                        if (method != "navigate" || requestOf(call.args.firstOrNull()) == null) {
+                            if (StatsHostState.canAnimateClose) {
+                                val receiver = call.thisObject
+                                val target = call.method
+                                val args = call.args.copyOf()
+                                val currentBinding = binding
+                                call.setResult(null)
+                                StatsHostState.requestClose {
+                                    if (registered && binding === currentBinding) {
+                                        // Re-enter the complete hook chain, including other tools' leave guards.
+                                        runCatching { target.invoke(receiver, *args) }.onFailure {
+                                            PluginLog.error("navigation after statistics exit failed", it)
+                                        }
+                                    }
+                                }
+                            } else StatsHostState.close()
+                        }
                     }
                 })
             }
@@ -132,7 +150,7 @@ object StatsNavigationHooks {
             closeAll(handles)
             throw failure
         }
-        return AutoCloseable { registered = false; cancelPendingOpen(); closeAll(handles) }
+        return AutoCloseable { registered = false; StatsHostState.close(); closeAll(handles) }
     }
 
     private fun closeAll(handles: MutableList<AutoCloseable>) {

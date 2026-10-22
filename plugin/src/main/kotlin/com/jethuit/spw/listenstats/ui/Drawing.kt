@@ -1,11 +1,15 @@
 package com.jethuit.spw.listenstats.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.IndicationNodeFactory
+import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.DrawModifier
+import androidx.compose.ui.node.DelegatableNode
+import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -42,6 +46,16 @@ fun Modifier.drawWith(block: DrawScope.() -> Unit): Modifier = then(DrawBlock(fa
 
 /** Draws above the node's children. */
 fun Modifier.drawOver(block: DrawScope.() -> Unit): Modifier = then(DrawBlock(true, block))
+
+/** Navigation tabs keep native click/focus semantics without painting an interaction state layer. */
+object PlainNavIndication : IndicationNodeFactory {
+    override fun create(interactionSource: InteractionSource): DelegatableNode = PlainNode()
+    override fun equals(other: Any?): Boolean = other === this
+    override fun hashCode(): Int = 18523
+    private class PlainNode : Modifier.Node(), DrawModifierNode {
+        override fun ContentDrawScope.draw() { drawContent() }
+    }
+}
 
 object AppType {
     val pageTitle = TextStyle(

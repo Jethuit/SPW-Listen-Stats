@@ -16,7 +16,7 @@ fun StatsOverlay() {
     Box(Modifier.fillMaxSize()) {
         ListenStatsApp(
             embedded = true,
-            onClose = { StatsHostState.close() }
+            onClose = { StatsHostState.requestClose() }
         )
     }
 }

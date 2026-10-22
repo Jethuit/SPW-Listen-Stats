@@ -19,10 +19,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
@@ -33,6 +38,7 @@ import androidx.compose.ui.unit.dp
 internal val PageEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 const val StatsMotionDurationMillis = 300
 val LocalStatsAnimationsEnabled = staticCompositionLocalOf { true }
+val LocalStatsPageExiting = staticCompositionLocalOf { false }
 
 @Composable
 fun statsMotionDurationMillis(): Int = if (LocalStatsAnimationsEnabled.current) StatsMotionDurationMillis else 0
@@ -57,18 +63,26 @@ fun SearchExpansion(expanded: Boolean, content: @Composable (Boolean) -> Unit) {
 
 /** The page shell enters once; replacing placeholders with data does not replay it. */
 @Composable
-fun StatsPageEnter(content: @Composable () -> Unit) {
+fun StatsPageEnter(exiting: Boolean = false, onExited: () -> Unit = {}, content: @Composable () -> Unit) {
     val duration = statsMotionDurationMillis()
     val progress = remember { Animatable(if (duration == 0) 1f else 0f) }
     val distance = with(LocalDensity.current) { 28.dp.toPx() }
-    LaunchedEffect(duration) {
-        if (duration == 0) progress.snapTo(1f)
-        else progress.animateTo(1f, tween(duration, easing = PageEasing))
+    val finished by rememberUpdatedState(onExited)
+    LaunchedEffect(duration, exiting) {
+        val target = if (exiting) 0f else 1f
+        if (duration == 0) progress.snapTo(target)
+        else progress.animateTo(target, tween(duration, easing = PageEasing))
+        if (exiting) finished()
     }
-    Box(Modifier.fillMaxSize().graphicsLayer {
+    Box(Modifier.fillMaxSize().clipToBounds().onPreviewKeyEvent { exiting }
+        .onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { event ->
+            if (exiting) event.changes.forEach { it.consume() }
+        }.graphicsLayer {
         alpha = progress.value
         translationY = distance * (1f - progress.value)
-    }) { content() }
+    }) {
+        CompositionLocalProvider(LocalStatsPageExiting provides exiting) { content() }
+    }
 }
 
 /** Header/navigation stay outside. All UI choices and loaded data live in the parent. */

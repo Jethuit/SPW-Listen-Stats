@@ -33,6 +33,8 @@ fun main(args: Array<String>) {
     for ((name, colors) in listOf("light" to LightStatsColors, "dark" to DarkStatsColors)) {
         var page by mutableStateOf(StatsPage.Overview)
         var show by mutableStateOf(true)
+        var exiting by mutableStateOf(false)
+        var closed = 0
         var clicks = 0
         var imports = 0
         var animations by mutableStateOf(true)
@@ -46,7 +48,7 @@ fun main(args: Array<String>) {
                             val focus = LocalFocusManager.current
                             SideEffect { clearFocus = { focus.clearFocus(force = true) } }
                             Box(Modifier.fillMaxSize().drawWith { drawRect(colors.pageBackground) }) {
-                                if (show) StatsPageEnter {
+                                if (show) StatsPageEnter(exiting, onExited = { closed++; show = false }) {
                                     Column(Modifier.fillMaxSize().padding(20.dp)) {
                                         Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                             StatsText("听歌统计", modifier = Modifier.weight(1f), style = AppType.sectionTitle.copy(color = colors.text))
@@ -97,6 +99,10 @@ fun main(args: Array<String>) {
             val overview = frame("overview")
             check(!sameRegion(entryStart, overview, 20, 20, 350, 250))
             check(!sameRegion(entryMid, overview, 20, 20, 350, 250))
+            SwingUtilities.invokeAndWait { scene.sendPointerEvent(PointerEventType.Move, Offset(210f, 75f)) }
+            val hover = settle()
+            frame("navigation-hover")
+            check(sameRegion(overview, hover, 143, 73, 149, 102)) { "Inactive navigation still has a hover state layer" }
             SwingUtilities.invokeAndWait {
                 scene.sendPointerEvent(PointerEventType.Press, Offset(210f, 75f))
                 scene.sendPointerEvent(PointerEventType.Release, Offset(210f, 75f))
@@ -138,8 +144,35 @@ fun main(args: Array<String>) {
             check(restored.getRGB(260, 85) == overview.getRGB(260, 85)) {
                 "Inactive navigation retained a press overlay in the preview"
             }
+            SwingUtilities.invokeAndWait { exiting = true }
+            repeat(4) { frame() }
+            SwingUtilities.invokeAndWait { exiting = false }
+            check(sameRegion(restored, settle(), 20, 132, 380, 220) && show && closed == 0) {
+                "Reopening during exit did not reverse without removing the page"
+            }
+            SwingUtilities.invokeAndWait { exiting = true }
+            repeat(5) { frame() }
+            val exitMid = frame("exit-mid")
+            fun blueTop(image: BufferedImage): Int = (140 until 270).first { y ->
+                val rgb = image.getRGB(40, y)
+                val blue = rgb and 255
+                blue > ((rgb shr 16) and 255) + 20 && blue > ((rgb shr 8) and 255) + 10
+            }
+            check(show && blueTop(exitMid) > blueTop(restored) && !sameRegion(restored, exitMid, 20, 140, 380, 220)) {
+                "Exit must fade and translate content downwards before disposal"
+            }
+            val clickCount = clicks
+            SwingUtilities.invokeAndWait {
+                scene.sendPointerEvent(PointerEventType.Press, Offset(210f, 90f))
+                scene.sendPointerEvent(PointerEventType.Release, Offset(210f, 90f))
+            }
+            frame(); frame()
+            check(clicks == clickCount) { "Exiting page accepted a navigation click" }
+            val afterExit = settle()
+            frame("exit-complete")
+            check(!show && closed == 1 && afterExit.getRGB(40, 180) == colors.pageBackground.toArgb())
             SwingUtilities.invokeAndWait { show = false }; settle()
-            SwingUtilities.invokeAndWait { show = true }
+            SwingUtilities.invokeAndWait { exiting = false; show = true }
             val reopen = frame("reopen-start")
             check(!sameRegion(reopen, overview, 20, 20, 350, 220)) { "Reopening must replay entry" }
             settle()
@@ -155,6 +188,19 @@ fun main(args: Array<String>) {
             }
             settle()
             check(imports == 1) { "Compact menu did not dispatch import once" }
+            SwingUtilities.invokeAndWait {
+                scene.sendPointerEvent(PointerEventType.Press, Offset(360f, 40f))
+                scene.sendPointerEvent(PointerEventType.Release, Offset(360f, 40f))
+            }
+            settle()
+            SwingUtilities.invokeAndWait { exiting = true }
+            frame(); frame()
+            SwingUtilities.invokeAndWait { exiting = false }
+            frame(); frame()
+            check(sameRegion(overview, frame("exit-reopen-menu"), 300, 70, 380, 120)) {
+                "A dismissed popup reappeared when reversing the exit"
+            }
+            settle()
             SwingUtilities.invokeAndWait { animations = false; show = false }
             frame(); frame()
             SwingUtilities.invokeAndWait { show = true }
@@ -165,6 +211,10 @@ fun main(args: Array<String>) {
             frame(); frame()
             val immediatePage = frame()
             check(sameRegion(immediatePage, settle(), 20, 144, 380, 240)) { "Disabled page switch still animates" }
+            SwingUtilities.invokeAndWait { exiting = true }
+            frame(); frame(); frame()
+            check(!show && closed == 2) { "Disabled exit did not complete immediately" }
+            println("PASS $name: no hover fill; downward fade, retained exit, blocked clicks, reversal and immediate disabled exit")
             println("PASS $name: animation switch bypasses entry and page transitions")
             println("PASS $name: navigation click, entry, directional body switch, fixed title and rapid reversals")
         } finally { SwingUtilities.invokeAndWait { scene.close() } }

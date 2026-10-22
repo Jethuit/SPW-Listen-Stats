@@ -9,11 +9,23 @@ class TestNavigationHost {
     var originalCalls = 0
     var currentRoute: Any = Class.forName("com.xuncorp.voxzen.ui.navigation.ScreenRoute\$Track").getField("INSTANCE").get(null)
     fun original() { originalCalls++ }
+    var replay: ((String, Array<Any?>) -> Unit)? = null
+    var lastReplay: Pair<String, List<Any?>>? = null
+    private fun replay(method: String, args: Array<Any?>) {
+        lastReplay = method to args.toList()
+        replay?.invoke(method, args)
+    }
+    fun navigate(route: Any?) = replay("navigate", arrayOf(route))
+    fun replace(route: Any?) = replay("replace", arrayOf(route))
+    fun forward() = replay("forward", emptyArray())
+    fun back() = replay("back", emptyArray())
 }
 
 class TestNavigationCall(val host: TestNavigationHost, override val args: Array<Any?>,
+                         methodName: String,
                          private val original: () -> Unit) : MethodHookParam() {
-    override val method = TestNavigationHost::class.java.getDeclaredMethod("original")
+    override val method = TestNavigationHost::class.java.getDeclaredMethod(methodName,
+        *(if (methodName in listOf("navigate", "replace")) arrayOf(Any::class.java) else emptyArray()))
     override val thisObject: Any = host
     private var returned: Any? = null
     private var thrown: Throwable? = null
@@ -47,7 +59,7 @@ class TestNavigationRegistration(val host: TestNavigationHost = TestNavigationHo
         }
     }
     fun dispatch(method: String, args: Array<Any?> = emptyArray(), original: () -> Unit = {}): TestNavigationCall {
-        val call = TestNavigationCall(host, args, original)
+        val call = TestNavigationCall(host, args, method, original)
         val entered = mutableListOf<MethodHook>()
         for (entry in (hooks + extra).filter { it.method == method }.sortedByDescending { it.callback.priority }) {
             entered += entry.callback
@@ -58,7 +70,8 @@ class TestNavigationRegistration(val host: TestNavigationHost = TestNavigationHo
         entered.asReversed().forEach { it.after(call) }
         return call
     }
-    override fun close() { binding?.close(); registration.close() }
+    init { host.replay = { method, args -> dispatch(method, args); Unit } }
+    override fun close() { host.replay = null; binding?.close(); registration.close() }
 }
 
 class TestNativeNavigator {

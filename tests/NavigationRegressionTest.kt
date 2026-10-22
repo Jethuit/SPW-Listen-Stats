@@ -116,6 +116,7 @@ fun main() {
     println("PASS disable/re-enable clears deferred activation and unregisters both navigation stages")
 
     checkNativeNoOp(marker)
+    checkExitNavigation()
 
     val rolledBack = mutableListOf<String>()
     val failure = runCatching {
@@ -126,6 +127,73 @@ fun main() {
     }.exceptionOrNull()
     check(failure != null && rolledBack == listOf("navigate@50", "forward@100", "replace@100", "navigate@100"))
     println("PASS failed registration rolls back every installed navigation hook")
+}
+
+/** Delay route replay until the composed page has acknowledged the end of its exit. */
+private fun checkExitNavigation() {
+    val registration = TestNavigationRegistration()
+    val host = registration.host
+    val presenter = StatsHostState.attachPresenter()
+    StatsHostState.setAnimationsEnabled(true)
+    try {
+        StatsHostState.open()
+        registration.dispatch("navigate", arrayOf("albums")) { error("Navigation ran before exit") }
+        val ticket = StatsHostState.closeTicket
+        check(StatsHostState.visible && StatsHostState.closing && host.originalCalls == 0)
+        registration.dispatch("replace", arrayOf("artists")) { error("Replacement ran before exit") }
+        check(StatsHostState.closeTicket == ticket)
+        StatsHostState.finishClose(ticket)
+        check(!StatsHostState.visible && host.originalCalls == 1 && host.lastReplay == ("replace" to listOf("artists")))
+        StatsHostState.finishClose(ticket)
+        check(host.originalCalls == 1)
+
+        StatsHostState.open()
+        registration.dispatch("navigate", arrayOf("canceled"))
+        val canceled = StatsHostState.closeTicket
+        registration.dispatch("back") { error("Back escaped to host history during exit") }
+        StatsHostState.finishClose(canceled)
+        check(!StatsHostState.visible && host.originalCalls == 1)
+
+        StatsHostState.open()
+        registration.dispatch("forward")
+        val interrupted = StatsHostState.closeTicket
+        StatsNavigationHooks.openStats()
+        StatsHostState.finishClose(interrupted)
+        check(StatsHostState.visible && !StatsHostState.closing && host.originalCalls == 1)
+        StatsHostState.requestClose()
+        val next = StatsHostState.closeTicket
+        StatsHostState.finishClose(interrupted)
+        check(StatsHostState.visible && StatsHostState.closing)
+        StatsHostState.finishClose(next)
+
+        val guard = LyricsGuard(registration).apply { dirty = true }
+        registration.extra += TestNavigationRegistration.Entry("navigate", guard)
+        StatsHostState.open()
+        registration.dispatch("navigate", arrayOf("lyrics"))
+        check(guard.pending == null)
+        StatsHostState.finishClose(StatsHostState.closeTicket)
+        check(!StatsHostState.visible && guard.pending != null && host.originalCalls == 1)
+        guard.confirm()
+        check(host.originalCalls == 2)
+
+        StatsHostState.setAnimationsEnabled(false)
+        StatsHostState.open()
+        registration.dispatch("forward") { check(!StatsHostState.visible) }
+        check(host.originalCalls == 3 && !StatsHostState.closing)
+        StatsHostState.setAnimationsEnabled(true)
+        StatsHostState.open()
+        registration.dispatch("navigate", arrayOf("after-disable"))
+        val disabled = StatsHostState.closeTicket
+        registration.close()
+        StatsHostState.finishClose(disabled)
+        check(!StatsHostState.visible && host.originalCalls == 3)
+        println("PASS exit: latest destination only, one replay, repeated back, reopen reversal and stale completion guards")
+        println("PASS exit: replay re-enters Lyrics draft confirmation; disabled animation and plugin teardown are immediate")
+    } finally {
+        presenter.close()
+        registration.close()
+        StatsHostState.setAnimationsEnabled(true)
+    }
 }
 
 /** Exercise SPW's real navigate implementation with an expired request and synthetic history. */
