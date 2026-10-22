@@ -130,5 +130,11 @@ fun main(args: Array<String>) {
     saved["pageAnimations"] = "false"
     check(Prefs.displayPreferences().pageAnimations)
     println("PASS invalid page sizes and wrong switch types fall back to supported defaults")
-    println("8 heatmap/display preference regression groups passed using a simulated host API")
+    for (type in ChartType.entries) {
+        Prefs.putString("chartType", type.storage)
+        Prefs.initialize()
+        check(ChartType.fromStorage(Prefs.getString("chartType", "line")) == type)
+    }
+    println("PASS bar, line and curve choices survive preference reinitialization")
+    println("9 heatmap/display preference regression groups passed using a simulated host API")
 }

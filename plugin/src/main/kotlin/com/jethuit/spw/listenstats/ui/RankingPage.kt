@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+@file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class, com.moriafly.salt.ui.UnstableSaltUiApi::class)
 
 package com.jethuit.spw.listenstats.ui
 
@@ -44,6 +44,12 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import com.moriafly.salt.ui.BasicButton
+import com.moriafly.salt.ui.ButtonColors
+import com.moriafly.salt.ui.ControlSize
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -93,7 +99,15 @@ fun RankingPage(
     pageSize: Int = RANKING_PAGE_SIZE
 ) {
     val colors = LocalStatsColors.current
-    val searchState = remember { TextFieldState(query) }
+    var searchState by remember { mutableStateOf(TextFieldState(query)) }
+    var searchExpanded by remember { mutableStateOf(query.isNotBlank()) }
+    val focusManager = LocalFocusManager.current
+    val closeSearch = {
+        searchState = TextFieldState("")
+        onQueryChange("")
+        searchExpanded = false
+        focusManager.clearFocus()
+    }
     val searchText = searchState.text.toString()
     LaunchedEffect(searchText) {
         if (searchText != query) onQueryChange(searchText)
@@ -108,14 +122,24 @@ fun RankingPage(
 
     Column(Modifier.fillMaxWidth()) {
         BoxWithConstraints(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-            val searchWidth = (maxWidth - 160.dp).coerceIn(100.dp, 190.dp)
+            val searchWidth = (maxWidth - 92.dp).coerceIn(100.dp, 160.dp)
             val controls: @Composable () -> Unit = {
-                SegmentedControl(
-                    options = RankingMode.entries.map { SegmentOption(it.storage, it.label) },
+                CompactMenuButton(
+                    description = "排行类型",
+                    options = RankingMode.entries.map { it.storage to it.label },
                     selected = mode.storage,
                     onSelected = { onModeChange(RankingMode.fromStorage(it)) }
-                )
-                RankingSearch(searchState, mode, searchWidth)
+                ) { HostToolbarIcon("ic_sort_a_z", IconPaths.QueueMusic, colors.text) }
+                if (searchExpanded) {
+                    RankingSearch(searchState, mode, searchWidth, closeSearch)
+                    RankingIconButton("关闭搜索", closeSearch, outlined = true) {
+                        AppIcon(IconPaths.Close, colors.text, iconSize = 16.dp)
+                    }
+                } else {
+                    RankingIconButton("搜索", { searchExpanded = true }) {
+                        HostToolbarIcon("ic_search", IconPaths.Search, colors.text)
+                    }
+                }
             }
             if (maxWidth < 600.dp) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -171,25 +195,31 @@ fun RankingPage(
 
 @Composable
 private fun RankingSearch(
-    state: TextFieldState, mode: RankingMode, width: Dp
+    state: TextFieldState, mode: RankingMode, width: Dp, onClose: () -> Unit
 ) {
     val colors = LocalStatsColors.current
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
     Surface(
-        modifier = Modifier.width(width).height(34.dp),
-        shape = AppShape(8.dp),
-        color = colors.controlBackground
+        modifier = Modifier.width(width).height(36.dp),
+        shape = AppShape(100.dp),
+        border = BorderStroke(1.dp, SolidColor(colors.line)),
+        color = Color.Transparent
     ) {
         Row(
             Modifier.fillMaxSize().padding(horizontal = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AppIcon(IconPaths.Search, colors.muted, iconSize = 15.dp)
             OutlinedTextField(
                 state = state,
                 modifier = Modifier
                     .weight(1f)
-                    .height(34.dp),
+                    .height(36.dp).focusRequester(focusRequester)
+                    .semantics { contentDescription = mode.searchPlaceholder }
+                    .onPreviewKeyEvent {
+                        if (it.type == KeyEventType.KeyUp && it.key == Key.Escape) { onClose(); true } else false
+                    },
                 lineLimits = TextFieldLineLimits.SingleLine,
                 shape = AppShape(0.dp),
                 contentPadding = PaddingValues(0.dp),
@@ -207,7 +237,7 @@ private fun RankingSearch(
                 textStyle = com.moriafly.salt.ui.LocalTextStyle.current.merge(AppType.bodySmall),
                 placeholder = {
                     Text(
-                        mode.searchPlaceholder,
+                        "搜索",
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = AppType.bodySmall.copy(color = colors.muted)
@@ -216,6 +246,22 @@ private fun RankingSearch(
             )
         }
     }
+}
+
+@Composable
+private fun RankingIconButton(
+    label: String, onClick: () -> Unit, outlined: Boolean = false, icon: @Composable () -> Unit
+) {
+    val colors = LocalStatsColors.current
+    BasicButton(
+        onClick = onClick,
+        modifier = Modifier.size(36.dp).semantics { contentDescription = label },
+        size = ControlSize.Regular,
+        shape = if (outlined) AppShape(100.dp) else AppShape(8.dp),
+        colors = ButtonColors(Color.Transparent, colors.text, Color.Transparent, colors.muted),
+        border = if (outlined) BorderStroke(1.dp, SolidColor(colors.line)) else null,
+        contentPadding = PaddingValues(0.dp)
+    ) { icon() }
 }
 
 @Composable

@@ -379,7 +379,7 @@ fun ListenStatsApp(
                                 }
                                 .padding(bottom = if (embedded) 96.dp else 24.dp)
                         ) {
-                            Box(Modifier.height(24.dp))
+                            Box(Modifier.height(12.dp))
                             PageNav(page) { newPage ->
                                 if (page != newPage) {
                                     page = newPage
@@ -564,7 +564,7 @@ private fun NavTab(icon: String, label: String, active: Boolean, onClick: () -> 
     }
     Surface(
         onClick = onClick,
-        modifier = Modifier.height(44.dp)
+        modifier = Modifier.height(36.dp)
             .onPointerEvent(PointerEventType.Enter) { hovered = true }
             .onPointerEvent(PointerEventType.Exit) { hovered = false }
             .semantics { selected = active; role = androidx.compose.ui.semantics.Role.Tab },
@@ -574,7 +574,7 @@ private fun NavTab(icon: String, label: String, active: Boolean, onClick: () -> 
     ) {
         Box(contentAlignment = Alignment.Center) {
             if (active) {
-                Box(Modifier.align(Alignment.CenterStart).width(3.dp).height(18.dp).drawWith {
+                Box(Modifier.align(Alignment.CenterStart).width(3.dp).height(16.dp).drawWith {
                     drawRoundRect(color = colors.accent,
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.width / 2f))
                 })

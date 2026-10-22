@@ -76,10 +76,31 @@ private val ControlHeight = 34.dp
 @Composable
 fun BackupMenu(onImport: () -> Unit, onExport: () -> Unit) {
     val colors = LocalStatsColors.current
+    CompactMenuButton("更多操作", listOf("import" to "导入", "export" to "导出"),
+        onSelected = { if (it == "import") onImport() else onExport() }, buttonSize = 40.dp) {
+        Box(Modifier.size(20.dp).drawWith {
+            for (x in listOf(0.2f, 0.5f, 0.8f)) {
+                drawCircle(colors.text, radius = 1.6.dp.toPx(),
+                    center = androidx.compose.ui.geometry.Offset(size.width * x, size.height / 2f))
+            }
+        })
+    }
+}
+
+@Composable
+fun CompactMenuButton(
+    description: String,
+    options: List<Pair<String, String>>,
+    selected: String? = null,
+    onSelected: (String) -> Unit,
+    buttonSize: Dp = 36.dp,
+    icon: @Composable () -> Unit
+) {
+    val colors = LocalStatsColors.current
     val duration = statsMotionDurationMillis()
     val density = LocalDensity.current
     val measurer = rememberTextMeasurer()
-    val labelWidth = measurer.measure("导入", SaltTheme.textStyles.main).size.width
+    val labelWidth = options.maxOfOrNull { measurer.measure(it.second, SaltTheme.textStyles.main).size.width } ?: 0
     val menuWidth = with(density) { labelWidth.toDp() } + SaltTheme.dimens.padding * 2
     var expanded by remember { mutableStateOf(false) }
     var anchor by remember { mutableStateOf<IntRect?>(null) }
@@ -92,18 +113,13 @@ fun BackupMenu(onImport: () -> Unit, onExport: () -> Unit) {
     }) {
         BasicButton(
             onClick = { expanded = !expanded },
-            modifier = Modifier.size(40.dp).semantics { contentDescription = "更多操作" },
+            modifier = Modifier.size(buttonSize).semantics { contentDescription = description },
             size = ControlSize.Regular,
             shape = AppShape(8.dp),
             colors = ButtonColors(Color.Transparent, colors.text, Color.Transparent, colors.muted),
             contentPadding = PaddingValues(0.dp)
         ) {
-            Box(Modifier.size(20.dp).drawWith {
-                for (x in listOf(0.2f, 0.5f, 0.8f)) {
-                    drawCircle(colors.text, radius = 1.6.dp.toPx(),
-                        center = androidx.compose.ui.geometry.Offset(size.width * x, size.height / 2f))
-                }
-            })
+            icon()
         }
         val bounds = anchor
         if ((visibility.currentState || visibility.targetState) && bounds != null) {
@@ -122,8 +138,13 @@ fun BackupMenu(onImport: () -> Unit, onExport: () -> Unit) {
                     Surface(shape = AppShape(9.dp), color = SaltTheme.colors.popup, shadowElevation = 4.dp) {
                         // Constrain Salt's default 180dp menu-item minimum to two glyphs plus native padding.
                         Column(Modifier.width(menuWidth)) {
-                            PopupMenuItem(onClick = { if (expanded) { expanded = false; onImport() } }, text = "导入")
-                            PopupMenuItem(onClick = { if (expanded) { expanded = false; onExport() } }, text = "导出")
+                            options.forEach { (value, label) ->
+                                Surface(color = if (value == selected) colors.controlBackground else Color.Transparent) {
+                                    PopupMenuItem(onClick = {
+                                        if (expanded) { expanded = false; onSelected(value) }
+                                    }, text = label)
+                                }
+                            }
                         }
                     }
                 }

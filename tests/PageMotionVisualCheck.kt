@@ -160,6 +160,7 @@ private fun rankingMotionCheck(out: Path) {
     var page by mutableStateOf(1)
     var mode by mutableStateOf(RankingMode.Song)
     var revision by mutableStateOf(0)
+    var query by mutableStateOf("")
     lateinit var scene: ImageComposeScene
     SwingUtilities.invokeAndWait {
         scene = ImageComposeScene(900, 400, density = Density(1f)) {
@@ -171,7 +172,8 @@ private fun rankingMotionCheck(out: Path) {
                                 "${mode.label} $index / $revision", "合成测试", "测试专辑", index.toLong(), null))
                         }
                         Box(Modifier.fillMaxSize().drawWith { drawRect(LightStatsColors.pageBackground) }.padding(20.dp)) {
-                            RankingPage(entries, mode, { mode = it; page = 1 }, "", {}, page, { page = it })
+                            RankingPage(entries.filter { query.isEmpty() || it.value.title.contains(query) },
+                                mode, { mode = it; page = 1 }, query, { query = it; page = 1 }, page, { page = it })
                         }
                     }
                 }
@@ -218,6 +220,37 @@ private fun rankingMotionCheck(out: Path) {
         frame(); frame()
         val refresh = frame()
         check(!same(first, refresh) && same(refresh, settle())) { "Data refresh should update in place without replaying" }
+        fun click(x: Float, y: Float) {
+            SwingUtilities.invokeAndWait {
+                scene.sendPointerEvent(PointerEventType.Press, Offset(x, y))
+                scene.sendPointerEvent(PointerEventType.Release, Offset(x, y))
+            }
+        }
+        frame("toolbar-collapsed")
+        click(862f, 50f)
+        settle()
+        frame("search-expanded")
+        SwingUtilities.invokeAndWait {
+            val native = java.awt.event.KeyEvent(
+                java.awt.Canvas(), java.awt.event.KeyEvent.KEY_TYPED, System.currentTimeMillis(), 0,
+                java.awt.event.KeyEvent.VK_UNDEFINED, 'q'
+            )
+            val compose = Class.forName("androidx.compose.ui.input.key.KeyEvent_desktopKt")
+                .getMethod("toComposeEvent", java.awt.event.KeyEvent::class.java).invoke(null, native)
+            scene.sendKeyEvent(androidx.compose.ui.input.key.KeyEvent(compose))
+        }
+        frame(); frame()
+        check(query == "q") { "Expanded search did not accept typed input" }
+        click(862f, 50f)
+        settle()
+        check(query.isEmpty()) { "Closing search did not clear the filter" }
+        click(814f, 50f)
+        settle()
+        frame("type-menu")
+        click(800f, 132f)
+        settle()
+        check(mode == RankingMode.Artist) { "Native-style type menu did not select the artist ranking" }
+        println("PASS actual toolbar: expand, focus/type, close/clear and song/artist/album menu")
         println("PASS actual ranking: modes, pagination, short page, 300ms duration, reversals and in-place data refresh")
     } finally { SwingUtilities.invokeAndWait { scene.close() } }
 }

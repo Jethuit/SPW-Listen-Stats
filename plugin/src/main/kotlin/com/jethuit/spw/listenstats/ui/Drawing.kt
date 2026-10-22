@@ -9,6 +9,8 @@ import androidx.compose.ui.draw.DrawModifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -21,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.jetbrains.skia.Image
 
 /** Draws arbitrary content inside a layout node without the obfuscated Canvas composable. */
 class DrawBlock(
@@ -103,6 +106,27 @@ fun AppIcon(
             drawPath(path, tint)
         }
     })
+}
+
+/** Load SPW's toolbar artwork at runtime; host resources are never copied into the plugin. */
+@Composable
+fun HostToolbarIcon(resource: String, fallback: String, tint: Color) {
+    val bitmap = remember(resource) {
+        runCatching {
+            IconPaths::class.java.classLoader.getResourceAsStream(
+                "composeResources/voxzen.composeapp.generated.resources/drawable/$resource.png"
+            )?.use { Image.makeFromEncoded(it.readBytes()).toComposeImageBitmap() }
+        }.getOrNull()
+    }
+    if (bitmap == null) {
+        AppIcon(fallback, tint, iconSize = 20.dp)
+    } else {
+        Box(Modifier.size(20.dp).drawWith {
+            withTransform({ scale(size.width / bitmap.width, size.height / bitmap.height, pivot = Offset.Zero) }) {
+                drawImage(bitmap, colorFilter = ColorFilter.tint(tint))
+            }
+        })
+    }
 }
 
 fun DrawScope.drawLabel(
