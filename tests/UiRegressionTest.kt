@@ -35,7 +35,10 @@ fun main(args: Array<String>) {
     check(rankingTotalPages(25) == 1) { "exactly 25 tracks should fit on one page" }
     check(rankingTotalPages(600) == 24) { "600 tracks must produce 24 pages, not a fixed count" }
     check(rankingTotalPages(10_000) == 400) { "large libraries must stay dynamic" }
-    println("PASS ranking pagination uses 25 rows and keeps page three")
+    check(rankingTotalPages(101, 25) == 5 && rankingTotalPages(101, 50) == 3 && rankingTotalPages(101, 100) == 2)
+    check(rankingSafePage(101, 5, 50) == 3 && rankingSafePage(101, 5, 100) == 2)
+    check(rankingTotalPages(0, 100) == 1 && rankingTotalPages(Int.MAX_VALUE, 100) > 0)
+    println("PASS default and configurable pagination, empty libraries, clamping and large counts")
     for (scale in listOf(1.0, 1.25, 1.5, 2.0)) {
         fun px(value: Int) = (value * scale).toInt()
         val y = UiGeometry.popupAxis(px(550), px(100), px(90), px(1112), px(14))

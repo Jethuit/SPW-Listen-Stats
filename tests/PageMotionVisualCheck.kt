@@ -33,13 +33,14 @@ fun main(args: Array<String>) {
         var show by mutableStateOf(true)
         var clicks = 0
         var imports = 0
+        var animations by mutableStateOf(true)
         var clearFocus: () -> Unit = {}
         lateinit var scene: ImageComposeScene
         SwingUtilities.invokeAndWait {
             scene = ImageComposeScene(400, 320, density = Density(1f)) {
                 SaltTheme(configs = saltConfigs(colors.isDark)) {
                     MaterialTheme(colorScheme = if (colors.isDark) darkColorScheme() else lightColorScheme()) {
-                        CompositionLocalProvider(LocalStatsColors provides colors) {
+                        CompositionLocalProvider(LocalStatsColors provides colors, LocalStatsAnimationsEnabled provides animations) {
                             val focus = LocalFocusManager.current
                             SideEffect { clearFocus = { focus.clearFocus(force = true) } }
                             Box(Modifier.fillMaxSize().drawWith { drawRect(colors.pageBackground) }) {
@@ -136,6 +137,17 @@ fun main(args: Array<String>) {
             }
             settle()
             check(imports == 1) { "Compact menu did not dispatch import once" }
+            SwingUtilities.invokeAndWait { animations = false; show = false }
+            frame(); frame()
+            SwingUtilities.invokeAndWait { show = true }
+            frame(); frame()
+            val immediateEntry = frame()
+            check(sameRegion(immediateEntry, settle(), 20, 144, 380, 220)) { "Disabled entry still animates" }
+            SwingUtilities.invokeAndWait { page = StatsPage.Ranking }
+            frame(); frame()
+            val immediatePage = frame()
+            check(sameRegion(immediatePage, settle(), 20, 144, 380, 240)) { "Disabled page switch still animates" }
+            println("PASS $name: animation switch bypasses entry and page transitions")
             println("PASS $name: navigation click, entry, directional body switch, fixed title and rapid reversals")
         } finally { SwingUtilities.invokeAndWait { scene.close() } }
     }

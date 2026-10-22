@@ -5,6 +5,12 @@ import com.xuncorp.spw.workshop.api.WorkshopApi
 import com.xuncorp.spw.workshop.api.config.ConfigHelper
 import com.jethuit.spw.listenstats.data.HeatmapScale
 
+data class DisplayPreferences(
+    val dailyHighMillis: Long = HeatmapScale.DEFAULT_HIGH_MILLIS,
+    val rankingPageSize: Int = 25,
+    val pageAnimations: Boolean = true
+)
+
 @OptIn(UnstableSpwWorkshopApi::class)
 object Prefs {
     private var helper: ConfigHelper? = null
@@ -38,14 +44,23 @@ object Prefs {
 
     /** Host preference controls may save through another cached ConfigHelper. */
     @Synchronized
-    fun dailyHighMillis(): Long {
+    fun displayPreferences(): DisplayPreferences {
         try {
             helper?.reload()
         } catch (failure: Throwable) {
-            PluginLog.error("reloading heatmap preference failed", failure)
+            PluginLog.error("reloading display preferences failed", failure)
         }
-        return HeatmapScale.parseHours(getString(HeatmapScale.PREFERENCE_KEY, HeatmapScale.DEFAULT_HOURS))
+        val pageSize = getString("rankingPageSize", "25").toIntOrNull()
+            ?.takeIf { it in setOf(25, 50, 100) } ?: 25
+        val animations = try { helper?.get("pageAnimations", true) ?: true }
+            catch (_: Throwable) { true }
+        return DisplayPreferences(
+            HeatmapScale.parseHours(getString(HeatmapScale.PREFERENCE_KEY, HeatmapScale.DEFAULT_HOURS)),
+            pageSize, animations
+        )
     }
+
+    fun dailyHighMillis(): Long = displayPreferences().dailyHighMillis
 
     @Synchronized
     fun putString(key: String, value: String) {

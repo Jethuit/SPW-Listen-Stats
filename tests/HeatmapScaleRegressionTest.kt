@@ -15,7 +15,8 @@ private class CachedConfig(private val saved: MutableMap<String, Any>, private v
     var reloadSucceeds = true
     @Suppress("UNCHECKED_CAST")
     override fun <T> get(key: String, defaultValue: T): T =
-        (snapshot[key].takeIf { it is String && defaultValue is String } as T?) ?: defaultValue
+        (snapshot[key].takeIf { (it is String && defaultValue is String) ||
+            (it is Boolean && defaultValue is Boolean) } as T?) ?: defaultValue
     override fun set(key: String, value: Any) { snapshot[key] = value }
     override fun reload(): Boolean {
         if (!reloadSucceeds) return false
@@ -107,5 +108,23 @@ fun main(args: Array<String>) {
     check(StatsCalculations.weeklyCells(data, StatsCalculations.heatmapGrid(2026), today) == weekly)
     check(data.dailyMillis.values.sum() == 5_400_000L)
     println("PASS weekly mode and stored listening durations are unaffected")
-    println("6 heatmap preference regression groups passed using a simulated host API")
+    check(Prefs.displayPreferences().rankingPageSize == 25 && Prefs.displayPreferences().pageAnimations)
+    saved["rankingPageSize"] = "50"
+    saved["pageAnimations"] = false
+    check(Prefs.displayPreferences().let { it.rankingPageSize == 50 && !it.pageAnimations })
+    saved["rankingPageSize"] = "100"
+    saved["pageAnimations"] = true
+    Prefs.initialize()
+    check(Prefs.displayPreferences().let { it.rankingPageSize == 100 && it.pageAnimations })
+    Prefs.putString("chartType", "line")
+    check(saved["rankingPageSize"] == "100" && saved["pageAnimations"] == true)
+    println("PASS display defaults, typed switches, external edits, reinitialization and unrelated writes")
+    for (raw in listOf<Any>("", "26", "0", "-1", "bad", 100)) {
+        saved["rankingPageSize"] = raw
+        check(Prefs.displayPreferences().rankingPageSize == 25)
+    }
+    saved["pageAnimations"] = "false"
+    check(Prefs.displayPreferences().pageAnimations)
+    println("PASS invalid page sizes and wrong switch types fall back to supported defaults")
+    println("8 heatmap/display preference regression groups passed using a simulated host API")
 }

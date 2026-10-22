@@ -19,6 +19,30 @@
           "default_value": "2.25"
         },
         {
+          "key": "rankingPageSize",
+          "type": "list",
+          "title": "排行每页数量",
+          "summary": "适用于歌曲、歌手和专辑排行；更改后回到第一页，重新打开统计页或自动刷新时生效。",
+          "entries": [
+            "25 条",
+            "50 条",
+            "100 条"
+          ],
+          "entry_values": [
+            "25",
+            "50",
+            "100"
+          ],
+          "default_value": "25"
+        },
+        {
+          "key": "pageAnimations",
+          "type": "switch",
+          "title": "页面动画",
+          "summary": "控制进入统计页、概览与排行切换、排行模式与翻页以及备份菜单的动画；默认开启，时长为330ms。关闭后直接切换。重新打开统计页或自动刷新时生效。",
+          "default_value": true
+        },
+        {
           "type": "button",
           "title": "写入诊断日志",
           "summary": "在插件数据目录记录当前状态，便于排查宿主兼容问题",

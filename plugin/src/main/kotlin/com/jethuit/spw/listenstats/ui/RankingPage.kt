@@ -67,15 +67,16 @@ private val RankingRowHeight = 65.dp
 private val RankingRowText = AppType.table.copy(fontSize = 14.sp, lineHeight = 20.sp)
 private val RankingSecondaryText = AppType.tiny.copy(fontSize = 12.sp, lineHeight = 16.sp)
 
-fun rankingTotalPages(count: Int): Int =
-    if (count <= 0) 1 else (count + RANKING_PAGE_SIZE - 1) / RANKING_PAGE_SIZE
+fun rankingTotalPages(count: Int, pageSize: Int = RANKING_PAGE_SIZE): Int =
+    if (count <= 0) 1 else (count - 1) / pageSize.coerceAtLeast(1) + 1
 
-fun rankingSafePage(count: Int, page: Int): Int =
-    page.coerceIn(1, rankingTotalPages(count))
+fun rankingSafePage(count: Int, page: Int, pageSize: Int = RANKING_PAGE_SIZE): Int =
+    page.coerceIn(1, rankingTotalPages(count, pageSize))
 
 private data class RankingPanel(
     val mode: RankingMode,
     val page: Int,
+    val pageSize: Int,
     val rows: List<RankedEntry>,
     val query: String
 )
@@ -88,7 +89,8 @@ fun RankingPage(
     query: String,
     onQueryChange: (String) -> Unit,
     page: Int,
-    onPageChange: (Int) -> Unit
+    onPageChange: (Int) -> Unit,
+    pageSize: Int = RANKING_PAGE_SIZE
 ) {
     val colors = LocalStatsColors.current
     val searchState = remember { TextFieldState(query) }
@@ -97,10 +99,11 @@ fun RankingPage(
         if (searchText != query) onQueryChange(searchText)
     }
     val filtered = entries
-    val totalPages = rankingTotalPages(filtered.size)
-    val currentPage = rankingSafePage(filtered.size, page)
-    val from = (currentPage - 1) * RANKING_PAGE_SIZE
-    val to = minOf(from + RANKING_PAGE_SIZE, filtered.size)
+    val size = pageSize.coerceAtLeast(1)
+    val totalPages = rankingTotalPages(filtered.size, size)
+    val currentPage = rankingSafePage(filtered.size, page, size)
+    val from = (currentPage - 1) * size
+    val to = minOf(from + size, filtered.size)
     val rows = filtered.subList(from, to)
 
     Column(Modifier.fillMaxWidth()) {
@@ -135,8 +138,8 @@ fun RankingPage(
             }
         }
         DirectionalContent(
-            target = RankingPanel(mode, currentPage, rows, query),
-            contentKey = { it.mode to it.page },
+            target = RankingPanel(mode, currentPage, size, rows, query),
+            contentKey = { Triple(it.mode, it.page, it.pageSize) },
             direction = { from, to ->
                 if (from.mode == to.mode) to.page.compareTo(from.page)
                 else to.mode.ordinal.compareTo(from.mode.ordinal)

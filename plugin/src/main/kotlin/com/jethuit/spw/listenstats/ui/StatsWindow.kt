@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import com.jethuit.spw.listenstats.DisplayPreferences
 import com.jethuit.spw.listenstats.ui.StatsText as Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -226,9 +228,7 @@ fun ListenStatsApp(
         }
     }
     var data by remember { mutableStateOf<StatsData?>(null) }
-    var dailyHighMillis by remember {
-        mutableStateOf(com.jethuit.spw.listenstats.data.HeatmapScale.DEFAULT_HIGH_MILLIS)
-    }
+    var displayPreferences by remember { mutableStateOf(DisplayPreferences()) }
     var today by remember { mutableStateOf(LocalDate.now()) }
     var page by remember {
         mutableStateOf(
@@ -277,10 +277,10 @@ fun ListenStatsApp(
             customEnd = today
         }
         while (true) {
-            val (loaded, highMillis) = withContext(Dispatchers.IO) {
-                StatsStore.load() to Prefs.dailyHighMillis()
+            val (loaded, preferences) = withContext(Dispatchers.IO) {
+                StatsStore.load() to Prefs.displayPreferences()
             }
-            dailyHighMillis = highMillis
+            displayPreferences = preferences
             data = loaded
             today = LocalDate.now()
             delay(5_000)
@@ -291,17 +291,18 @@ fun ListenStatsApp(
             data = withContext(Dispatchers.IO) { StatsStore.load() }
         }
     }
-    LaunchedEffect(query) { rankPage = 1 }
+    LaunchedEffect(query, displayPreferences.rankingPageSize) { rankPage = 1 }
     LaunchedEffect(bottomScrollRequest) {
         if (bottomScrollRequest > 0) {
             // Wait for the new page to be laid out, then keep the reader at the
             // bottom instead of leaving them at an arbitrary scroll offset.
-            delay(StatsMotionDurationMillis.toLong())
+            if (displayPreferences.pageAnimations) delay(StatsMotionDurationMillis.toLong())
             androidx.compose.runtime.withFrameNanos { }
             scrollState.scrollTo(scrollState.maxValue)
         }
     }
 
+    CompositionLocalProvider(LocalStatsAnimationsEnabled provides displayPreferences.pageAnimations) {
     StatsTheme(inheritMaterial = embedded && StatsHostState.materialBridgeAvailable) {
         val colors = LocalStatsColors.current
         val font = LocalHostFontFamily.current
@@ -322,8 +323,8 @@ fun ListenStatsApp(
         val summary = remember(snapshot, today) { StatsCalculations.summary(snapshot, today) }
         val rankingEntries = remember(snapshot, query, rankingMode) { Rankings.ranked(snapshot, rankingMode, query) }
         val rankCount = rankingEntries.size
-        val totalPages = rankingTotalPages(rankCount)
-        val safePage = rankingSafePage(rankCount, rankPage)
+        val totalPages = rankingTotalPages(rankCount, displayPreferences.rankingPageSize)
+        val safePage = rankingSafePage(rankCount, rankPage, displayPreferences.rankingPageSize)
         LaunchedEffect(totalPages) {
             if (rankPage > totalPages) rankPage = totalPages
         }
@@ -402,7 +403,7 @@ fun ListenStatsApp(
                                     year = heatmapYear,
                                     weekly = heatmapWeekly,
                                     heatmapRolling = heatmapRolling,
-                                    dailyHighMillis = dailyHighMillis,
+                                    dailyHighMillis = displayPreferences.dailyHighMillis,
                                     onYearSelected = { heatmapYear = it },
                                     onHeatmapRollingSelected = { heatmapRolling = it },
                                     onWeeklySelected = { heatmapWeekly = it },
@@ -486,6 +487,7 @@ fun ListenStatsApp(
                                     query = query,
                                     onQueryChange = { query = it },
                                     page = safePage,
+                                    pageSize = displayPreferences.rankingPageSize,
                                     onPageChange = {
                                         val wasAtBottom = scrollState.maxValue > 0 &&
                                             scrollState.value >= scrollState.maxValue - 2
@@ -532,6 +534,7 @@ fun ListenStatsApp(
         }
     }
 
+}
 }
 
 @Composable

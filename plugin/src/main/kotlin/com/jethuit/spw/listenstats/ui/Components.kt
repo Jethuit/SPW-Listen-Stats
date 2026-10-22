@@ -76,6 +76,7 @@ private val ControlHeight = 34.dp
 @Composable
 fun BackupMenu(onImport: () -> Unit, onExport: () -> Unit) {
     val colors = LocalStatsColors.current
+    val duration = statsMotionDurationMillis()
     val density = LocalDensity.current
     val measurer = rememberTextMeasurer()
     val labelWidth = measurer.measure("导入", SaltTheme.textStyles.main).size.width
@@ -115,8 +116,8 @@ fun BackupMenu(onImport: () -> Unit, onExport: () -> Unit) {
             ) {
                 AnimatedVisibility(
                     visibleState = visibility,
-                    enter = fadeIn(tween(StatsMotionDurationMillis)),
-                    exit = fadeOut(tween(StatsMotionDurationMillis))
+                    enter = fadeIn(tween(duration)),
+                    exit = fadeOut(tween(duration))
                 ) {
                     Surface(shape = AppShape(9.dp), color = SaltTheme.colors.popup, shadowElevation = 4.dp) {
                         // Constrain Salt's default 180dp menu-item minimum to two glyphs plus native padding.

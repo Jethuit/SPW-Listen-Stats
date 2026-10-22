@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -30,13 +31,21 @@ import androidx.compose.ui.unit.dp
 
 private val PageEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 const val StatsMotionDurationMillis = 330
+val LocalStatsAnimationsEnabled = staticCompositionLocalOf { true }
+
+@Composable
+fun statsMotionDurationMillis(): Int = if (LocalStatsAnimationsEnabled.current) StatsMotionDurationMillis else 0
 
 /** Composed only when the first data snapshot is ready; reloads do not replay it. */
 @Composable
 fun StatsPageEnter(content: @Composable () -> Unit) {
-    val progress = remember { Animatable(0f) }
+    val duration = statsMotionDurationMillis()
+    val progress = remember { Animatable(if (duration == 0) 1f else 0f) }
     val distance = with(LocalDensity.current) { 28.dp.toPx() }
-    LaunchedEffect(Unit) { progress.animateTo(1f, tween(StatsMotionDurationMillis, easing = PageEasing)) }
+    LaunchedEffect(duration) {
+        if (duration == 0) progress.snapTo(1f)
+        else progress.animateTo(1f, tween(duration, easing = PageEasing))
+    }
     Box(Modifier.fillMaxSize().graphicsLayer {
         alpha = progress.value
         translationY = distance * (1f - progress.value)
@@ -59,6 +68,7 @@ fun <T> DirectionalContent(
     label: String,
     content: @Composable (T) -> Unit
 ) {
+    val duration = statsMotionDurationMillis()
     val distance = with(LocalDensity.current) { 36.dp.roundToPx() }
     AnimatedContent(
         targetState = target,
@@ -67,11 +77,11 @@ fun <T> DirectionalContent(
         contentAlignment = Alignment.TopStart,
         transitionSpec = {
             val sign = if (direction(initialState, targetState) >= 0) 1 else -1
-            ((slideIn(tween(StatsMotionDurationMillis, easing = PageEasing)) { IntOffset(sign * distance, 0) } +
-                fadeIn(tween(StatsMotionDurationMillis, easing = PageEasing))) togetherWith
-                (slideOut(tween(StatsMotionDurationMillis, easing = PageEasing)) { IntOffset(-sign * distance, 0) } +
-                    fadeOut(tween(StatsMotionDurationMillis)))).using(
-                        SizeTransform(clip = true) { _, _ -> tween(StatsMotionDurationMillis, easing = PageEasing) }
+            ((slideIn(tween(duration, easing = PageEasing)) { IntOffset(sign * distance, 0) } +
+                fadeIn(tween(duration, easing = PageEasing))) togetherWith
+                (slideOut(tween(duration, easing = PageEasing)) { IntOffset(-sign * distance, 0) } +
+                    fadeOut(tween(duration)))).using(
+                        SizeTransform(clip = true) { _, _ -> tween(duration, easing = PageEasing) }
                     )
         },
         label = label
