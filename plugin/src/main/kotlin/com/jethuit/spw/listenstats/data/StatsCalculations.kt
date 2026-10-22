@@ -169,12 +169,13 @@ object StatsCalculations {
     }
 
     fun dayLevel(millis: Long, today: LocalDate, date: LocalDate,
-                 highMillis: Long = HeatmapScale.DEFAULT_HIGH_MILLIS): Int {
+                 scale: HeatmapScale): Int {
         if (date.isAfter(today)) return 0
-        return HeatmapScale.level(millis, highMillis)
+        return scale.level(millis)
     }
 
     fun weeklyCells(data: StatsData, grid: HeatmapGrid, today: LocalDate = LocalDate.now()): List<WeeklyCell> {
+        val scale = HeatmapScale.weekly(data.dailyMillis, today)
         val totals = LongArray(grid.weeks)
         for (week in 0 until grid.weeks) {
             val start = grid.gridStart.plusDays(week * 7L)
@@ -194,7 +195,7 @@ object StatsCalculations {
             val coveredEnd = if (rawEnd.isAfter(grid.lastDay)) grid.lastDay else rawEnd
             val total = totals[week]
             val ratio = if (max <= 0) 0.0 else total.toDouble() / max
-            val level = if (total <= 0) 0 else (kotlin.math.ceil(ratio * 4).toInt()).coerceIn(1, 4)
+            val level = scale.level(total)
             val filled = if (total <= 0) 0 else kotlin.math.ceil(ratio * 7).toInt().coerceIn(1, 7)
             WeeklyCell(
                 weekIndex = week,
@@ -207,6 +208,12 @@ object StatsCalculations {
             )
         }
     }
+
+    /** Only a heatmap-linked range is reset when switching day/week presentation. */
+    fun rangeAfterHeatmapModeChange(preset: RangePreset, selectedDate: LocalDate?): RangePreset =
+        if (selectedDate != null && (preset == RangePreset.Selected || preset == RangePreset.Custom)) {
+            RangePreset.Last30
+        } else preset
 
     fun range(
         preset: RangePreset,

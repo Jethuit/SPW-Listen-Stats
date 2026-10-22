@@ -19,7 +19,7 @@ parser.add_argument('--acrylic', action='store_true', help='compare native Acryl
 parser.add_argument('--acrylic-ranking', action='store_true', help='render actual Acrylic rows and pointer hover')
 parser.add_argument('--material-ranking', action='store_true', help='check separator-free ranking across all four styles')
 parser.add_argument('--dark-materials', action='store_true', help='compare actual dark material components against native screenshot colors')
-parser.add_argument('--heatmap-scale', action='store_true', help='check actual daily heatmap recoloring after changing its duration threshold')
+parser.add_argument('--heatmap-scale', action='store_true', help='check adaptive heatmap colors and weekly cell outlines')
 args = parser.parse_args()
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
@@ -70,13 +70,24 @@ subprocess.run([java, f'-Dskiko.library.path={native_dir}', f'-Djna.tmpdir={nati
     test_name + 'Kt', str(output), *(['dark'] if args.dark_materials else ['materials'] if args.material_ranking else ['acrylic'] if args.acrylic_ranking else [])], check=True, env=environment)
 if args.heatmap_scale:
     from collections import Counter
-    default = Counter(Image.open(output / 'heatmap-default.png').convert('RGB').getdata())
-    custom = Counter(Image.open(output / 'heatmap-six-hours.png').convert('RGB').getdata())
+    daily = Counter(Image.open(output / 'heatmap-daily.png').convert('RGB').getdata())
+    changed = Counter(Image.open(output / 'heatmap-rebalanced.png').convert('RGB').getdata())
     levels = [(215, 233, 253), (156, 201, 251), (85, 158, 236), (23, 105, 189)]
-    assert default[levels[0]] == 0, 'The default 22.5-minute first boundary should put 30 minutes in tier two'
-    assert all(custom[color] > 15 for color in levels), [custom[color] for color in levels]
-    assert default[levels[-1]] > custom[levels[-1]] * 1.8, 'Changing the setting did not recolor the same heatmap'
-    print('PASS actual heatmap recomposes from 2.25-hour to 6-hour threshold, with all four tiers rendered')
+    assert all(daily[color] > 15 for color in levels), [daily[color] for color in levels]
+    assert changed[levels[0]] > daily[levels[0]], 'Recent data did not adapt existing day colors'
+    clear = Image.open(output / 'heatmap-week-clear.png').convert('RGB')
+    # Separate rings have gaps along the vertical side; a single tall outline does not.
+    for file, expected in [('heatmap-week-selected.png', 7), ('heatmap-edge-week.png', 4)]:
+        selected = Image.open(output / file).convert('RGB')
+        diff = ImageChops.difference(selected, clear)
+        box = diff.getbbox()
+        assert box, 'Weekly selection has no outlines'
+        x0, y0, x1, y1 = box
+        rows = [any(diff.getpixel((x, y)) != (0, 0, 0) for x in range(x0, x0+2))
+                for y in range(y0, y1)]
+        runs = sum(on and (i == 0 or not rows[i-1]) for i, on in enumerate(rows))
+        assert runs == expected, f'{file}: expected {expected} separate cell outlines, got {runs}'
+    print('PASS adaptive daily quartiles, dynamic recoloring, seven weekly outlines and four at the year boundary')
 elif args.dark_materials:
     from collections import Counter
     for name, background, card, border in [

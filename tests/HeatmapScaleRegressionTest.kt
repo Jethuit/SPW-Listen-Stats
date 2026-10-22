@@ -28,43 +28,59 @@ private class CachedConfig(private val saved: MutableMap<String, Any>, private v
 }
 
 fun main(args: Array<String>) {
-    val default = HeatmapScale.DEFAULT_HIGH_MILLIS
-    check(default == 8_100_000L && HeatmapScale.parseHours("2.25") == default)
-    check(HeatmapScale.parseHours(" 6 ") == 21_600_000L)
-    check(HeatmapScale.parseHours("1.5") == 5_400_000L)
-    check(HeatmapScale.parseHours("24") == 86_400_000L)
-    for (raw in listOf(null, "", " ", "no", "0", "-1", "24.01", "NaN", "Infinity", "1e400", "1e-100")) {
-        check(HeatmapScale.parseHours(raw) == default) { "Invalid hours accepted: $raw" }
+    val today = LocalDate.of(2026, 10, 22)
+    val scale = HeatmapScale.fromSamples(listOf(10L, 20L, 30L, 40L))
+    check(scale.thresholds == listOf(17.5, 25.0, 32.5))
+    check(listOf(10L, 20L, 30L, 40L).map(scale::level) == listOf(1, 2, 3, 4))
+    check(scale.level(0) == 0 && scale.level(-1) == 0)
+    check(HeatmapScale.fromSamples(listOf(0L, -1L)).level(5) == 1)
+    check(HeatmapScale.fromSamples(listOf(10L)).level(10) == 1)
+    val equal = HeatmapScale.fromSamples(List(20) { 10L })
+    check(equal.level(10) == 1 && equal.level(11) == 4)
+    val ties = HeatmapScale.fromSamples(listOf(10L, 10L, 20L, 20L, 30L, 30L, 40L, 40L))
+    check(listOf(10L, 20L, 30L, 40L).map(ties::level) == listOf(1, 2, 3, 4))
+    check(HeatmapScale.fromSamples((1L..100L).toList() + 1_000_000L).level(80L) == 4)
+    println("PASS quartiles, all four tiers, zero exclusion, ties, sparse samples and outliers")
+
+    val recentStart = today.minusYears(1).plusDays(1)
+    val daily = mapOf(recentStart to 10L, today.minusDays(2) to 20L,
+        today.minusDays(1) to 30L, today to 40L, recentStart.minusDays(1) to 999_999L,
+        today.plusDays(1) to 999_999L, today.minusDays(5) to 0L)
+    check(HeatmapScale.daily(daily, today) == scale)
+    check(StatsCalculations.dayLevel(20, today, today, scale) == 2)
+    check(StatsCalculations.dayLevel(40, today, today.plusDays(1), scale) == 0)
+    val leapDay = LocalDate.of(2024, 2, 29)
+    check(HeatmapScale.daily(mapOf(LocalDate.of(2023, 3, 1) to 10L,
+        leapDay to 40L, LocalDate.of(2023, 2, 28) to 999L), leapDay) ==
+        HeatmapScale.fromSamples(listOf(10L, 40L)))
+    println("PASS trailing 12-month bounds, leap-day boundary and future exclusion")
+
+    val monday = today.minusDays((today.dayOfWeek.value - 1).toLong())
+    val weekData = StatsData.empty().copy(dailyMillis = mapOf(
+        monday.minusWeeks(3) to 10L, monday.minusWeeks(2) to 20L,
+        monday.minusWeeks(1) to 30L, monday to 15L, monday.plusDays(1) to 25L))
+    val weekScale = HeatmapScale.weekly(weekData.dailyMillis, today)
+    check(weekScale == scale)
+    val weeks = StatsCalculations.weeklyCells(weekData, StatsCalculations.heatmapGrid(2026), today)
+    check(weeks.filter { it.millis > 0 }.map { it.level } == listOf(1, 2, 3, 4))
+    check(weeks.filter { it.millis > 0 }.map { it.filledBlocks } == listOf(2, 4, 6, 7))
+    val rolling = StatsCalculations.weeklyCells(weekData, StatsCalculations.heatmapGrid(2026, true, today), today)
+    check(rolling.filter { it.millis > 0 }.map { it.level } == listOf(1, 2, 3, 4))
+    check(weekData.dailyMillis.values.sum() == 100L)
+    println("PASS separate natural-week quartiles, unchanged heights, view-independent colors and unchanged data")
+
+    for (preset in listOf(RangePreset.Selected, RangePreset.Custom)) {
+        check(StatsCalculations.rangeAfterHeatmapModeChange(preset, today) == RangePreset.Last30)
     }
-    println("PASS decimal hours, default, 24-hour boundary and invalid-input fallback")
-
-    for (high in listOf(default, 21_600_000L, 5_400_000L, 7L, 86_400_000L)) {
-        val first = (high + 5L) / 6L
-        val second = (high + 1L) / 2L
-        check(HeatmapScale.level(0, high) == 0)
-        check(HeatmapScale.level(-1, high) == 0)
-        check(HeatmapScale.level(first, high) == 2)
-        check(HeatmapScale.level(second - 1, high) == 2)
-        check(HeatmapScale.level(second, high) == 3)
-        check(HeatmapScale.level(high - 1, high) == 3)
-        check(HeatmapScale.level(high, high) == 4)
-        check(HeatmapScale.level(Long.MAX_VALUE, high) == 4)
-        if (first > 1) check(HeatmapScale.level(first - 1, high) == 1)
+    for (preset in listOf(RangePreset.Last7, RangePreset.Last30, RangePreset.Month, RangePreset.Today, RangePreset.Custom)) {
+        check(StatsCalculations.rangeAfterHeatmapModeChange(preset, null) == preset)
     }
-    check(HeatmapScale.level(1_350_000L - 1) == 1)
-    check(HeatmapScale.level(1_350_000L) == 2)
-    check(HeatmapScale.level(4_050_000L) == 3)
-    check(HeatmapScale.level(8_100_000L) == 4)
-    check(HeatmapScale.level(default, 0) == 4)
-    println("PASS exact millisecond boundaries at one-sixth, half and full threshold")
+    val clearedRange = StatsCalculations.range(
+        StatsCalculations.rangeAfterHeatmapModeChange(RangePreset.Selected, today), today, null, null, null)
+    check(clearedRange == DateRange(today.minusDays(29), today))
+    println("PASS mode switch resets heatmap-linked day/week ranges and preserves manual ranges")
 
-    val today = LocalDate.of(2026, 10, 20)
-    check(StatsCalculations.dayLevel(3_600_000L, today, today, 21_600_000L) == 2)
-    check(StatsCalculations.dayLevel(3_600_000L, today, today.minusDays(1), default) == 2)
-    check(StatsCalculations.dayLevel(Long.MAX_VALUE, today, today.plusDays(1), default) == 0)
-    println("PASS setting reaches daily heatmap calculation while future days stay empty")
-
-    val saved = mutableMapOf<String, Any>(HeatmapScale.PREFERENCE_KEY to "6", "chartType" to "bar")
+    val saved = mutableMapOf<String, Any>("dailyHighHours" to "6", "chartType" to "bar")
     val helper = CachedConfig(saved, Path.of(args.single()).resolve("mock-config.json"))
     val configManager = Proxy.newProxyInstance(ConfigManager::class.java.classLoader,
         arrayOf(ConfigManager::class.java)) { _, method, _ ->
@@ -79,35 +95,17 @@ fun main(args: Array<String>) {
         check(method.name == "getManager"); manager
     } as WorkshopApi
     Prefs.initialize()
-    check(Prefs.dailyHighMillis() == 21_600_000L)
-    saved[HeatmapScale.PREFERENCE_KEY] = "12"
-    check(Prefs.dailyHighMillis() == 43_200_000L)
-    saved[HeatmapScale.PREFERENCE_KEY] = "6"
+    val initial = Prefs.displayPreferences()
+    saved["dailyHighHours"] = "24"
+    check(Prefs.displayPreferences() == initial)
     Prefs.putString("range", "7")
-    check(saved[HeatmapScale.PREFERENCE_KEY] == "6" && saved["range"] == "7" && saved["chartType"] == "bar")
-    Prefs.initialize()
-    check(Prefs.dailyHighMillis() == 21_600_000L)
-    println("PASS cached preferences reload host edits, survive reinitialization and preserve unrelated settings")
-
-    for (raw in listOf<Any>("bad", "0", "30", 6.0)) {
-        saved[HeatmapScale.PREFERENCE_KEY] = raw
-        check(Prefs.dailyHighMillis() == default)
-    }
-    saved[HeatmapScale.PREFERENCE_KEY] = "6"
+    check(saved["dailyHighHours"] == "24" && saved["range"] == "7" && saved["chartType"] == "bar")
     helper.reloadSucceeds = false
     Prefs.putString("range", "30")
-    check(saved["range"] == "7" && saved[HeatmapScale.PREFERENCE_KEY] == "6")
-    println("PASS invalid saved values fall back safely; failed reload never overwrites host settings")
-
-    val data = StatsData.empty().copy(dailyMillis = mapOf(today to 3_600_000L, today.minusDays(7) to 1_800_000L))
+    check(saved["range"] == "7")
     helper.reloadSucceeds = true
-    val weekly = StatsCalculations.weeklyCells(data, StatsCalculations.heatmapGrid(2026), today)
-    Prefs.dailyHighMillis()
-    saved[HeatmapScale.PREFERENCE_KEY] = "2.25"
-    Prefs.dailyHighMillis()
-    check(StatsCalculations.weeklyCells(data, StatsCalculations.heatmapGrid(2026), today) == weekly)
-    check(data.dailyMillis.values.sum() == 5_400_000L)
-    println("PASS weekly mode and stored listening durations are unaffected")
+    Prefs.initialize()
+    println("PASS removed color preference is ignored, unrelated settings survive and failed reload does not overwrite")
     check(Prefs.displayPreferences().rankingPageSize == 25 && Prefs.displayPreferences().pageAnimations)
     saved["rankingPageSize"] = "50"
     saved["pageAnimations"] = false
@@ -136,5 +134,5 @@ fun main(args: Array<String>) {
         check(ChartType.fromStorage(Prefs.getString("chartType", "line")) == type)
     }
     println("PASS bar, line and curve choices survive preference reinitialization")
-    println("9 heatmap/display preference regression groups passed using a simulated host API")
+    println("8 heatmap/display preference regression groups passed using a simulated host API")
 }

@@ -72,8 +72,7 @@ def main() -> None:
         assert 'com.jethuit.spw.listenstats.PlaybackExtension' in index, index
         preferences = json.loads(archive.read('classes/preference_config.json'))
         group = next(g for g in preferences['configs'] if g['config'] == 'config.json')
-        field = next(p for p in group['preferences'] if p.get('key') == 'dailyHighHours')
-        assert field['type'] == 'edittext' and field['default_value'] == '2.25', field
+        assert all(p.get('key') != 'dailyHighHours' for p in group['preferences']), 'removed heatmap setting still exposed'
         libraries = sorted(n for n in names if n.startswith('lib/') and n.endswith('.jar'))
         assert 'lib/sqlite-jdbc.jar' in libraries, libraries
         assert any(n.startswith('lib/salt-ui-desktop-') for n in libraries), libraries

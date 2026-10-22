@@ -3,10 +3,8 @@ package com.jethuit.spw.listenstats
 import com.xuncorp.spw.workshop.api.UnstableSpwWorkshopApi
 import com.xuncorp.spw.workshop.api.WorkshopApi
 import com.xuncorp.spw.workshop.api.config.ConfigHelper
-import com.jethuit.spw.listenstats.data.HeatmapScale
 
 data class DisplayPreferences(
-    val dailyHighMillis: Long = HeatmapScale.DEFAULT_HIGH_MILLIS,
     val rankingPageSize: Int = 25,
     val pageAnimations: Boolean = true
 )
@@ -55,19 +53,16 @@ object Prefs {
         val animations = try { helper?.get("pageAnimations", true) ?: true }
             catch (_: Throwable) { true }
         return DisplayPreferences(
-            HeatmapScale.parseHours(getString(HeatmapScale.PREFERENCE_KEY, HeatmapScale.DEFAULT_HOURS)),
             pageSize, animations
         )
     }
-
-    fun dailyHighMillis(): Long = displayPreferences().dailyHighMillis
 
     @Synchronized
     fun putString(key: String, value: String) {
         try {
             val config = helper ?: return
             // Merge our UI selection into the latest settings rather than writing
-            // an older snapshot over the user's new heatmap threshold.
+            // an older snapshot over the user's latest settings.
             if (!config.reload()) {
                 PluginLog.error("reloading preferences before saving $key failed")
                 return

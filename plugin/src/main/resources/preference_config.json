@@ -12,13 +12,6 @@
           "on_click": "com.jethuit.spw.listenstats.MainPlugin.openStats"
         },
         {
-          "key": "dailyHighHours",
-          "type": "edittext",
-          "title": "每天听多久算多（小时）",
-          "summary": "影响每日热力图的颜色梯度：数值越小，越容易达到最高档；仅改变显示，不影响听歌记录。支持小数，如1.5表示1小时30分钟。请输入大于0且不超过24的小时数，默认2.25；无效输入按默认值计算。",
-          "default_value": "2.25"
-        },
-        {
           "key": "rankingPageSize",
           "type": "edittext",
           "title": "排行每页数量",

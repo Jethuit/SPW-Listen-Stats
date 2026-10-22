@@ -58,13 +58,13 @@ fun YearHeatmap(
     onDaySelected: (LocalDate) -> Unit,
     onWeekSelected: (LocalDate, LocalDate) -> Unit,
     viewportRevision: Int = 0,
-    rolling: Boolean = false,
-    dailyHighMillis: Long = HeatmapScale.DEFAULT_HIGH_MILLIS
+    rolling: Boolean = false
 ) {
     val colors = LocalStatsColors.current
     val measurer = rememberTextMeasurer()
     val labelStyle = AppType.tiny.copy(fontFamily = LocalTextStyle.current.fontFamily)
     val grid = remember(year, rolling, today) { StatsCalculations.heatmapGrid(year, rolling, today) }
+    val dailyScale = remember(data.dailyMillis, today) { HeatmapScale.daily(data.dailyMillis, today) }
     val animations = LocalStatsAnimationsEnabled.current
     val reveal = remember(grid.firstDay, grid.lastDay, weekly) { Animatable(if (animations) 0f else 1f) }
     LaunchedEffect(reveal, animations) {
@@ -239,7 +239,7 @@ fun YearHeatmap(
                                 val x = cellX(week)
                                 val y = cellY(row)
                                 val millis = data.millisOn(date)
-                                val level = StatsCalculations.dayLevel(millis, today, date, dailyHighMillis)
+                                val level = StatsCalculations.dayLevel(millis, today, date, dailyScale)
                                 val alpha = if (date.isAfter(today)) 0.35f else 1f
                                 val radius = CornerRadius(min(radiusPx, cell / 2f))
                                 drawRoundRect(
@@ -281,8 +281,6 @@ fun YearHeatmap(
                             val selected = selectedDate != null &&
                                 selectedDate in weekCell.start..weekCell.end
                             val validRows = (0..6).filter { inRange(grid.gridStart.plusDays(week * 7L + it)) }
-                            val outlineTop = cellY(validRows.first())
-                            val outlineHeight = cellY(validRows.last()) + cell - outlineTop
                             for (row in 0..6) {
                                 if (row !in validRows) continue
                                 val y = cellY(row)
@@ -298,24 +296,24 @@ fun YearHeatmap(
                                     cornerRadius = CornerRadius(min(radiusPx, cell / 2f) * scale),
                                     alpha = alpha * appearance
                                 )
-                            }
-                            if (selected) {
-                                drawRoundRect(
-                                    color = colors.accent,
-                                    topLeft = Offset(x - 2f, outlineTop - 2f),
-                                    size = Size(cell + 4f, outlineHeight + 4f),
-                                    cornerRadius = CornerRadius(min(8f, cell / 2f + 2f)),
-                                    style = Stroke(width = 1f), alpha = appearance
-                                )
-                            }
-                            if (hoverWeek == week) {
-                                drawRoundRect(
-                                    color = colors.accent.copy(alpha = 0.5f),
-                                    topLeft = Offset(x - 2f, outlineTop - 2f),
-                                    size = Size(cell + 4f, outlineHeight + 4f),
-                                    cornerRadius = CornerRadius(min(8f, cell / 2f + 2f)),
-                                    style = Stroke(width = 1.5f), alpha = appearance
-                                )
+                                if (selected) {
+                                    drawRoundRect(
+                                        color = colors.accent,
+                                        topLeft = Offset(x - 2f, y - 2f),
+                                        size = Size(cell + 4f, cell + 4f),
+                                        cornerRadius = CornerRadius(min(8f, cell / 2f + 2f)),
+                                        style = Stroke(width = 1f), alpha = appearance
+                                    )
+                                }
+                                if (hoverWeek == week) {
+                                    drawRoundRect(
+                                        color = colors.accent.copy(alpha = 0.5f),
+                                        topLeft = Offset(x - 2f, y - 2f),
+                                        size = Size(cell + 4f, cell + 4f),
+                                        cornerRadius = CornerRadius(min(8f, cell / 2f + 2f)),
+                                        style = Stroke(width = 1.5f), alpha = appearance
+                                    )
+                                }
                             }
                         }
                     }

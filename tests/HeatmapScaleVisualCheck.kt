@@ -16,14 +16,15 @@ import java.nio.file.Path
 import java.time.LocalDate
 import javax.swing.SwingUtilities
 
-/** Recompose the same real heatmap with a changed threshold; synthetic durations only. */
+/** Actual adaptive heatmap colors and per-cell weekly selection, using synthetic durations only. */
 fun main(args: Array<String>) {
     val output = Path.of(args.single())
     Files.createDirectories(output)
     val today = LocalDate.of(2026, 10, 20)
-    val data = StatsData.empty().copy(dailyMillis = listOf(0.5, 2.0, 4.0, 6.0)
-        .mapIndexed { index, hours -> LocalDate.of(2026, 1, 5 + index) to (hours * 3_600_000L).toLong() }.toMap())
-    var high by mutableStateOf(HeatmapScale.DEFAULT_HIGH_MILLIS)
+    var data by mutableStateOf(StatsData.empty().copy(dailyMillis = listOf(0.5, 2.0, 4.0, 6.0)
+        .mapIndexed { index, hours -> LocalDate.of(2026, 1, 5 + index) to (hours * 3_600_000L).toLong() }.toMap()))
+    var weekly by mutableStateOf(false)
+    var selected by mutableStateOf<LocalDate?>(null)
     lateinit var scene: ImageComposeScene
     SwingUtilities.invokeAndWait {
         scene = ImageComposeScene(1000, 300, density = Density(1.25f)) {
@@ -33,7 +34,7 @@ fun main(args: Array<String>) {
                         LocalStatsAnimationsEnabled provides false) {
                         Box(Modifier.fillMaxSize().drawWith { drawRect(LightStatsColors.pageBackground) }) {
                             Box(Modifier.fillMaxWidth().padding(20.dp)) {
-                                YearHeatmap(data, 2026, false, today, null, {}, { _, _ -> }, dailyHighMillis = high)
+                                YearHeatmap(data, 2026, weekly, today, selected, { selected = it }, { start, _ -> selected = start })
                             }
                         }
                     }
@@ -42,9 +43,16 @@ fun main(args: Array<String>) {
         }
     }
     try {
-        for ((name, value) in listOf("default" to HeatmapScale.DEFAULT_HIGH_MILLIS,
-                                     "six-hours" to HeatmapScale.parseHours("6"))) {
-            SwingUtilities.invokeAndWait { high = value }
+        for (name in listOf("daily", "rebalanced", "week-selected", "week-clear", "edge-week")) {
+            SwingUtilities.invokeAndWait {
+                when (name) {
+                    "rebalanced" -> data = data.copy(dailyMillis = data.dailyMillis + (1L..12L)
+                        .associate { today.minusDays(it) to 40_000_000L })
+                    "week-selected" -> { weekly = true; selected = LocalDate.of(2026, 1, 5) }
+                    "week-clear" -> selected = null
+                    "edge-week" -> selected = LocalDate.of(2026, 1, 1)
+                }
+            }
             repeat(3) {
                 SwingUtilities.invokeAndWait { scene.render().close() }
                 Thread.sleep(20)
@@ -58,5 +66,5 @@ fun main(args: Array<String>) {
             }
         }
     } finally { SwingUtilities.invokeAndWait { scene.close() } }
-    println("Rendered one actual heatmap before and after changing the daily high-duration setting")
+    println("Rendered adaptive daily recoloring, a selected week with individual cell outlines, cleared selection and a clipped edge week")
 }

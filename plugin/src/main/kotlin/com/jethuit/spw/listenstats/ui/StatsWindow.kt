@@ -406,10 +406,17 @@ fun ListenStatsApp(
                                     year = heatmapYear,
                                     weekly = heatmapWeekly,
                                     heatmapRolling = heatmapRolling,
-                                    dailyHighMillis = displayPreferences.dailyHighMillis,
                                     onYearSelected = { heatmapYear = it },
                                     onHeatmapRollingSelected = { heatmapRolling = it },
-                                    onWeeklySelected = { heatmapWeekly = it },
+                                    onWeeklySelected = { weekly ->
+                                        if (heatmapWeekly != weekly) {
+                                            rangePreset = StatsCalculations.rangeAfterHeatmapModeChange(rangePreset, selectedDate)
+                                            selectedDate = null
+                                            heatmapWeekly = weekly
+                                            Prefs.putStringAsync("selectedDate", "")
+                                            Prefs.putStringAsync("range", rangePreset.storage)
+                                        }
+                                    },
                                     selectedDate = selectedDate,
                                     rangePreset = rangePreset,
                                     customStart = customStart,
@@ -430,7 +437,7 @@ fun ListenStatsApp(
                                         }
                                     },
                                     onWeekSelected = { start, end ->
-                                        if (rangePreset == RangePreset.Custom &&
+                                        if (rangePreset == RangePreset.Custom && selectedDate == start &&
                                             customStart == start && customEnd == end
                                         ) {
                                             selectedDate = null
@@ -578,14 +585,6 @@ fun PageNav(page: StatsPage, onPage: (StatsPage) -> Unit) {
 private fun NavTab(icon: String, label: String, active: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val colors = LocalStatsColors.current
     var hovered by remember { mutableStateOf(false) }
-    val background = when {
-        // Native dark sample: #313232. Material pages retain their translucent tint.
-        active -> if (colors.isDark) {
-            if (colors.pageBackground.alpha == 0f) Color.White.copy(alpha = 0.07f) else Color(0xFF313232)
-        } else Color.Black.copy(alpha = 0.04f)
-        hovered -> if (colors.isDark) Color.White.copy(alpha = 0.045f) else Color.Black.copy(alpha = 0.025f)
-        else -> Color.Transparent
-    }
     Surface(
         onClick = onClick,
         modifier = modifier.height(36.dp)
@@ -593,7 +592,7 @@ private fun NavTab(icon: String, label: String, active: Boolean, modifier: Modif
             .onPointerEvent(PointerEventType.Exit) { hovered = false }
             .semantics { selected = active; role = androidx.compose.ui.semantics.Role.Tab },
         shape = AppShape(0.dp),
-        color = background,
+        color = Color.Transparent,
         contentColor = colors.text
     ) {
         Box(contentAlignment = Alignment.Center) {

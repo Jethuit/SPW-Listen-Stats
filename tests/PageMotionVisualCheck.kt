@@ -118,8 +118,8 @@ fun main(args: Array<String>) {
             check(overviewBar.count() == rankingBar.count() && overviewBar.first < movingBar.first &&
                 movingBar.first < rankingBar.first) { "Underline did not slide between the full button widths" }
             check(rankingBar.first == overviewBar.last + 1) { "Navigation buttons still have a gap" }
-            check(overview.getRGB(overviewBar.first, barY - 34) != colors.pageBackground.toArgb()) {
-                "Selected navigation background still has a rounded top corner"
+            check(overview.getRGB(overviewBar.first, barY - 34) == colors.pageBackground.toArgb()) {
+                "Selected navigation still paints a gray background"
             }
             check(!sameRegion(forward, ranking, 20, 130, 380, 240)) { "Body did not animate" }
             check(sameRegion(overview, ranking, 20, 20, 350, 40)) { "Header moved during tab switch" }
@@ -170,8 +170,10 @@ fun main(args: Array<String>) {
         } finally { SwingUtilities.invokeAndWait { scene.close() } }
     }
     check(StatsMotionDurationMillis == 300)
-    rankingMotionCheck(out, LightStatsColors, "light")
-    rankingMotionCheck(out, DarkStatsColors, "dark")
+    if (System.getProperty("spw.test.skipRanking") != "true") {
+        rankingMotionCheck(out, LightStatsColors, "light")
+        rankingMotionCheck(out, DarkStatsColors, "dark")
+    }
     placeholderVisuals(out)
     if (System.getProperty("spw.test.skipHeatmap") != "true") heatmapMotionCheck(out)
 }

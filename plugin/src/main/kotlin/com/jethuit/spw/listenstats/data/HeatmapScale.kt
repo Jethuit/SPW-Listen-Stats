@@ -1,31 +1,44 @@
 package com.jethuit.spw.listenstats.data
 
-import kotlin.math.roundToLong
+import java.time.LocalDate
+import kotlin.math.floor
 
-/** A display preference only; never changes recorded duration or play counts. */
-object HeatmapScale {
-    const val PREFERENCE_KEY = "dailyHighHours"
-    const val DEFAULT_HOURS = "2.25"
-    const val DEFAULT_HIGH_MILLIS = 135L * 60_000L
-    private const val HOUR_MILLIS = 3_600_000L
-    private const val MAX_HIGH_MILLIS = 24L * HOUR_MILLIS
-
-    fun parseHours(value: String?): Long {
-        val hours = value?.trim()?.toDoubleOrNull() ?: return DEFAULT_HIGH_MILLIS
-        if (!hours.isFinite() || hours <= 0.0 || hours > 24.0) return DEFAULT_HIGH_MILLIS
-        val millis = (hours * HOUR_MILLIS).roundToLong()
-        // Seven milliseconds is the smallest threshold with four distinct tiers.
-        return if (millis in 7L..MAX_HIGH_MILLIS) millis else DEFAULT_HIGH_MILLIS
+/** Relative display scale. Zero days never participate in the positive-duration quartiles. */
+data class HeatmapScale private constructor(val thresholds: List<Double>) {
+    fun level(millis: Long): Int = when {
+        millis <= 0L -> 0
+        thresholds.isEmpty() -> 1 // Old history without any recent sample still has a visible color.
+        else -> 1 + thresholds.count { millis.toDouble() > it }
     }
 
-    fun level(millis: Long, highMillis: Long = DEFAULT_HIGH_MILLIS): Int {
-        val high = highMillis.takeIf { it in 7L..MAX_HIGH_MILLIS } ?: DEFAULT_HIGH_MILLIS
-        return when {
-            millis <= 0L -> 0
-            millis < (high + 5L) / 6L -> 1
-            millis < (high + 1L) / 2L -> 2
-            millis < high -> 3
-            else -> 4
+    companion object {
+        fun fromSamples(samples: Collection<Long>): HeatmapScale {
+            val sorted = samples.filter { it > 0L }.sorted()
+            if (sorted.isEmpty()) return HeatmapScale(emptyList())
+            val thresholds = (1..3).map { quartile ->
+                val index = (sorted.size - 1) * quartile / 4.0
+                val lower = floor(index).toInt()
+                val upper = minOf(lower + 1, sorted.lastIndex)
+                sorted[lower].toDouble() + (sorted[upper] - sorted[lower]).toDouble() * (index - lower)
+            }
+            return HeatmapScale(thresholds)
+        }
+
+        private fun recent(daily: Map<LocalDate, Long>, today: LocalDate): Map<LocalDate, Long> {
+            val start = today.minusYears(1).plusDays(1)
+            return daily.filter { (date, millis) -> date in start..today && millis > 0L }
+        }
+
+        fun daily(daily: Map<LocalDate, Long>, today: LocalDate): HeatmapScale =
+            fromSamples(recent(daily, today).values)
+
+        fun weekly(daily: Map<LocalDate, Long>, today: LocalDate): HeatmapScale {
+            val totals = mutableMapOf<LocalDate, Long>()
+            for ((date, millis) in recent(daily, today)) {
+                val monday = date.minusDays((date.dayOfWeek.value - 1).toLong())
+                totals[monday] = (totals[monday] ?: 0L) + millis
+            }
+            return fromSamples(totals.values)
         }
     }
 }
