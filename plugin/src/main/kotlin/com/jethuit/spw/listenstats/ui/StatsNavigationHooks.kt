@@ -48,9 +48,8 @@ object StatsNavigationHooks {
             return
         }
         cancelPendingOpen()
-        // Reopening must ask the tool now preparing underneath to leave first.
-        // Cancel the old destination, but reverse the exit only after its guard accepts.
-        StatsHostState.cancelDeferredNavigation()
+        // A destination may already be preparing under the isolation layer.
+        // Reverse the exit only after its leave guard accepts.
         var request: OpenRequest? = null
         runCatching {
             val current = checkNotNull(host.currentRoute()) { "Host navigation history is empty" }
@@ -111,21 +110,16 @@ object StatsNavigationHooks {
                                 // hidden by the containing Layer until our exit finishes.
                                 // Replaying later would dismiss the newly opened tool again.
                                 StatsHostState.requestClose(revealHost = false)
-                            } else if (StatsHostState.canAnimateClose) {
-                                val receiver = call.thisObject
-                                val target = call.method
-                                val args = call.args.copyOf()
-                                val currentBinding = binding
-                                call.setResult(null)
-                                StatsHostState.requestClose {
-                                    if (registered && binding === currentBinding) {
-                                        // Re-enter the complete hook chain, including other tools' leave guards.
-                                        runCatching { target.invoke(receiver, *args) }.onFailure {
-                                            PluginLog.error("navigation after statistics exit failed", it)
-                                        }
-                                    }
-                                }
-                            } else StatsHostState.close()
+                            } else if (!StatsHostState.canAnimateClose) StatsHostState.close()
+                        }
+                    }
+                    override fun after(call: MethodHookParam) {
+                        // Only accepted navigation starts the exit. A lower-priority tool
+                        // can defer/cancel the call, or replay it after draft confirmation.
+                        // Native and statistics transitions then run in parallel, with the
+                        // entire host layer isolated until the statistics spring completes.
+                        if (!call.isOriginalSkipped && call.throwable == null && StatsHostState.visible) {
+                            StatsHostState.requestClose(revealHost = false)
                         }
                     }
                 })

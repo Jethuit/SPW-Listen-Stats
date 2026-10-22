@@ -16,12 +16,11 @@ object StatsHostState {
         private set
     var closeTicket by mutableStateOf(0L)
         private set
-    // A synchronously prepared tool must stay isolated through the complete exit.
+    // A new destination must stay isolated through the complete exit.
     var revealHostOnExit by mutableStateOf(true)
         private set
     private var presenter: Any? = null
     private var animationsEnabled = true
-    private var afterClose: (() -> Unit)? = null
 
     val canAnimateClose: Boolean get() = visible && presenter != null && animationsEnabled
 
@@ -41,25 +40,20 @@ object StatsHostState {
 
     fun setAnimationsEnabled(enabled: Boolean) { animationsEnabled = enabled }
 
-    fun cancelDeferredNavigation() { afterClose = null }
-
     fun open() {
         closeTicket++
-        afterClose = null
         closing = false
         revealHostOnExit = true
         visible = true
     }
 
-    fun requestClose(revealHost: Boolean = true, onClosed: (() -> Unit)? = null) {
+    fun requestClose(revealHost: Boolean = true) {
         StatsNavigationHooks.cancelPendingOpen()
         if (!canAnimateClose) {
             close()
-            onClosed?.invoke()
             return
         }
-        afterClose = onClosed // A newer destination replaces the previous one without restarting motion.
-        // Keep isolation latched if any tool has already opened under the statistics page.
+        // Keep isolation latched after any new destination starts underneath.
         revealHostOnExit = revealHostOnExit && revealHost
         if (!closing) closeTicket++
         closing = true
@@ -67,14 +61,12 @@ object StatsHostState {
 
     fun finishClose(ticket: Long) {
         if (!closing || ticket != closeTicket) return
-        val action = afterClose
         // A newer open may be waiting for another tool's confirmation. Finishing
         // this visual exit must not invalidate that newer navigation request.
         resetVisibility()
-        action?.invoke()
     }
 
-    /** Forced teardown cancels any delayed navigation instead of replaying it after disable/unmount. */
+    /** Forced teardown removes the page; no navigation is queued for later replay. */
     fun close() {
         StatsNavigationHooks.cancelPendingOpen()
         resetVisibility()
@@ -82,7 +74,6 @@ object StatsHostState {
 
     private fun resetVisibility() {
         closeTicket++
-        afterClose = null
         closing = false
         revealHostOnExit = true
         visible = false

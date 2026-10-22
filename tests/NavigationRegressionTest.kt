@@ -197,9 +197,9 @@ private fun checkRapidPluginSwitches() {
             println("PASS rapid reopen waits for dirty target confirmation; cancel stays on target, confirm reopens statistics")
 
             registration.dispatch("navigate", arrayOf("albums"))
-            val canceledDestination = StatsHostState.closeTicket
+            val previousDestination = StatsHostState.closeTicket
             guard.open()
-            StatsHostState.finishClose(canceledDestination)
+            StatsHostState.finishClose(previousDestination)
             check(!StatsHostState.visible && guard.active) { "Earlier sidebar target overrode later plugin entry" }
 
             StatsNavigationHooks.openStats()
@@ -217,39 +217,51 @@ private fun checkRapidPluginSwitches() {
     }
 }
 
-/** Delay route replay until the composed page has acknowledged the end of its exit. */
+/** Native navigation prepares the destination under the isolated statistics exit. */
 private fun checkExitNavigation() {
     val registration = TestNavigationRegistration()
     val host = registration.host
     val presenter = StatsHostState.attachPresenter()
     StatsHostState.setAnimationsEnabled(true)
     try {
+        val songs = host.currentRoute
+        val albums = Class.forName("com.xuncorp.voxzen.ui.navigation.ScreenRoute\$Album")
+            .getField("INSTANCE").get(null)
+        host.currentRoute = albums
         StatsHostState.open()
-        registration.dispatch("navigate", arrayOf("albums")) { error("Navigation ran before exit") }
+        registration.dispatch("navigate", arrayOf(songs)) {
+            check(StatsHostState.visible) { "Statistics disappeared before target preparation" }
+            host.currentRoute = songs
+        }
         val ticket = StatsHostState.closeTicket
-        check(StatsHostState.visible && StatsHostState.closing && host.originalCalls == 0)
-        check(StatsHostState.revealHostOnExit) { "Ordinary return must allow the retained host to fade in" }
-        registration.dispatch("replace", arrayOf("artists")) { error("Replacement ran before exit") }
+        check(StatsHostState.visible && StatsHostState.closing && host.originalCalls == 1)
+        check(host.currentRoute == songs && !StatsHostState.revealHostOnExit) {
+            "Album -> statistics -> songs restored the old Album page"
+        }
+        registration.dispatch("replace", arrayOf("artists")) { host.currentRoute = "artists" }
         check(StatsHostState.closeTicket == ticket)
         StatsHostState.finishClose(ticket)
-        check(!StatsHostState.visible && host.originalCalls == 1 && host.lastReplay == ("replace" to listOf("artists")))
+        check(!StatsHostState.visible && host.originalCalls == 2 && host.currentRoute == "artists" && host.lastReplay == null)
         StatsHostState.finishClose(ticket)
-        check(host.originalCalls == 1)
+        check(host.originalCalls == 2)
+        host.currentRoute = songs
+        println("PASS Album -> statistics -> songs: target prepared immediately, old page isolated, no second navigation at exit")
 
         StatsHostState.open()
-        registration.dispatch("navigate", arrayOf("canceled"))
-        val canceled = StatsHostState.closeTicket
+        registration.dispatch("navigate", arrayOf("accepted"))
+        val accepted = StatsHostState.closeTicket
         registration.dispatch("back") { error("Back escaped to host history during exit") }
-        StatsHostState.finishClose(canceled)
-        check(!StatsHostState.visible && host.originalCalls == 1)
+        StatsHostState.finishClose(accepted)
+        check(!StatsHostState.visible && host.originalCalls == 3)
 
         StatsHostState.open()
         registration.dispatch("forward")
         val interrupted = StatsHostState.closeTicket
         StatsNavigationHooks.openStats()
         StatsHostState.finishClose(interrupted)
-        check(StatsHostState.visible && !StatsHostState.closing && host.originalCalls == 1)
+        check(StatsHostState.visible && !StatsHostState.closing && host.originalCalls == 4)
         StatsHostState.requestClose()
+        check(StatsHostState.revealHostOnExit) { "Ordinary back no longer restores the original page" }
         val next = StatsHostState.closeTicket
         StatsHostState.finishClose(interrupted)
         check(StatsHostState.visible && StatsHostState.closing)
@@ -259,25 +271,27 @@ private fun checkExitNavigation() {
         registration.extra += TestNavigationRegistration.Entry("navigate", guard)
         StatsHostState.open()
         registration.dispatch("navigate", arrayOf("lyrics"))
-        check(guard.pending == null)
-        StatsHostState.finishClose(StatsHostState.closeTicket)
-        check(!StatsHostState.visible && guard.pending != null && host.originalCalls == 1)
+        check(guard.pending != null && StatsHostState.visible && !StatsHostState.closing && host.originalCalls == 4)
+        guard.cancel()
+        check(StatsHostState.visible && !StatsHostState.closing) { "Canceled leave guard still closed statistics" }
+        registration.dispatch("navigate", arrayOf("lyrics"))
         guard.confirm()
-        check(host.originalCalls == 2)
+        check(host.originalCalls == 5 && StatsHostState.closing && !StatsHostState.revealHostOnExit)
+        StatsHostState.finishClose(StatsHostState.closeTicket)
 
         StatsHostState.setAnimationsEnabled(false)
         StatsHostState.open()
         registration.dispatch("forward") { check(!StatsHostState.visible) }
-        check(host.originalCalls == 3 && !StatsHostState.closing)
+        check(host.originalCalls == 6 && !StatsHostState.closing)
         StatsHostState.setAnimationsEnabled(true)
         StatsHostState.open()
         registration.dispatch("navigate", arrayOf("after-disable"))
         val disabled = StatsHostState.closeTicket
         registration.close()
         StatsHostState.finishClose(disabled)
-        check(!StatsHostState.visible && host.originalCalls == 3)
-        println("PASS exit: latest destination only, one replay, repeated back, reopen reversal and stale completion guards")
-        println("PASS exit: replay re-enters Lyrics draft confirmation; disabled animation and plugin teardown are immediate")
+        check(!StatsHostState.visible && host.originalCalls == 7)
+        println("PASS exit: latest prepared destination, no replay, repeated back, reopen reversal and stale completion guards")
+        println("PASS exit: full Lyrics leave guard runs before handoff; cancel retains statistics, confirm prepares target")
     } finally {
         presenter.close()
         registration.close()
