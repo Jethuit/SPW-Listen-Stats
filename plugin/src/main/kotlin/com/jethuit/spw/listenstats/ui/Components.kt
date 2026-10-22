@@ -145,8 +145,11 @@ fun CompactMenuButton(
                     enter = fadeIn(tween(duration)),
                     exit = fadeOut(tween(duration))
                 ) {
-                    Surface(shape = AppShape(9.dp), color = SaltTheme.colors.popup, shadowElevation = 4.dp,
-                        border = if (checkable) BorderStroke(Dp.Hairline, SolidColor(SaltTheme.colors.stroke)) else null) {
+                    Surface(shape = AppShape(9.dp),
+                        color = if (checkable) SaltTheme.colors.popup else colors.background,
+                        shadowElevation = 4.dp,
+                        border = if (checkable) BorderStroke(Dp.Hairline, SolidColor(SaltTheme.colors.stroke))
+                            else BorderStroke(1.dp, SolidColor(colors.line))) {
                         // Backup actions stay compact; selectable toolbar menus reserve a check column.
                         Column(Modifier.width(menuWidth).then(if (checkable) Modifier.padding(4.dp) else Modifier)) {
                             options.forEach { (value, label) ->

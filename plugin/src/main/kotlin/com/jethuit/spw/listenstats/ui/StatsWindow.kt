@@ -574,24 +574,29 @@ fun PageNav(page: StatsPage, onPage: (StatsPage) -> Unit) {
     val colors = LocalStatsColors.current
     var overviewWidth by remember { mutableStateOf(0) }
     var rankingWidth by remember { mutableStateOf(0) }
+    var overviewContentWidth by remember { mutableStateOf(0) }
+    var rankingContentWidth by remember { mutableStateOf(0) }
     Box {
         Row {
             NavTab(IconPaths.Dashboard, "听歌概览", page == StatsPage.Overview,
-                Modifier.onSizeChanged { overviewWidth = it.width }) {
+                modifier = Modifier.onSizeChanged { overviewWidth = it.width },
+                onContentWidthChanged = { overviewContentWidth = it }) {
                 onPage(StatsPage.Overview)
             }
             NavTab(IconPaths.Leaderboard, "听歌排行", page == StatsPage.Ranking,
-                Modifier.onSizeChanged { rankingWidth = it.width }) {
+                modifier = Modifier.onSizeChanged { rankingWidth = it.width },
+                onContentWidthChanged = { rankingContentWidth = it }) {
                 onPage(StatsPage.Ranking)
             }
         }
-        if (overviewWidth > 0 && rankingWidth > 0) {
+        if (overviewWidth > 0 && rankingWidth > 0 && overviewContentWidth > 0 && rankingContentWidth > 0) {
             val duration = statsMotionDurationMillis()
             val left by animateFloatAsState(
-                if (page == StatsPage.Overview) 0f else overviewWidth.toFloat(),
+                if (page == StatsPage.Overview) (overviewWidth - overviewContentWidth) / 2f
+                    else overviewWidth + (rankingWidth - rankingContentWidth) / 2f,
                 tween(duration, easing = PageEasing), label = "navigation-indicator-left")
             val width by animateFloatAsState(
-                (if (page == StatsPage.Overview) overviewWidth else rankingWidth).toFloat(),
+                (if (page == StatsPage.Overview) overviewContentWidth else rankingContentWidth).toFloat(),
                 tween(duration, easing = PageEasing), label = "navigation-indicator-width")
             Box(Modifier.matchParentSize().drawWith {
                 val thickness = 2.dp.toPx()
@@ -604,7 +609,14 @@ fun PageNav(page: StatsPage, onPage: (StatsPage) -> Unit) {
 }
 
 @Composable
-private fun NavTab(icon: String, label: String, active: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun NavTab(
+    icon: String,
+    label: String,
+    active: Boolean,
+    modifier: Modifier = Modifier,
+    onContentWidthChanged: (Int) -> Unit,
+    onClick: () -> Unit
+) {
     val colors = LocalStatsColors.current
     var hovered by remember { mutableStateOf(false) }
     SaltTheme(configs = SaltTheme.configs.copy(indication = PlainNavIndication),
@@ -622,7 +634,7 @@ private fun NavTab(icon: String, label: String, active: Boolean, modifier: Modif
     ) {
         Box(contentAlignment = Alignment.Center) {
             Row(
-                Modifier.padding(horizontal = 16.dp),
+                Modifier.padding(horizontal = 16.dp).onSizeChanged { onContentWidthChanged(it.width) },
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

@@ -230,15 +230,19 @@ fun TrendChart(
                             val points = buckets.mapIndexed { index, bucket ->
                                 Offset(xAt(index), yAt(bucket.millis))
                             }
+                            // Keep hourly samples centred in their slots, but cover the outer half-slots.
+                            val extendEdges = banded && points.size > 1
+                            val pathLeft = if (extendEdges) AXIS_LEFT else points.first().x
+                            val pathRight = if (extendEdges) widthPx - AXIS_RIGHT else points.last().x
                             val path = if (chartType == ChartType.Line) {
-                                linePath(points)
+                                linePath(points, pathLeft, pathRight)
                             } else {
-                                monotonePath(points)
+                                monotonePath(points, pathLeft, pathRight)
                             }
                             val area = Path().apply {
                                 addPath(path)
-                                lineTo(points.last().x, AXIS_TOP + plotHeight)
-                                lineTo(points.first().x, AXIS_TOP + plotHeight)
+                                lineTo(pathRight, AXIS_TOP + plotHeight)
+                                lineTo(pathLeft, AXIS_TOP + plotHeight)
                                 close()
                             }
                             drawPath(
@@ -325,20 +329,25 @@ fun TrendChart(
     }
 }
 
-private fun linePath(points: List<Offset>): Path {
+private fun linePath(points: List<Offset>, left: Float, right: Float): Path {
     val path = Path()
-    points.forEachIndexed { index, point ->
-        if (index == 0) path.moveTo(point.x, point.y) else path.lineTo(point.x, point.y)
+    if (points.isEmpty()) return path
+    path.moveTo(left, points.first().y)
+    points.forEach { point ->
+        path.lineTo(point.x, point.y)
     }
+    path.lineTo(right, points.last().y)
     return path
 }
 
 /** Fritsch-Carlson monotone cubic interpolation; never overshoots neighbours. */
-private fun monotonePath(points: List<Offset>): Path {
+private fun monotonePath(points: List<Offset>, left: Float, right: Float): Path {
     val path = Path()
     if (points.isEmpty()) return path
+    path.moveTo(left, points.first().y)
+    path.lineTo(points.first().x, points.first().y)
     if (points.size == 1) {
-        path.moveTo(points[0].x, points[0].y)
+        path.lineTo(right, points.first().y)
         return path
     }
     val n = points.size
@@ -371,7 +380,6 @@ private fun monotonePath(points: List<Offset>): Path {
             tangent[index + 1] = tau * beta * slope[index]
         }
     }
-    path.moveTo(points[0].x, points[0].y)
     for (index in 0 until n - 1) {
         val x0 = points[index].x.toDouble()
         val x1 = points[index + 1].x.toDouble()
@@ -394,5 +402,6 @@ private fun monotonePath(points: List<Offset>): Path {
             path.lineTo(x.toFloat(), y.coerceIn(low, high).toFloat())
         }
     }
+    path.lineTo(right, points.last().y)
     return path
 }
