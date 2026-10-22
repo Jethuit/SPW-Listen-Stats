@@ -5,7 +5,7 @@ import java.util.Locale
 
 enum class RankingMode(val storage: String, val label: String, val itemUnit: String) {
     Song("song", "歌曲", "首"),
-    Artist("artist", "歌手", "位"),
+    Artist("artist", "艺术家", "位"),
     Album("album", "专辑", "张");
 
     val title: String get() = "${label}播放次数"

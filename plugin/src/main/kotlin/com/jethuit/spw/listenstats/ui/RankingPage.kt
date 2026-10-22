@@ -355,7 +355,7 @@ private fun SongTableHeader(mode: RankingMode) {
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
             Text(
-                mode.label,
+                if (mode == RankingMode.Song) "标题" else mode.label,
                 modifier = Modifier.width(widths.song),
                 style = AppType.tableHead.copy(color = colors.muted)
             )
