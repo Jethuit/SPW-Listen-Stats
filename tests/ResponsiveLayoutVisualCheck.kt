@@ -39,11 +39,11 @@ fun main(args: Array<String>) {
             SaltTheme {
                 scroll = rememberScrollState(0)
                 Box(Modifier.fillMaxSize().drawWith { drawRect(Color(0xFFF8F8F8)) }) {
-                    StatsPageFrame(onBack = {}) {
+                    StatsPageFrame(onBack = {}, actions = { BackupMenu({}, {}) }) {
                         Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
                             Box(Modifier.fillMaxWidth().height(80.dp).onGloballyPositioned {
                                 topY = it.positionInRoot().y
-                            }) { StatsText("听歌统计", style = AppType.pageTitle) }
+                            })
                             Box(Modifier.fillMaxWidth().height(1400.dp).drawWith { drawRect(Color(0xFFBBD7FA)) })
                         }
                     }

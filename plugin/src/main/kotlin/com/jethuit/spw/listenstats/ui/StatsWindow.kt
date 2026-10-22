@@ -329,7 +329,29 @@ fun ListenStatsApp(
         }
         Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {
         StatsPageEnter {
-        StatsPageFrame(onClose) {
+        StatsPageFrame(onClose, actions = {
+            BackupMenu(
+                onImport = {
+                    if (!backupBusy) scope.launch {
+                        backupBusy = true
+                        try {
+                            if (BackupService.importBackup()) {
+                                rankPage = 1
+                                scrollTop()
+                                reloadTick++
+                            }
+                        } finally { backupBusy = false }
+                    }
+                },
+                onExport = {
+                    if (!backupBusy) scope.launch {
+                        backupBusy = true
+                        try { BackupService.export(snapshot) }
+                        finally { backupBusy = false }
+                    }
+                }
+            )
+        }) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val density = LocalDensity.current
             val pageWidth = when {
@@ -356,27 +378,7 @@ fun ListenStatsApp(
                                 }
                                 .padding(bottom = if (embedded) 96.dp else 24.dp)
                         ) {
-                            PageHeader(
-                                onImport = {
-                                    if (!backupBusy) scope.launch {
-                                        backupBusy = true
-                                        try {
-                                            if (BackupService.importBackup()) {
-                                                rankPage = 1
-                                                scrollTop()
-                                                reloadTick++
-                                            }
-                                        } finally { backupBusy = false }
-                                    }
-                                },
-                                onExport = {
-                                    if (!backupBusy) scope.launch {
-                                        backupBusy = true
-                                        try { BackupService.export(snapshot) }
-                                        finally { backupBusy = false }
-                                    }
-                                }
-                            )
+                            Box(Modifier.height(24.dp))
                             PageNav(page) { newPage ->
                                 if (page != newPage) {
                                     page = newPage
@@ -530,23 +532,6 @@ fun ListenStatsApp(
         }
     }
 
-}
-
-@Composable
-private fun PageHeader(
-    onImport: () -> Unit,
-    onExport: () -> Unit
-) {
-    val colors = LocalStatsColors.current
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text("听歌统计", style = AppType.pageTitle.copy(color = colors.text))
-        BackupMenu(onImport, onExport)
-    }
-    Box(Modifier.height(30.dp))
 }
 
 @Composable
