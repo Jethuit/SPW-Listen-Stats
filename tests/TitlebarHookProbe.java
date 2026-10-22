@@ -32,12 +32,14 @@ public final class TitlebarHookProbe {
         }
         if (result == null) throw new AssertionError("No hook target");
         System.out.println("PASS host UI hook resolver accepts the exact target/caller and zero business parameters");
+        resolve.invoke(instance, "androidx.compose.ui.\u0559", "\u037f",
+            targets.getPageCaller(), List.of("androidx.compose.ui.Modifier", "boolean", "kotlin.jvm.functions.Function3"));
         resolve.invoke(instance, "com.xuncorp.voxzen.ui.navigation.AppNavigationKt", "AppNavigation",
             targets.getPageCaller(), List.of());
         resolve.invoke(instance, "androidx.compose.animation.SharedTransitionScopeKt", "SharedTransitionLayout",
             "com.xuncorp.voxzen.ui.navigation.AppNavigationKt",
             List.of("androidx.compose.ui.Modifier", "kotlin.jvm.functions.Function3"));
-        System.out.println("PASS SPW " + version + " page and material call sites resolve through the host resolver");
+        System.out.println("PASS SPW " + version + " containing Layer and nested navigation call sites resolve through the host resolver");
 
         Class<?> navigator = Class.forName("com.xuncorp.voxzen.ui.navigation.Navigator", false,
             TitlebarHookProbe.class.getClassLoader());

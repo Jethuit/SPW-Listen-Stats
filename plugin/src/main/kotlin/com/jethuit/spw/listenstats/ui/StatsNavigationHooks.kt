@@ -41,16 +41,16 @@ object StatsNavigationHooks {
 
     /** Ask other tools to leave first; they may synchronously accept or defer for draft confirmation. */
     fun openStats() {
-        if (StatsHostState.visible) {
-            if (StatsHostState.closing) StatsHostState.open()
-            return
-        }
+        if (StatsHostState.visible && !StatsHostState.closing) return
         val host = binding
         if (!registered || host == null) {
             WorkshopApi.ui.toast("统计页面导航尚未准备好，请稍后重试", WorkshopApi.Ui.ToastType.Warning)
             return
         }
         cancelPendingOpen()
+        // Reopening must ask the tool now preparing underneath to leave first.
+        // Cancel the old destination, but reverse the exit only after its guard accepts.
+        StatsHostState.cancelDeferredNavigation()
         var request: OpenRequest? = null
         runCatching {
             val current = checkNotNull(host.currentRoute()) { "Host navigation history is empty" }
@@ -103,7 +103,15 @@ object StatsNavigationHooks {
                     override fun before(call: MethodHookParam) {
                         // Observe ordinary navigation before another tool can defer it.
                         if (method != "navigate" || requestOf(call.args.firstOrNull()) == null) {
-                            if (StatsHostState.canAnimateClose) {
+                            val host = binding
+                            val sameRoute = method == "navigate" && host != null &&
+                                call.thisObject === host.navigator && call.args.firstOrNull() == host.currentRoute()
+                            if (sameRoute) {
+                                // Tools open synchronously after this no-op returns. Keep them
+                                // hidden by the containing Layer until our exit finishes.
+                                // Replaying later would dismiss the newly opened tool again.
+                                StatsHostState.requestClose()
+                            } else if (StatsHostState.canAnimateClose) {
                                 val receiver = call.thisObject
                                 val target = call.method
                                 val args = call.args.copyOf()

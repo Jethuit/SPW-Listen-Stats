@@ -7,10 +7,9 @@ import com.xuncorp.spw.workshop.api.PluginContext
 import com.xuncorp.spw.workshop.api.SpwPlugin
 import com.xuncorp.spw.workshop.api.UnstableSpwWorkshopApi
 import com.xuncorp.spw.workshop.api.WorkshopApi
-import com.jethuit.spw.listenstats.ui.StatsOverlay
 import com.jethuit.spw.listenstats.ui.StatsNavigationHooks
 import com.jethuit.spw.listenstats.ui.StatsTitlebarEntry
-import com.jethuit.spw.listenstats.ui.StatsMaterialHook
+import com.jethuit.spw.listenstats.ui.StatsPageHook
 import com.jethuit.spw.listenstats.ui.HostUiTargets
 
 class MainPlugin(
@@ -19,7 +18,6 @@ class MainPlugin(
     private var hookHandle: AutoCloseable? = null
     private var navigationHandle: AutoCloseable? = null
     private var titlebarHandle: AutoCloseable? = null
-    private var materialHandle: AutoCloseable? = null
 
     override fun start() {
         PluginState.pluginPath = pluginContext.pluginPath
@@ -31,7 +29,6 @@ class MainPlugin(
         com.jethuit.spw.listenstats.data.PlaybackTracker.initialize()
         closeHooks()
         try {
-            val targets = HostUiTargets.forVersion(pluginContext.spwVersion)
             navigationHandle = StatsNavigationHooks.register { method, parameters, callback ->
                 WorkshopApi.hookRegistrar.hookMethod(
                     className = StatsNavigationHooks.NAVIGATOR_CLASS,
@@ -40,33 +37,19 @@ class MainPlugin(
                     callback = callback
                 )
             }
-            hookHandle = WorkshopApi.hookRegistrar.afterComposable(
-                className = "com.xuncorp.voxzen.ui.navigation.AppNavigationKt",
-                methodName = "AppNavigation",
-                inClass = targets.pageCaller
-            ) { _ ->
-                StatsOverlay()
+            hookHandle = StatsPageHook.register(pluginContext.spwVersion) { target, method, caller, parameters, content ->
+                WorkshopApi.hookRegistrar.replaceComposable(target, method, caller, parameters, 50, content)
             }
-            PluginLog.info("AppNavigation and Navigator hooks registered; pageCaller=${targets.pageCaller}")
+            PluginLog.info("Containing Salt Layer and Navigator hooks registered; pageCaller=${HostUiTargets.forVersion(pluginContext.spwVersion).pageCaller}")
         } catch (failure: Throwable) {
             closeHooks()
-            PluginLog.error("AppNavigation hook failed", failure)
+            PluginLog.error("Containing page Layer hook failed", failure)
             WorkshopApi.ui.toast(
                 "听歌记录已启用，但统计页面加载失败，请在插件配置中写入诊断日志",
                 WorkshopApi.Ui.ToastType.Warning
             )
         }
         if (hookHandle != null) {
-            try {
-                materialHandle = StatsMaterialHook.register { target, method, caller, parameters, content ->
-                    WorkshopApi.hookRegistrar.replaceComposable(
-                        target, method, caller, parameters, 50, content
-                    )
-                }
-                PluginLog.info("Optional native material layer registered")
-            } catch (failure: Throwable) {
-                PluginLog.error("Native material layer unavailable; retaining opaque page background", failure)
-            }
             try {
                 titlebarHandle = StatsTitlebarEntry.register { target, method, caller, parameters, content ->
                     WorkshopApi.hookRegistrar.afterComposable(
@@ -90,7 +73,7 @@ class MainPlugin(
         PluginState.registeredHooks = buildSet {
             if (hookHandle != null) add("page")
             if (navigationHandle != null) add("navigation")
-            if (materialHandle != null) add("material")
+            if (hookHandle != null) add("page-isolation")
             if (titlebarHandle != null) add("titlebar")
         }
         if (hookHandle != null) {
@@ -122,11 +105,10 @@ class MainPlugin(
 
     private fun closeHooks() {
         PluginState.registeredHooks = emptySet()
-        val pending = listOfNotNull(titlebarHandle, hookHandle, materialHandle, navigationHandle)
+        val pending = listOfNotNull(titlebarHandle, hookHandle, navigationHandle)
         titlebarHandle = null
         hookHandle = null
         navigationHandle = null
-        materialHandle = null
         for (handle in pending) {
             runCatching { handle.close() }.onFailure {
                 PluginLog.error("removing UI/navigation hooks failed", it)
@@ -161,7 +143,7 @@ class MainPlugin(
                         appendLine("dataDirectory=$dir; database=${com.jethuit.spw.listenstats.data.StatsStore.diagnosticPath()}")
                         appendLine("sourceId=$source; registeredHooks=${PluginState.registeredHooks} (registration only)")
                         appendLine("hostUiTargets=${runCatching { HostUiTargets.forVersion(PluginState.spwVersion) }.getOrNull() ?: "unsupported"}")
-                        appendLine("materialBridgeActive=${com.jethuit.spw.listenstats.ui.StatsHostState.materialBridgeAvailable}; materialHook=${StatsMaterialHook.TARGET_CLASS}.${StatsMaterialHook.TARGET_METHOD}")
+                        appendLine("materialBridgeActive=${com.jethuit.spw.listenstats.ui.StatsHostState.materialBridgeAvailable}; pageIsolationHook=${StatsPageHook.TARGET_CLASS}.${StatsPageHook.TARGET_METHOD}")
                         appendLine("navigationReady=${StatsNavigationHooks.navigatorReady}; statisticsVisible=${com.jethuit.spw.listenstats.ui.StatsHostState.visible}")
                         appendLine("${com.jethuit.spw.listenstats.data.PlaybackTracker.diagnostics()}")
                         append("storageError=${com.jethuit.spw.listenstats.data.LiveStore.storageError() ?: "none"}")

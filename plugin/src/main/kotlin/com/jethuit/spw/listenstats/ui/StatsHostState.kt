@@ -6,7 +6,7 @@ import androidx.compose.runtime.setValue
 
 /** Host-composed statistics page. No separate AWT window and no floating overlay. */
 object StatsHostState {
-    // True only while the optional host-content wrapper is actually in the composition.
+    // True only while the containing host-content wrapper is actually composed.
     var materialBridgeAvailable by mutableStateOf(false)
         internal set
 
@@ -27,11 +27,18 @@ object StatsHostState {
         val token = Any()
         presenter = token
         return AutoCloseable {
-            if (presenter === token) { presenter = null; close() }
+            if (presenter === token) {
+                presenter = null
+                // A completed exit can leave a newer open waiting for another tool.
+                // Unexpected unmount while visible still cancels everything.
+                if (visible) close()
+            }
         }
     }
 
     fun setAnimationsEnabled(enabled: Boolean) { animationsEnabled = enabled }
+
+    fun cancelDeferredNavigation() { afterClose = null }
 
     fun open() {
         closeTicket++
@@ -55,13 +62,19 @@ object StatsHostState {
     fun finishClose(ticket: Long) {
         if (!closing || ticket != closeTicket) return
         val action = afterClose
-        close()
+        // A newer open may be waiting for another tool's confirmation. Finishing
+        // this visual exit must not invalidate that newer navigation request.
+        resetVisibility()
         action?.invoke()
     }
 
     /** Forced teardown cancels any delayed navigation instead of replaying it after disable/unmount. */
     fun close() {
         StatsNavigationHooks.cancelPendingOpen()
+        resetVisibility()
+    }
+
+    private fun resetVisibility() {
         closeTicket++
         afterClose = null
         closing = false

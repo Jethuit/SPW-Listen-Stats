@@ -23,6 +23,15 @@ private class LyricsGuard(private val registration: TestNavigationRegistration) 
     }
     fun confirm() { val action = pending; pending = null; action?.invoke() }
     fun cancel() { pending = null }
+
+    /** Match Lyrics: enter navigation returns before its session is created. */
+    fun open() {
+        if (active) return
+        replaying = true
+        try { registration.dispatch("navigate", arrayOf(registration.host.currentRoute)) }
+        finally { replaying = false }
+        active = true
+    }
 }
 
 fun main() {
@@ -117,6 +126,7 @@ fun main() {
 
     checkNativeNoOp(marker)
     checkExitNavigation()
+    checkRapidPluginSwitches()
 
     val rolledBack = mutableListOf<String>()
     val failure = runCatching {
@@ -127,6 +137,80 @@ fun main() {
     }.exceptionOrNull()
     check(failure != null && rolledBack == listOf("navigate@50", "forward@100", "replace@100", "navigate@100"))
     println("PASS failed registration rolls back every installed navigation hook")
+}
+
+private fun checkRapidPluginSwitches() {
+    TestNavigationRegistration().use { registration ->
+        val guard = LyricsGuard(registration).apply { active = false }
+        registration.extra += TestNavigationRegistration.Entry("navigate", guard)
+        val presenter = StatsHostState.attachPresenter()
+        StatsHostState.setAnimationsEnabled(true)
+        try {
+            repeat(8) {
+                StatsHostState.open()
+                val calls = registration.host.originalCalls
+                guard.open()
+                val ticket = StatsHostState.closeTicket
+                check(guard.active && StatsHostState.visible && StatsHostState.closing)
+                check(registration.host.originalCalls == calls + 1)
+                StatsNavigationHooks.openStats()
+                check(!guard.active && StatsHostState.visible && !StatsHostState.closing)
+                StatsHostState.finishClose(ticket)
+                check(StatsHostState.visible && !guard.active) { "Stale exit overrode rapid reopen" }
+            }
+
+            guard.open()
+            val ticket = StatsHostState.closeTicket
+            val calls = registration.host.originalCalls
+            StatsHostState.finishClose(ticket)
+            check(!StatsHostState.visible && guard.active && registration.host.originalCalls == calls) {
+                "Exit replayed the same-route request and dismissed the target plugin"
+            }
+            StatsNavigationHooks.openStats()
+            check(StatsHostState.visible && !guard.active)
+            println("PASS rapid plugin switching: outgoing animation retained, reopen leaves target, same-route entry is never replayed")
+
+            guard.open()
+            guard.dirty = true
+            StatsNavigationHooks.openStats()
+            check(guard.pending != null && guard.active && StatsHostState.closing)
+            StatsHostState.finishClose(StatsHostState.closeTicket)
+            check(!StatsHostState.visible && guard.active)
+            presenter.close() // Completed visual exit removes the composed statistics page.
+            guard.confirm()
+            check(StatsHostState.visible && !guard.active) { "Visual exit invalidated a newer confirmation" }
+
+            val replacementPresenter = StatsHostState.attachPresenter()
+
+            guard.open()
+            StatsNavigationHooks.openStats()
+            guard.cancel()
+            StatsHostState.finishClose(StatsHostState.closeTicket)
+            check(!StatsHostState.visible && guard.active)
+            guard.dirty = false
+            StatsNavigationHooks.openStats()
+            check(StatsHostState.visible && !guard.active)
+            println("PASS rapid reopen waits for dirty target confirmation; cancel stays on target, confirm reopens statistics")
+
+            registration.dispatch("navigate", arrayOf("albums"))
+            val canceledDestination = StatsHostState.closeTicket
+            guard.open()
+            StatsHostState.finishClose(canceledDestination)
+            check(!StatsHostState.visible && guard.active) { "Earlier sidebar target overrode later plugin entry" }
+
+            StatsNavigationHooks.openStats()
+            guard.open()
+            val stopped = StatsHostState.closeTicket
+            registration.close()
+            StatsHostState.finishClose(stopped)
+            check(!StatsHostState.visible && guard.active)
+            replacementPresenter.close()
+            println("PASS latest plugin entry replaces earlier navigation; teardown cancels unfinished exit")
+        } finally {
+            presenter.close()
+            StatsHostState.setAnimationsEnabled(true)
+        }
+    }
 }
 
 /** Delay route replay until the composed page has acknowledged the end of its exit. */

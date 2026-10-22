@@ -1,10 +1,10 @@
-@file:OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class,
-    androidx.compose.runtime.InternalComposeApi::class,
+@file:OptIn(androidx.compose.runtime.InternalComposeApi::class,
     com.xuncorp.spw.workshop.api.UnstableSpwWorkshopApi::class)
 
 package com.jethuit.spw.listenstats.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Composer
@@ -22,41 +22,60 @@ import com.xuncorp.spw.workshop.api.hook.ComposableHook
 import com.xuncorp.spw.workshop.api.hook.UiHookCall
 import java.lang.reflect.Method
 
-/** Wrap the navigation's inner layout, leaving its outer replacement slot to other tools. */
-object StatsMaterialHook {
-    const val TARGET_CLASS = "androidx.compose.animation.SharedTransitionScopeKt"
-    const val TARGET_METHOD = "SharedTransitionLayout"
-    const val CALLER_CLASS = "com.xuncorp.voxzen.ui.navigation.AppNavigationKt"
+/** Wrap the containing Salt Layer, outside other plugins' AppNavigation replacements. */
+object StatsPageHook {
+    const val TARGET_CLASS = "androidx.compose.ui.\u0559"
+    const val TARGET_METHOD = "\u037f"
 
-    fun register(addHook: (String, String, String, List<String>, ComposableHook) -> AutoCloseable): AutoCloseable {
-        HostSharedTransitionLayout.prepare()
-        return addHook(TARGET_CLASS, TARGET_METHOD, CALLER_CLASS,
-            listOf("androidx.compose.ui.Modifier", "kotlin.jvm.functions.Function3"), object : ComposableHook() {
+    fun register(version: String,
+        addHook: (String, String, String, List<String>, ComposableHook) -> AutoCloseable
+    ): AutoCloseable {
+        HostPageLayer.prepare()
+        val caller = HostUiTargets.forVersion(version).pageCaller
+        return addHook(TARGET_CLASS, TARGET_METHOD, caller,
+            listOf("androidx.compose.ui.Modifier", "boolean", "kotlin.jvm.functions.Function3"), object : ComposableHook() {
                 @Composable
                 override fun Content(call: UiHookCall) {
                     val modifier = call.arguments[0] as Modifier
-                    val content = requireNotNull(call.arguments[1])
-                    HostMaterialLayer { HostSharedTransitionLayout.render(modifier, content, currentComposer) }
+                    val decoration = call.arguments[1] as Boolean
+                    val original = requireNotNull(call.arguments[2])
+                    val content: @Composable BoxScope.() -> Unit = {
+                        val scope = this
+                        StatsPageLayers(hostContent = {
+                            HostPageLayer.renderContent(original, scope, currentComposer)
+                        })
+                    }
+                    HostPageLayer.render(modifier, decoration, content, currentComposer)
                 }
             })
     }
 }
 
-/** Compose lambdas implement multiple JVM function arities, so never use Kotlin's arity cast. */
-private object HostSharedTransitionLayout {
+/** Preserve the host container's parameters; these supported call sites use no default mask. */
+private object HostPageLayer {
+    private val loader = StatsPageHook::class.java.classLoader
     private val method: Method by lazy {
-        val loader = StatsMaterialHook::class.java.classLoader
-        Class.forName(StatsMaterialHook.TARGET_CLASS, false, loader).getDeclaredMethod(
-            StatsMaterialHook.TARGET_METHOD, Modifier::class.java,
+        Class.forName(StatsPageHook.TARGET_CLASS, false, loader).getDeclaredMethod(
+            StatsPageHook.TARGET_METHOD, Modifier::class.java, Boolean::class.javaPrimitiveType,
             Class.forName("kotlin.jvm.functions.Function3", false, loader),
             Composer::class.java, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType
         ).also { check(java.lang.reflect.Modifier.isStatic(it.modifiers) && it.returnType == Void.TYPE) }
     }
 
-    fun prepare() { method }
+    // Compose lambdas implement multiple JVM function arities; a Kotlin arity cast rejects them.
+    private val invokeContent: Method by lazy {
+        Class.forName("kotlin.jvm.functions.Function3", false, loader)
+            .getMethod("invoke", Any::class.java, Any::class.java, Any::class.java)
+    }
 
-    fun render(modifier: Modifier, content: Any, composer: Composer) {
-        method.invoke(null, modifier, content, composer, 0, 0)
+    fun prepare() { method; invokeContent }
+
+    fun render(modifier: Modifier, decoration: Boolean, content: Any, composer: Composer) {
+        method.invoke(null, modifier, decoration, content, composer, 0, 0)
+    }
+
+    fun renderContent(content: Any, scope: BoxScope, composer: Composer) {
+        invokeContent.invoke(content, scope, composer, 0)
     }
 }
 
@@ -77,7 +96,7 @@ fun RetainedHostContent(hidden: Boolean, content: @Composable () -> Unit) {
     Box(Modifier.fillMaxSize().then(HostPlacement(hidden))) { content() }
 }
 
-/** This plugin's original layout call is outside the filtered host caller and is not hooked. */
+/** Covers the complete host page, including tools that replace AppNavigation. */
 @Composable
 fun HostMaterialLayer(content: @Composable () -> Unit) {
     DisposableEffect(Unit) {
@@ -85,4 +104,10 @@ fun HostMaterialLayer(content: @Composable () -> Unit) {
         onDispose { StatsHostState.materialBridgeAvailable = false }
     }
     RetainedHostContent(StatsHostState.visible, content)
+}
+
+@Composable
+fun StatsPageLayers(hostContent: @Composable () -> Unit, statistics: @Composable () -> Unit = { StatsOverlay() }) {
+    HostMaterialLayer(hostContent)
+    statistics()
 }

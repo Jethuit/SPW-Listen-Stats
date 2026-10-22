@@ -128,8 +128,8 @@ fun RankingPage(
             val controls: @Composable () -> Unit = {
                 CompactMenuButton(
                     description = "排行类型",
-                    options = listOf(RankingMode.Song.storage to "标题", RankingMode.Album.storage to "专辑",
-                        RankingMode.Artist.storage to "艺术家"),
+                    options = listOf(RankingMode.Song.storage to "标题", RankingMode.Artist.storage to "艺术家",
+                        RankingMode.Album.storage to "专辑"),
                     selected = mode.storage,
                     onSelected = { onModeChange(RankingMode.fromStorage(it)) },
                     checkable = true
