@@ -9,6 +9,7 @@ import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -152,26 +153,28 @@ fun main(args: Array<String>) {
         } finally { SwingUtilities.invokeAndWait { scene.close() } }
     }
     check(StatsMotionDurationMillis == 300)
-    rankingMotionCheck(out)
+    rankingMotionCheck(out, LightStatsColors, "light")
+    rankingMotionCheck(out, DarkStatsColors, "dark")
 }
 
 /** Render the actual ranking list, including a 25-row page and a short final page. */
-private fun rankingMotionCheck(out: Path) {
+private fun rankingMotionCheck(out: Path, colors: StatsColors, palette: String) {
     var page by mutableStateOf(1)
     var mode by mutableStateOf(RankingMode.Song)
     var revision by mutableStateOf(0)
     var query by mutableStateOf("")
+    var animations by mutableStateOf(true)
     lateinit var scene: ImageComposeScene
     SwingUtilities.invokeAndWait {
         scene = ImageComposeScene(900, 400, density = Density(1f)) {
-            SaltTheme {
-                MaterialTheme {
-                    CompositionLocalProvider(LocalStatsColors provides LightStatsColors) {
+            SaltTheme(configs = saltConfigs(colors.isDark)) {
+                MaterialTheme(colorScheme = if (colors.isDark) darkColorScheme() else lightColorScheme()) {
+                    CompositionLocalProvider(LocalStatsColors provides colors, LocalStatsAnimationsEnabled provides animations) {
                         val entries = (1..if (mode == RankingMode.Song) 26 else 3).map { index ->
                             RankedEntry(index, RankingEntry(RankingKey(mode, "$index"),
                                 "${mode.label} $index / $revision", "合成测试", "测试专辑", index.toLong(), null))
                         }
-                        Box(Modifier.fillMaxSize().drawWith { drawRect(LightStatsColors.pageBackground) }.padding(20.dp)) {
+                        Box(Modifier.fillMaxSize().drawWith { drawRect(colors.pageBackground) }.padding(20.dp)) {
                             RankingPage(entries.filter { query.isEmpty() || it.value.title.contains(query) },
                                 mode, { mode = it; page = 1 }, query, { query = it; page = 1 }, page, { page = it })
                         }
@@ -190,7 +193,7 @@ private fun rankingMotionCheck(out: Path) {
             }
         }
         Thread.sleep(3)
-        if (file != null) Files.write(out.resolve("ranking-$file.png"), bytes)
+        if (file != null) Files.write(out.resolve("ranking-$palette-$file.png"), bytes)
         return ImageIO.read(ByteArrayInputStream(bytes))
     }
     fun settle(): BufferedImage { repeat(30) { frame() }; return frame() }
@@ -226,10 +229,19 @@ private fun rankingMotionCheck(out: Path) {
                 scene.sendPointerEvent(PointerEventType.Release, Offset(x, y))
             }
         }
-        frame("toolbar-collapsed")
+        val collapsed = frame("toolbar-collapsed")
         click(862f, 50f)
-        settle()
+        repeat(5) { frame() }
+        val searchMid = frame("search-mid")
+        val expanded = settle()
         frame("search-expanded")
+        fun sameSearchEdge(a: BufferedImage, b: BufferedImage) =
+            (670 until 832).all { x -> (32 until 35).all { y -> a.getRGB(x, y) == b.getRGB(x, y) } }
+        check(!sameSearchEdge(collapsed, searchMid) && !sameSearchEdge(searchMid, expanded)) {
+            "Search must expand through an intermediate frame instead of appearing instantly"
+        }
+        // The right edge of the close button stays at the old search action position.
+        check(expanded.getRGB(879, 50) != colors.pageBackground.toArgb()) { "Close button right edge moved" }
         SwingUtilities.invokeAndWait {
             val native = java.awt.event.KeyEvent(
                 java.awt.Canvas(), java.awt.event.KeyEvent.KEY_TYPED, System.currentTimeMillis(), 0,
@@ -242,15 +254,29 @@ private fun rankingMotionCheck(out: Path) {
         frame(); frame()
         check(query == "q") { "Expanded search did not accept typed input" }
         click(862f, 50f)
-        settle()
+        repeat(5) { frame() }
+        val closing = frame("search-closing")
+        val closed = settle()
+        check(!sameSearchEdge(closing, closed)) { "Closing search did not animate" }
         check(query.isEmpty()) { "Closing search did not clear the filter" }
+        click(862f, 50f); frame(); frame()
+        click(862f, 50f); frame(); frame()
+        click(862f, 50f); settle()
+        click(862f, 50f); settle()
+        check(query.isEmpty()) { "Rapid search reversals restored a stale filter" }
+        SwingUtilities.invokeAndWait { animations = false }
+        click(862f, 50f); frame(); frame()
+        val immediateSearch = frame()
+        check(sameSearchEdge(immediateSearch, settle())) { "Disabled search still animates" }
+        click(862f, 50f); settle()
+        SwingUtilities.invokeAndWait { animations = true }
         click(814f, 50f)
         settle()
         frame("type-menu")
         click(800f, 132f)
         settle()
         check(mode == RankingMode.Artist) { "Native-style type menu did not select the artist ranking" }
-        println("PASS actual toolbar: expand, focus/type, close/clear and song/artist/album menu")
+        println("PASS $palette actual toolbar: animated search, fixed right edge, reversals, animation switch, focus/type, close/clear and type menu")
         println("PASS actual ranking: modes, pagination, short page, 300ms duration, reversals and in-place data refresh")
     } finally { SwingUtilities.invokeAndWait { scene.close() } }
 }
