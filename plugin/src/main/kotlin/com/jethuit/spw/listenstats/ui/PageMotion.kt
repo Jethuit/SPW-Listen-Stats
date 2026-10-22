@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 
 private val PageEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
-const val StatsMotionDurationMillis = 330
+const val StatsMotionDurationMillis = 300
 val LocalStatsAnimationsEnabled = staticCompositionLocalOf { true }
 
 @Composable

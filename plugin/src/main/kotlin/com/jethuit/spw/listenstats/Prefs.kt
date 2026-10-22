@@ -50,8 +50,8 @@ object Prefs {
         } catch (failure: Throwable) {
             PluginLog.error("reloading display preferences failed", failure)
         }
-        val pageSize = getString("rankingPageSize", "25").toIntOrNull()
-            ?.takeIf { it in setOf(25, 50, 100) } ?: 25
+        val pageSize = getString("rankingPageSize", "25").trim().toIntOrNull()
+            ?.takeIf { it > 0 } ?: 25
         val animations = try { helper?.get("pageAnimations", true) ?: true }
             catch (_: Throwable) { true }
         return DisplayPreferences(

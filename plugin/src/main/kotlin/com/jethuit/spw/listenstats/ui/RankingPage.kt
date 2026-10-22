@@ -103,7 +103,7 @@ fun RankingPage(
     val totalPages = rankingTotalPages(filtered.size, size)
     val currentPage = rankingSafePage(filtered.size, page, size)
     val from = (currentPage - 1) * size
-    val to = minOf(from + size, filtered.size)
+    val to = from + minOf(size, filtered.size - from)
     val rows = filtered.subList(from, to)
 
     Column(Modifier.fillMaxWidth()) {

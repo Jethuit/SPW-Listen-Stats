@@ -151,7 +151,7 @@ fun main(args: Array<String>) {
             println("PASS $name: navigation click, entry, directional body switch, fixed title and rapid reversals")
         } finally { SwingUtilities.invokeAndWait { scene.close() } }
     }
-    check(StatsMotionDurationMillis == 330)
+    check(StatsMotionDurationMillis == 300)
     rankingMotionCheck(out)
 }
 
@@ -203,7 +203,7 @@ private fun rankingMotionCheck(out: Path) {
         val pageLate = frame()
         val last = settle()
         check(!same(first, pageMid) && !same(pageMid, last)) { "Actual ranking pagination did not animate" }
-        check(!same(pageLate, last)) { "Pagination completed before 330ms" }
+        check(!same(pageLate, last)) { "Pagination completed before 300ms" }
         frame("short-page")
         SwingUtilities.invokeAndWait { mode = RankingMode.Artist; page = 1 }
         repeat(7) { frame() }
@@ -218,6 +218,6 @@ private fun rankingMotionCheck(out: Path) {
         frame(); frame()
         val refresh = frame()
         check(!same(first, refresh) && same(refresh, settle())) { "Data refresh should update in place without replaying" }
-        println("PASS actual ranking: modes, pagination, short page, 330ms duration, reversals and in-place data refresh")
+        println("PASS actual ranking: modes, pagination, short page, 300ms duration, reversals and in-place data refresh")
     } finally { SwingUtilities.invokeAndWait { scene.close() } }
 }

@@ -119,7 +119,11 @@ fun main(args: Array<String>) {
     Prefs.putString("chartType", "line")
     check(saved["rankingPageSize"] == "100" && saved["pageAnimations"] == true)
     println("PASS display defaults, typed switches, external edits, reinitialization and unrelated writes")
-    for (raw in listOf<Any>("", "26", "0", "-1", "bad", 100)) {
+    for (raw in listOf("1", "26", "72", "200", " 60 ", "2147483647")) {
+        saved["rankingPageSize"] = raw
+        check(Prefs.displayPreferences().rankingPageSize == raw.trim().toInt())
+    }
+    for (raw in listOf<Any>("", "0", "-1", "bad", "2.5", "2147483648", 100)) {
         saved["rankingPageSize"] = raw
         check(Prefs.displayPreferences().rankingPageSize == 25)
     }
