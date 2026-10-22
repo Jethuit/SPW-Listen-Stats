@@ -316,14 +316,10 @@ fun ListenStatsApp(
             largeTitle = inheritedText.largeTitle.copy(fontFamily = font)
         )) {
         val snapshot = data
-        if (snapshot == null) {
-            Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {
-                StatsPageFrame(onClose) { LoadingPage(onClose) }
-            }
-            return@SaltTheme
+        val summary = remember(snapshot, today) { snapshot?.let { StatsCalculations.summary(it, today) } }
+        val rankingEntries = remember(snapshot, query, rankingMode) {
+            snapshot?.let { Rankings.ranked(it, rankingMode, query) } ?: emptyList()
         }
-        val summary = remember(snapshot, today) { StatsCalculations.summary(snapshot, today) }
-        val rankingEntries = remember(snapshot, query, rankingMode) { Rankings.ranked(snapshot, rankingMode, query) }
         val rankCount = rankingEntries.size
         val totalPages = rankingTotalPages(rankCount, displayPreferences.rankingPageSize)
         val safePage = rankingSafePage(rankCount, rankPage, displayPreferences.rankingPageSize)
@@ -333,6 +329,7 @@ fun ListenStatsApp(
         Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {
         StatsPageEnter {
         StatsPageFrame(onClose, actions = {
+            if (snapshot != null) {
             BackupMenu(
                 onImport = {
                     if (!backupBusy) scope.launch {
@@ -354,6 +351,7 @@ fun ListenStatsApp(
                     }
                 }
             )
+            }
         }) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val density = LocalDensity.current
@@ -390,6 +388,9 @@ fun ListenStatsApp(
                             }
                             StatsPageBody(page) { shownPage ->
                             Column(Modifier.fillMaxWidth()) {
+                            if (snapshot == null || summary == null) {
+                                StatsPlaceholder(shownPage)
+                            } else {
                             if (snapshot.error != null) {
                                 ErrorBanner(snapshot.error)
                                 Box(Modifier.height(18.dp))
@@ -500,12 +501,13 @@ fun ListenStatsApp(
                             }
                             }
                             }
+                            }
                         }
                     }
         }
                 }
                 }
-                if (dateDialogOpen) {
+                if (dateDialogOpen && snapshot != null) {
                     val dateRange = StatsCalculations.range(
                         rangePreset,
                         today,
@@ -541,12 +543,10 @@ fun ListenStatsApp(
 @Composable
 fun PageNav(page: StatsPage, onPage: (StatsPage) -> Unit) {
     val colors = LocalStatsColors.current
-    val density = LocalDensity.current
     var overviewWidth by remember { mutableStateOf(0) }
     var rankingWidth by remember { mutableStateOf(0) }
-    val gap = with(density) { 8.dp.roundToPx() }
     Box {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row {
             NavTab(IconPaths.Dashboard, "听歌概览", page == StatsPage.Overview,
                 Modifier.onSizeChanged { overviewWidth = it.width }) {
                 onPage(StatsPage.Overview)
@@ -559,7 +559,7 @@ fun PageNav(page: StatsPage, onPage: (StatsPage) -> Unit) {
         if (overviewWidth > 0 && rankingWidth > 0) {
             val duration = statsMotionDurationMillis()
             val left by animateFloatAsState(
-                if (page == StatsPage.Overview) 0f else (overviewWidth + gap).toFloat(),
+                if (page == StatsPage.Overview) 0f else overviewWidth.toFloat(),
                 tween(duration, easing = PageEasing), label = "navigation-indicator-left")
             val width by animateFloatAsState(
                 (if (page == StatsPage.Overview) overviewWidth else rankingWidth).toFloat(),
@@ -643,21 +643,5 @@ private fun EmptyBanner() {
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             style = AppType.bodySmall.copy(color = colors.muted)
         )
-    }
-}
-
-@Composable
-private fun LoadingPage(onClose: () -> Unit) {
-    val colors = LocalStatsColors.current
-    Column(
-        Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("听歌统计", style = AppType.pageTitle.copy(color = colors.text))
-        Box(Modifier.height(12.dp))
-        Text("正在读取播放器听歌记录…", style = AppType.body.copy(color = colors.muted))
-        Box(Modifier.height(24.dp))
-        IconAction(IconPaths.Close, "关闭", colors.muted, onClose)
     }
 }

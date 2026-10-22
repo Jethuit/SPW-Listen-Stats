@@ -117,6 +117,7 @@ fun main(args: Array<String>) {
             val (movingBar, _) = underline(forward)
             check(overviewBar.count() == rankingBar.count() && overviewBar.first < movingBar.first &&
                 movingBar.first < rankingBar.first) { "Underline did not slide between the full button widths" }
+            check(rankingBar.first == overviewBar.last + 1) { "Navigation buttons still have a gap" }
             check(overview.getRGB(overviewBar.first, barY - 34) != colors.pageBackground.toArgb()) {
                 "Selected navigation background still has a rounded top corner"
             }
@@ -171,7 +172,51 @@ fun main(args: Array<String>) {
     check(StatsMotionDurationMillis == 300)
     rankingMotionCheck(out, LightStatsColors, "light")
     rankingMotionCheck(out, DarkStatsColors, "dark")
-    heatmapMotionCheck(out)
+    placeholderVisuals(out)
+    if (System.getProperty("spw.test.skipHeatmap") != "true") heatmapMotionCheck(out)
+}
+
+/** Review the real placeholder and fixed header in both themes, using no statistics data. */
+private fun placeholderVisuals(out: Path) {
+    for ((name, colors) in listOf("light" to LightStatsColors, "dark" to DarkStatsColors)) {
+        lateinit var scene: ImageComposeScene
+        var page by mutableStateOf(StatsPage.Overview)
+        SwingUtilities.invokeAndWait {
+            scene = ImageComposeScene(800, 680, Density(1f)) {
+                SaltTheme(configs = saltConfigs(colors.isDark)) {
+                    MaterialTheme {
+                        CompositionLocalProvider(LocalStatsColors provides colors,
+                            LocalStatsAnimationsEnabled provides false) {
+                            Box(Modifier.fillMaxSize().drawWith { drawRect(colors.pageBackground) }) {
+                                StatsPageFrame({}) {
+                                    Column(Modifier.fillMaxWidth().padding(horizontal = 32.dp)) {
+                                        Spacer(Modifier.height(12.dp))
+                                        PageNav(page) { page = it }
+                                        StatsPlaceholder(page)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        try {
+            for (target in StatsPage.entries) {
+                SwingUtilities.invokeAndWait { page = target }
+                repeat(3) { index ->
+                    SwingUtilities.invokeAndWait {
+                        scene.render((target.ordinal * 3L + index + 1) * 16_666_667L).use { image ->
+                            if (index == 2) image.encodeToData(EncodedImageFormat.PNG)!!.use {
+                                Files.write(out.resolve("placeholder-$name-${target.name.lowercase()}.png"), it.bytes)
+                            }
+                        }
+                    }
+                    Thread.sleep(3)
+                }
+            }
+        } finally { SwingUtilities.invokeAndWait { scene.close() } }
+    }
 }
 
 /** Actual calendar drawing: ordered column reveal, retargets, refresh and disabled animations. */
@@ -283,6 +328,8 @@ private fun rankingMotionCheck(out: Path, colors: StatsColors, palette: String) 
         }
     }
     var time = 0L
+    var captureSearch = false
+    var searchFrame = 0
     fun frame(file: String? = null): BufferedImage {
         time += 16_666_667L
         var bytes = byteArrayOf()
@@ -293,6 +340,9 @@ private fun rankingMotionCheck(out: Path, colors: StatsColors, palette: String) 
         }
         Thread.sleep(3)
         if (file != null) Files.write(out.resolve("ranking-$palette-$file.png"), bytes)
+        if (captureSearch && palette == "light") {
+            Files.write(out.resolve("search-motion-%03d.png".format(++searchFrame)), bytes)
+        }
         return ImageIO.read(ByteArrayInputStream(bytes))
     }
     fun settle(): BufferedImage { repeat(30) { frame() }; return frame() }
@@ -329,15 +379,16 @@ private fun rankingMotionCheck(out: Path, colors: StatsColors, palette: String) 
             }
         }
         val collapsed = frame("toolbar-collapsed")
+        captureSearch = true
         click(862f, 50f)
-        repeat(5) { frame() }
+        repeat(11) { frame() }
         val searchMid = frame("search-mid")
         val expanded = settle()
         frame("search-expanded")
         fun sameSearchEdge(a: BufferedImage, b: BufferedImage) =
             (px(670) until px(832)).all { x -> (px(32) until px(35)).all { y -> a.getRGB(x, y) == b.getRGB(x, y) } }
         check(!sameSearchEdge(collapsed, searchMid) && !sameSearchEdge(searchMid, expanded)) {
-            "Search must expand through an intermediate frame instead of appearing instantly"
+            "Native search fade/scale must have an intermediate frame"
         }
         // The right edge of the close button stays at the old search action position.
         check(expanded.getRGB(px(879), px(50)) != colors.pageBackground.toArgb()) { "Close button right edge moved" }
@@ -356,6 +407,7 @@ private fun rankingMotionCheck(out: Path, colors: StatsColors, palette: String) 
         repeat(5) { frame() }
         val closing = frame("search-closing")
         val closed = settle()
+        captureSearch = false
         check(!sameSearchEdge(closing, closed)) { "Closing search did not animate" }
         check(query.isEmpty()) { "Closing search did not clear the filter" }
         click(862f, 50f); frame(); frame()

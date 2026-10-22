@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import shutil
+import sys
 
 root = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location('builder', root / 'tools/build_plugin.py')
@@ -28,7 +29,8 @@ output = root / 'preview/navigation-motion'
 output.mkdir(parents=True, exist_ok=True)
 rendered = scratch / 'rendered'
 rendered.mkdir(exist_ok=True)
-subprocess.run([java, f'-Dskiko.library.path={builder.DEFAULT_SPW_DIR / "app"}',
+subprocess.run([java, *(['-Dspw.test.skipHeatmap=true'] if '--toolbar-only' in sys.argv else []),
+                f'-Dskiko.library.path={builder.DEFAULT_SPW_DIR / "app"}',
                 f'-Djna.tmpdir={temp}', f'-Djava.io.tmpdir={temp}', '--enable-native-access=ALL-UNNAMED',
                 '-cp', str(scratch) + os.pathsep + classpath, 'PageMotionVisualCheckKt',
                 str(rendered)], env=environment, check=True)

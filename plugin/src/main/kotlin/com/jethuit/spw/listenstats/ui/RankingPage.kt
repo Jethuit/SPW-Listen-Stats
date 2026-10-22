@@ -132,20 +132,19 @@ fun RankingPage(
                     selected = mode.storage,
                     onSelected = { onModeChange(RankingMode.fromStorage(it)) }
                 ) { HostToolbarIcon("ic_sort_a_z", IconPaths.QueueMusic, colors.text) }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    SearchExpansion(searchExpanded) {
+                SearchExpansion(searchExpanded) { expanded ->
+                    if (expanded) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             RankingSearch(searchState, mode, searchWidth, searchExpanded, closeSearch)
                             Box(Modifier.width(12.dp))
+                            RankingIconButton("关闭搜索", closeSearch, outlined = true) {
+                                AppIcon(IconPaths.Close, colors.text, iconSize = 16.dp)
+                            }
                         }
-                    }
-                    RankingIconButton(
-                        if (searchExpanded) "关闭搜索" else "搜索",
-                        { if (searchExpanded) closeSearch() else searchExpanded = true },
-                        outlined = searchExpanded
-                    ) {
-                        if (searchExpanded) AppIcon(IconPaths.Close, colors.text, iconSize = 16.dp)
-                        else HostToolbarIcon("ic_search", IconPaths.Search, colors.text)
+                    } else {
+                        RankingIconButton("搜索", { searchExpanded = true }) {
+                            HostToolbarIcon("ic_search", IconPaths.Search, colors.text)
+                        }
                     }
                 }
             }

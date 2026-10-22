@@ -3,9 +3,7 @@
 package com.jethuit.spw.listenstats.ui
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -39,23 +37,25 @@ val LocalStatsAnimationsEnabled = staticCompositionLocalOf { true }
 @Composable
 fun statsMotionDurationMillis(): Int = if (LocalStatsAnimationsEnabled.current) StatsMotionDurationMillis else 0
 
-/** Keep the trailing action anchored while the search field opens towards the left. */
+/** SPW ScreenSearchBar swaps the whole action, with a short fade-out before fade/scale-in. */
 @Composable
-fun SearchExpansion(visible: Boolean, content: @Composable () -> Unit) {
-    val duration = statsMotionDurationMillis()
-    val distance = with(LocalDensity.current) { 16.dp.roundToPx() }
-    AnimatedVisibility(
-        visible = visible,
-        enter = expandHorizontally(tween(duration, easing = PageEasing), expandFrom = Alignment.End) +
-            slideIn(tween(duration, easing = PageEasing)) { IntOffset(distance, 0) } +
-            fadeIn(tween(duration, easing = PageEasing)),
-        exit = shrinkHorizontally(tween(duration, easing = PageEasing), shrinkTowards = Alignment.End) +
-            slideOut(tween(duration, easing = PageEasing)) { IntOffset(distance, 0) } +
-            fadeOut(tween(duration, easing = PageEasing))
-    ) { content() }
+fun SearchExpansion(expanded: Boolean, content: @Composable (Boolean) -> Unit) {
+    if (!LocalStatsAnimationsEnabled.current) {
+        content(expanded)
+        return
+    }
+    AnimatedContent(
+        targetState = expanded,
+        transitionSpec = {
+            (fadeIn(tween(300, delayMillis = 90)) +
+                scaleIn(tween(300, delayMillis = 90), initialScale = 0.92f)) togetherWith
+                fadeOut(tween(90))
+        },
+        label = "ranking-search"
+    ) { shown -> content(shown) }
 }
 
-/** Composed only when the first data snapshot is ready; reloads do not replay it. */
+/** The page shell enters once; replacing placeholders with data does not replay it. */
 @Composable
 fun StatsPageEnter(content: @Composable () -> Unit) {
     val duration = statsMotionDurationMillis()
