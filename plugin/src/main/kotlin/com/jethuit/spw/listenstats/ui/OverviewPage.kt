@@ -226,9 +226,13 @@ fun OverviewPage(
                 viewportRevision = viewportRevision,
                 selectedIndex = shownDetailIndex,
                 onBucketSelected = { index ->
-                    detailIndex = index
-                    detailRequested = true
-                }
+                    if (detailRequested && detailIndex == index) closeDetails()
+                    else {
+                        detailIndex = index
+                        detailRequested = true
+                    }
+                },
+                onBucketDeselected = closeDetails
             )
         }
         ListeningDetailsExpansion(detailOpen, details, closeDetails)

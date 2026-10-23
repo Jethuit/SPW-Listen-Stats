@@ -28,7 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.jethuit.spw.listenstats.data.ChartBucket
 import com.jethuit.spw.listenstats.data.ListeningDetails
 import com.jethuit.spw.listenstats.util.formatDay
-import com.jethuit.spw.listenstats.util.formatDuration
+import com.jethuit.spw.listenstats.util.formatDurationSeconds
 import com.moriafly.salt.ui.BasicButton
 import com.moriafly.salt.ui.ButtonColors
 import com.moriafly.salt.ui.Card as SaltCard
@@ -77,7 +77,7 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, onClo
             }
             Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 18.dp),
                 horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                Text("${formatDuration(shown.millis)} 收听时长", style = AppType.table.copy(color = colors.text))
+                Text("${formatDurationSeconds(shown.millis)} 收听时长", style = AppType.table.copy(color = colors.text))
                 if (current != null) Text("${current.rows.size} 首歌曲",
                     style = AppType.table.copy(color = colors.text))
             }
@@ -105,11 +105,7 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, onClo
                                             Text(row.track.artist, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                                 style = AppType.tiny.copy(color = colors.muted))
                                         }
-                                        Column(horizontalAlignment = Alignment.End) {
-                                            Text(formatDuration(row.millis), style = AppType.bodySmall.copy(color = colors.text))
-                                            if (row.approximateMillis > 0L) Text("含近似记录",
-                                                style = AppType.tiny.copy(color = colors.muted))
-                                        }
+                                        Text(formatDurationSeconds(row.millis), style = AppType.bodySmall.copy(color = colors.text))
                                     }
                                 }
                             }
@@ -119,7 +115,7 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, onClo
                 }
             }
             if (current != null && current.unknownMillis > 0L) {
-                Text("无法关联歌曲 · ${formatDuration(current.unknownMillis)}",
+                Text("无法关联歌曲 · ${formatDurationSeconds(current.unknownMillis)}",
                     Modifier.padding(top = 16.dp), style = AppType.bodySmall.copy(color = colors.text))
                 Text("这部分历史仅保留汇总时长，无法恢复对应歌曲。", Modifier.padding(top = 6.dp),
                     style = AppType.tiny.copy(color = colors.muted))

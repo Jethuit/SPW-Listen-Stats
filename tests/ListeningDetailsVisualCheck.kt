@@ -28,14 +28,14 @@ fun main(args: Array<String>) {
     val titles = listOf("沿途的光", "夜间航行", "潮汐", "城市微雨")
     val rows = titles.mapIndexed { i, title -> ListeningDetailRow(
         TrackMeta("11111111-1111-1111-1111-111111111111:$i", title, "演示歌手", "", "", 300_000),
-        (4 - i) * 60_000L, if (i == 3) 60_000L else 0L) }
+        (4 - i) * 60_000L + (i + 1) * 7_000L, if (i == 3) 60_000L else 0L) }
     for ((name, palette, width) in listOf(Triple("light", LightStatsColors, 1000), Triple("dark", DarkStatsColors, 650))) {
         var open by mutableStateOf(false)
         var selected by mutableStateOf<Int?>(null)
         var chart by mutableStateOf(ChartType.Bar)
         var enabled by mutableStateOf(true)
         var exiting by mutableStateOf(false)
-        var details by mutableStateOf(ListeningDetails(buckets.first(), rows, 300_000))
+        var details by mutableStateOf(ListeningDetails(buckets.first(), rows, 230_000))
         var marker = 0f
         lateinit var scene: ImageComposeScene
         SwingUtilities.invokeAndWait {
@@ -47,7 +47,8 @@ fun main(args: Array<String>) {
                             StatsText("时长分布 · 歌曲明细演示", style = AppType.sectionTitle.copy(color = palette.text))
                             Spacer(Modifier.height(20.dp))
                             TrendChart(buckets, chart, false, selectedIndex = selected,
-                                onBucketSelected = { selected = it; details = details.copy(bucket = buckets[it]); open = true })
+                                onBucketSelected = { selected = it; details = details.copy(bucket = buckets[it]); open = true },
+                                onBucketDeselected = { open = false; selected = null })
                             ListeningDetailsExpansion(open, details) { open = false; selected = null }
                             Box(Modifier.padding(top = 30.dp).onGloballyPositioned { marker = it.positionInRoot().y }) {
                                 StatsText("听歌小结", style = AppType.sectionTitle.copy(color = palette.text))
@@ -66,9 +67,9 @@ fun main(args: Array<String>) {
                 }
             }
         }
-        fun click() { SwingUtilities.invokeAndWait {
-            scene.sendPointerEvent(PointerEventType.Press, Offset(width / 2f, 160f))
-            scene.sendPointerEvent(PointerEventType.Release, Offset(width / 2f, 160f))
+        fun click(x: Float = width / 2f) { SwingUtilities.invokeAndWait {
+            scene.sendPointerEvent(PointerEventType.Press, Offset(x, 160f))
+            scene.sendPointerEvent(PointerEventType.Release, Offset(x, 160f))
         } }
         try {
             repeat(4) { frame() }
@@ -81,22 +82,25 @@ fun main(args: Array<String>) {
             // Same-size snapshot refresh must keep the section expanded.
             SwingUtilities.invokeAndWait { details = details.copy(rows = rows.map { it.copy(millis = it.millis + 1) }) }
             repeat(3) { frame(); check(marker == expanded) { "Refresh replayed expansion" } }
-            SwingUtilities.invokeAndWait { open = false }
+            val firstSelection = selected
+            click(width * .75f); repeat(3) { frame() }
+            check(open && selected != firstSelection) { "Another bucket must switch details instead of closing" }
+            click(width * .75f); check(!open && selected == null)
             repeat(28) { frame() }; check(marker == closed)
             for (type in listOf(ChartType.Line, ChartType.Curve)) {
                 SwingUtilities.invokeAndWait { chart = type }
                 repeat(2) { frame() }; click(); check(open)
                 repeat(25) { frame() }
-                SwingUtilities.invokeAndWait { open = false }
+                click(); check(!open && selected == null) { "Repeated curve/line selection must close details" }
                 repeat(25) { frame() }
             }
             SwingUtilities.invokeAndWait { enabled = false }
             repeat(3) { frame() }; click(); repeat(3) { frame() }; check(marker == expanded)
-            SwingUtilities.invokeAndWait { open = false }
+            click(); check(!open && selected == null)
             repeat(3) { frame() }; check(marker == closed)
             SwingUtilities.invokeAndWait { exiting = true }
             repeat(3) { frame() }; click(); repeat(3) { frame() }; check(!open)
-            println("PASS $name: three chart types, animated expansion/close, stable refresh, disabled animation, exit input guard")
+            println("PASS $name: click again to close on three chart types, switch bucket, animated close, stable refresh, disabled animation, exit guard")
         } finally { SwingUtilities.invokeAndWait { scene.close() } }
     }
 }

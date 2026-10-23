@@ -70,10 +70,11 @@ function renderRanking(){
   $('#rank-table').innerHTML=`<table class="table"><thead><tr><th>排名</th><th>${{song:'标题',artist:'艺术家',album:'专辑'}[state.rankMode]}</th>${state.rankMode==='song'?'<th class="rank-album">专辑</th>':''}<th>播放次数</th></tr></thead><tbody>${rows.map(t=>`<tr><td>${t.rank}</td><td><div class="track">${cover(t)}<div><strong>${t.title}</strong><small>${t.artist}</small></div></div></td>${state.rankMode==='song'?`<td class="muted rank-album">${t.album}</td>`:''}<td>${t.count} <small class="muted">次</small></td></tr>`).join('')}</tbody></table>${!rows.length?'<p class="empty">没有匹配的结果</p>':''}`;
 }
 function detailLabel(){return state.range==='week'?current().dates[state.index]:`2026年10月20日 ${String(state.index).padStart(2,'0')}:00—${String(state.index+1).padStart(2,'0')}:00`;}
+function detailDuration(seconds){const value=Math.max(0,Math.floor(seconds)),h=Math.floor(value/3600),m=Math.floor(value/60)%60,s=value%60;return h?`${h}小时${m}分${s}秒`:m?`${m}分${s}秒`:`${s}秒`;}
 function detailMarkup(){
   const minutes=current().values[state.index];
-  const parts=[Math.floor(minutes*.36),Math.floor(minutes*.27),Math.floor(minutes*.22)];parts.push(minutes-total(parts));
-  return `<div class="detail-box"><div class="detail-head"><div><h3>${detailLabel()}</h3><p class="muted">歌曲收听明细</p></div>${state.variant==='a'?'<button class="icon-button inline-close" aria-label="收起歌曲明细">×</button>':''}</div><div class="detail-stats"><span><strong>${duration(minutes)}</strong>收听时长</span><span><strong>${minutes?4:0}</strong>首歌曲</span></div>${minutes?`<table class="table"><thead><tr><th></th><th>歌曲</th><th>本时段收听</th></tr></thead><tbody>${tracks.slice(0,4).map((t,i)=>`<tr><td>${i+1}</td><td><div class="track">${cover(t)}<div><strong>${t.title}</strong><small>${t.artist} ${i===3?'<span class="precision">近似记录</span>':''}</small></div></div></td><td>${duration(parts[i])}</td></tr>`).join('')}</tbody></table><p class="muted footnote">包含近似历史记录，时段归属可能有偏差。</p>`:'<p class="empty">这个时段没有听歌记录</p>'}<div class="detail-foot"><span class="muted">仅展示可归属到该时段的记录</span><button class="text-link go-ranking">查看当前范围排行 →</button></div></div>`;
+  const seconds=minutes*60,parts=[Math.floor(seconds*.36),Math.floor(seconds*.27),Math.floor(seconds*.22)];parts.push(seconds-total(parts));
+  return `<div class="detail-box"><div class="detail-head"><div><h3>${detailLabel()}</h3><p class="muted">歌曲收听明细</p></div>${state.variant==='a'?'<button class="icon-button inline-close" aria-label="收起歌曲明细">×</button>':''}</div><div class="detail-stats"><span><strong>${detailDuration(seconds)}</strong>收听时长</span><span><strong>${minutes?4:0}</strong>首歌曲</span></div>${minutes?`<table class="table"><thead><tr><th></th><th>歌曲</th><th>本时段收听</th></tr></thead><tbody>${tracks.slice(0,4).map((t,i)=>`<tr><td>${i+1}</td><td><div class="track">${cover(t)}<div><strong>${t.title}</strong><small>${t.artist}</small></div></div></td><td>${detailDuration(parts[i])}</td></tr>`).join('')}</tbody></table><p class="muted footnote">包含近似历史记录，时段归属可能有偏差。</p>`:'<p class="empty">这个时段没有听歌记录</p>'}<div class="detail-foot"><span class="muted">仅展示可归属到该时段的记录</span><button class="text-link go-ranking">查看当前范围排行 →</button></div></div>`;
 }
 function shareCardMarkup(){
   const d=current(),minutes=total(d.values);
@@ -115,7 +116,7 @@ function presentPanel(){
   $$('.go-ranking').forEach(b=>b.onclick=()=>{state.scope='range';closePanel(false);setPage('ranking');});
   renderChart();
 }
-function openDetail(index,trigger){state.index=index;state.panel='detail';opener=trigger||document.activeElement;presentPanel();$('#status').textContent=`已展示${detailLabel()}的歌曲明细`;}
+function openDetail(index,trigger){if(state.panel==='detail'&&state.index===index){closePanel();return;}state.index=index;state.panel='detail';opener=trigger||document.activeElement;presentPanel();$('#status').textContent=`已展示${detailLabel()}的歌曲明细`;}
 function openShare(){opener=document.activeElement;state.panel='share';$('#more-menu').hidden=true;$('#more').setAttribute('aria-expanded','false');presentPanel();}
 function bindShare(){
   $$('[data-card-theme]').forEach(b=>b.onclick=()=>{state.shareDark=b.dataset.cardTheme==='dark';updateShare();});

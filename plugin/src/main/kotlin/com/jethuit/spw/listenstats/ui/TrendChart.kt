@@ -51,7 +51,8 @@ fun TrendChart(
     hourly: Boolean = false,
     viewportRevision: Int = 0,
     selectedIndex: Int? = null,
-    onBucketSelected: ((Int) -> Unit)? = null
+    onBucketSelected: ((Int) -> Unit)? = null,
+    onBucketDeselected: (() -> Unit)? = null
 ) {
     val colors = LocalStatsColors.current
     val measurer = rememberTextMeasurer()
@@ -120,6 +121,11 @@ fun TrendChart(
                 .coerceIn(0, buckets.lastIndex)
         }
 
+        fun activateBucket(index: Int) {
+            if (selectedIndex == index && onBucketDeselected != null) onBucketDeselected()
+            else onBucketSelected?.invoke(index)
+        }
+
         Box(
             Modifier
                 .fillMaxWidth()
@@ -127,8 +133,8 @@ fun TrendChart(
                 .semantics {
                     contentDescription = "时长分布，左右键选择时段，回车查看歌曲明细。" +
                         (buckets.getOrNull(keyboardIndex)?.longLabel ?: "")
-                    if (onBucketSelected != null) onClick("查看歌曲明细") {
-                        if (!exiting && buckets.isNotEmpty()) { onBucketSelected(keyboardIndex); true } else false
+                    if (onBucketSelected != null) onClick("查看或收起歌曲明细") {
+                        if (!exiting && buckets.isNotEmpty()) { activateBucket(keyboardIndex); true } else false
                     }
                 }
                 .onFocusChanged { focused = it.isFocused }
@@ -137,17 +143,17 @@ fun TrendChart(
                     else when (event.key) {
                         Key.DirectionLeft -> { keyboardIndex = (keyboardIndex - 1).coerceAtLeast(0); true }
                         Key.DirectionRight -> { keyboardIndex = (keyboardIndex + 1).coerceAtMost(buckets.lastIndex); true }
-                        Key.Enter, Key.Spacebar -> { onBucketSelected(keyboardIndex); true }
+                        Key.Enter, Key.Spacebar -> { activateBucket(keyboardIndex); true }
                         else -> false
                     }
                 }
                 .focusable(enabled = onBucketSelected != null && !exiting)
-                .pointerInput(buckets, chartType, widthPx, exiting, onBucketSelected) {
+                .pointerInput(buckets, chartType, widthPx, exiting, selectedIndex, onBucketSelected, onBucketDeselected) {
                     if (onBucketSelected != null && !exiting) detectTapGestures { position ->
                         indexAt(position)?.let { index ->
                             keyboardIndex = index
                             tooltip = null
-                            onBucketSelected(index)
+                            activateBucket(index)
                         }
                     }
                 }
