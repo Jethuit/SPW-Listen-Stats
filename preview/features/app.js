@@ -37,7 +37,15 @@ function renderChart(){
   const x=i=>left+step*(i+.5),y=v=>bottom-v/max*(bottom-top);
   const grid=Array.from({length:5},(_,i)=>{const v=max*i/4;return `<line class="grid" x1="${left}" x2="${width-right}" y1="${y(v)}" y2="${y(v)}"/><text x="30" y="${y(v)+4}" text-anchor="end">${v}</text>`;}).join('');
   const bars=d.values.map((v,i)=>`<g class="hit" role="button" tabindex="0" data-point="${i}" aria-label="查看${d.labels[i]}歌曲明细，${duration(v)}"><rect x="${left+step*i}" y="${top}" width="${step}" height="${bottom-top}" fill="transparent"/><rect class="bar ${state.panel==='detail'&&state.index===i?'selected':''}" x="${x(i)-step*.25}" y="${y(v)}" width="${step*.5}" height="${Math.max(v?2:0,bottom-y(v))}" rx="3"/>${state.range==='week'||i%4===0||i===23?`<text x="${x(i)}" y="250" text-anchor="middle">${d.labels[i]}</text>`:''}</g>`).join('');
-  const previous=state.compare?`<path class="previous-line" d="${d.previous.map((v,i)=>`${i?'L':'M'}${x(i)},${y(v)}`).join(' ')}"/>`:'';
+  // Extend the comparison stroke through the outer half-buckets without moving real data points.
+  const previousValues=d.previous,last=previousValues.length-1;
+  const edgeValue=(value,neighbor)=>Math.max(0,Math.min(max,value+(value-neighbor)/2));
+  const previousPoints=[
+    [left,y(edgeValue(previousValues[0],previousValues[1]??previousValues[0]))],
+    ...previousValues.map((v,i)=>[x(i),y(v)]),
+    [width-right,y(edgeValue(previousValues[last],previousValues[last-1]??previousValues[last]))]
+  ];
+  const previous=state.compare?`<path class="previous-line" d="${previousPoints.map(([px,py],i)=>`${i?'L':'M'}${px},${py}`).join(' ')}"/>`:'';
   const selection=state.panel==='detail'?`<rect class="selection" x="${left+step*state.index}" y="${top}" width="${step}" height="${bottom-top}"/>`:'';
   $('#chart').innerHTML=`<svg viewBox="0 0 1000 265" role="group" aria-label="时长分布，选择柱子查看歌曲明细"><text x="${left}" y="11">时长 / min</text>${grid}${selection}${bars}${previous}</svg>`;
   $$('#chart [data-point]').forEach(el=>{
