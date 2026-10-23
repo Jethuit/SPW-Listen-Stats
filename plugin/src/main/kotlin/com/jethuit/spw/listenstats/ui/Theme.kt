@@ -138,9 +138,11 @@ fun materialStatsColors(base: StatsColors, windowStyle: String?,
         )
     }
     if (base.isDark) {
-        // Fitted to the user's native dark captures, retaining the real backdrop:
-        // Acrylic #505050 -> card #5F5F5F; Mica / Mica Alt #272727 -> #444444.
-        val surfaceTint = Color(0xFF7C7C7C).copy(alpha = 0.34f)
+        // Acrylic cards use the user's confirmed native #5F5F5F regardless of backdrop.
+        // Mica / Mica Alt retain their tint: #272727 backdrop -> #444444 card.
+        val acrylic = windowStyle == "WindowsAcrylic"
+        val surfaceTint = if (acrylic) Color(0xFF5F5F5F)
+            else Color(0xFF7C7C7C).copy(alpha = 0.34f)
         return base.copy(
             pageBackground = Color.Transparent,
             text = Color(0xFFEBEEF1),
@@ -150,7 +152,7 @@ fun materialStatsColors(base: StatsColors, windowStyle: String?,
             selectedControlBackground = Color.White.copy(alpha = 0.10f),
             // Borders over the card composite to #737375 / #616163.
             line = Color(0xFF9B9BA1).copy(alpha = 1f / 3f),
-            subtle = Color.White.copy(alpha = 0.08f),
+            subtle = if (acrylic) surfaceTint else Color.White.copy(alpha = 0.08f),
             hover = Color.White.copy(alpha = 0.08f),
             // Unlike the former dark fill, native hovered rows become lighter:
             // Acrylic #676769, Mica #515153 on the supplied backgrounds.

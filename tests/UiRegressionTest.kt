@@ -84,7 +84,14 @@ fun main(args: Array<String>) {
     for (base in listOf(LightStatsColors, DarkStatsColors)) {
         for (style in listOf("WindowsAcrylic", "WindowsMica", "WindowsMicaAlt")) {
             val material = materialStatsColors(base, style, true)
-            check(material.pageBackground.alpha == 0f && material.cardBackground.alpha in 0.1f..0.99f)
+            check(material.pageBackground.alpha == 0f)
+            if (base.isDark && style == "WindowsAcrylic") {
+                val nativeCard = androidx.compose.ui.graphics.Color(0xFF5F5F5F)
+                check(material.cardBackground == nativeCard && material.controlBackground == nativeCard)
+                check(material.subtle == nativeCard)
+            } else {
+                check(material.cardBackground.alpha in 0.1f..0.99f)
+            }
             check(material.text.alpha == 1f && material.tooltipBackground == base.tooltipBackground)
             check(material.background == base.background && material.tooltipText == base.tooltipText)
             // All dark materials and light Acrylic use calibrated fills.

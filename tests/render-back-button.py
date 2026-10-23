@@ -101,6 +101,7 @@ elif args.dark_materials:
     from collections import Counter
     for name, background, card, border in [
             ('dark-acrylic', (80, 80, 80), (95, 95, 95), (115, 115, 117)),
+            ('dark-acrylic-brighter', (89, 89, 89), (95, 95, 95), (115, 115, 117)),
             ('dark-mica', (39, 39, 39), (68, 68, 68), (97, 97, 99)),
             ('dark-mica-alt', (39, 39, 39), (68, 68, 68), (97, 97, 99))]:
         rendered = Image.open(output / f'acrylic-{name}.png').convert('RGB')
