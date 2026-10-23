@@ -80,17 +80,31 @@ function shareCardMarkup(){
   return `<div class="share-card ${state.shareDark?'card-dark':''}"><p class="share-kicker">我的听歌记录</p><p class="share-date">${d.range}</p><p class="share-total">${Math.floor(minutes/60)}<small>小时</small>${minutes%60}<small>分钟</small></p><p class="share-days">${d.days} 个听歌日 · 每一天，都有音乐</p><div class="share-chart" aria-hidden="true">${d.values.map(v=>`<i style="height:${v/Math.max(...d.values)*100}%"></i>`).join('')}</div>${state.showTitles?`<p class="share-list-title">这段时间最常听 · TOP 5</p>${tracks.map((t,i)=>`<div class="share-row"><span>${i+1}　${t.title} <small>· ${t.artist}</small></span>${state.showCounts?`<span>${rangeCount(t)}次</span>`:''}</div>`).join('')}`:''}<p class="share-brand">听歌统计　/　演示数据</p></div>`;
 }
 function shareMarkup(){return `<div class="share-layout"><div id="share-preview">${shareCardMarkup()}</div><div class="share-options"><fieldset><legend>卡片样式</legend><div class="segmented" role="group" aria-label="卡片主题"><button data-card-theme="light" aria-pressed="${!state.shareDark}">浅色</button><button data-card-theme="dark" aria-pressed="${state.shareDark}">深色</button></div></fieldset><fieldset><legend>展示内容</legend><label><input type="checkbox" id="share-titles" ${state.showTitles?'checked':''}>歌曲及歌手名称</label><label><input type="checkbox" id="share-counts" ${state.showCounts?'checked':''} ${state.showTitles?'':'disabled'}>歌曲播放次数</label></fieldset><p class="muted">范围与当前时长分布一致。可以隐藏歌曲信息，仅保留时长与趋势。</p><button class="primary" id="export-card">保存演示图片</button><p class="muted" id="export-status" role="status">PNG · 1080 × 1350<br>下载的图片会保留“演示数据”标记。</p></div></div>`;}
+let inlineAnimation=null;
+function animateInline(open){
+  const box=$('#inline-detail'),from=box.hidden?0:box.getBoundingClientRect().height;
+  const opacity=box.hidden?0:Number(getComputedStyle(box).opacity);
+  inlineAnimation?.cancel();inlineAnimation=null;
+  if(open){box.innerHTML=detailMarkup();box.hidden=false;$('.inline-close').onclick=()=>closePanel();}
+  const to=open?box.scrollHeight:0;
+  if(!from&&!open){box.hidden=true;box.innerHTML='';return;}
+  box.style.overflow='hidden';
+  const animation=box.animate([{height:`${from}px`,opacity},{height:`${to}px`,opacity:open?1:0}],
+    {duration:matchMedia('(prefers-reduced-motion: reduce)').matches?0:300,easing:'cubic-bezier(.2,0,0,1)'});
+  inlineAnimation=animation;
+  animation.finished.then(()=>{if(inlineAnimation!==animation)return;inlineAnimation=null;box.style.overflow='';if(!open){box.hidden=true;box.innerHTML='';}}).catch(()=>{});
+}
 function closePanel(restore=true){
-  state.panel=null;$('#inline-detail').hidden=true;$('#inline-detail').innerHTML='';$('#panel').close();$('#workspace').classList.remove('drawer-open');renderChart();
+  state.panel=null;animateInline(false);$('#panel').close();$('#workspace').classList.remove('drawer-open');renderChart();
   if(restore&&opener?.isConnected)opener.focus();else if(restore)$('[data-review="detail"]').focus();
 }
 function presentPanel(){
   const kind=state.panel;if(!kind)return;
-  const panel=$('#panel');panel.close();$('#workspace').classList.remove('drawer-open');$('#inline-detail').hidden=true;$('#inline-detail').innerHTML='';
+  const panel=$('#panel');panel.close();$('#workspace').classList.remove('drawer-open');
   if(kind==='detail'&&state.variant==='a'){
-    $('#inline-detail').innerHTML=detailMarkup();$('#inline-detail').hidden=false;
-    $('.inline-close').onclick=()=>closePanel();
+    animateInline(true);
   }else{
+    inlineAnimation?.cancel();inlineAnimation=null;$('#inline-detail').hidden=true;$('#inline-detail').innerHTML='';
     panel.classList.toggle('drawer',state.variant==='b');
     $('#panel-title').textContent=kind==='detail'?'歌曲明细':'分享统计卡片';
     $('#panel-caption').textContent=kind==='detail'?'选择其他柱子，可继续查看不同日期或时段':'预览展示效果，可调整内容后保存演示图片';

@@ -461,7 +461,7 @@ private fun ArtistMonogram(name: String) {
 }
 
 @Composable
-private fun Cover(trackId: String) {
+internal fun Cover(trackId: String) {
     val colors = LocalStatsColors.current
     val targetPx = with(LocalDensity.current) { RankingCoverSize.roundToPx() }
     var image by remember(trackId, targetPx) { mutableStateOf<ImageBitmap?>(null) }

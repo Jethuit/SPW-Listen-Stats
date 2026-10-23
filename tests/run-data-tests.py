@@ -11,12 +11,12 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 suite = sys.argv[1] if len(sys.argv) > 1 else 'data'
-assert suite in ('data', 'ui', 'cover', 'navigation', 'integrity', 'ranking', 'heatmap', 'format', 'astra', 'review'), 'unknown regression suite'
+assert suite in ('data', 'ui', 'cover', 'navigation', 'integrity', 'ranking', 'heatmap', 'format', 'astra', 'review', 'details'), 'unknown regression suite'
 test_name = {'data': 'DataRegressionTest', 'ui': 'UiRegressionTest', 'cover': 'CoverRegressionTest',
              'navigation': 'NavigationRegressionTest', 'integrity': 'DataIntegrityRegressionTest',
              'ranking': 'RankingRegressionTest', 'heatmap': 'HeatmapScaleRegressionTest',
              'format': 'DurationRoundingRegressionTest', 'astra': 'AstraRegressionTest',
-             'review': 'ReviewFixRegressionTest'}[suite]
+             'review': 'ReviewFixRegressionTest', 'details': 'ListeningDetailsRegressionTest'}[suite]
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)

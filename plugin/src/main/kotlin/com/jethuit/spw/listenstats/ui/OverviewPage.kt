@@ -16,8 +16,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -28,6 +30,8 @@ import com.jethuit.spw.listenstats.data.RangePreset
 import com.jethuit.spw.listenstats.data.StatsCalculations
 import com.jethuit.spw.listenstats.data.StatsData
 import com.jethuit.spw.listenstats.data.StatsSummary
+import com.jethuit.spw.listenstats.data.ListeningDetails
+import com.jethuit.spw.listenstats.data.ListeningDetailsCalculator
 import com.jethuit.spw.listenstats.util.durationParts
 import com.jethuit.spw.listenstats.util.formatDay
 import com.jethuit.spw.listenstats.util.formatDuration
@@ -35,6 +39,8 @@ import com.jethuit.spw.listenstats.util.formatHourRange
 import com.jethuit.spw.listenstats.util.formatMonthDay
 import com.moriafly.salt.ui.ScrollState
 import java.time.LocalDate
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun OverviewPage(
@@ -79,8 +85,30 @@ fun OverviewPage(
     val rangeTotal = buckets.sumOf { it.millis }
     val maxBucket = buckets.maxOfOrNull { it.millis } ?: 0L
     val trendAxis = UiGeometry.trendAxis(maxBucket, hourly = range.days == 1)
+    var detailIndex by remember(range, effectiveGranularity) { mutableStateOf<Int?>(null) }
+    var detailOpen by remember(range, effectiveGranularity) { mutableStateOf(false) }
+    var detailRequested by remember(range, effectiveGranularity) { mutableStateOf(false) }
+    var details by remember(range, effectiveGranularity) { mutableStateOf<ListeningDetails?>(null) }
+    val detailBucket = detailIndex?.let { buckets.getOrNull(it) }
+    LaunchedEffect(data, detailBucket, detailRequested) {
+        if (detailRequested && detailBucket != null) {
+            val result = withContext(Dispatchers.Default) { ListeningDetailsCalculator.calculate(data, detailBucket) }
+            details = result
+            detailOpen = true
+        }
+    }
+    val exiting = LocalStatsPageExiting.current
+    val closeDetails: () -> Unit = { if (!exiting) { detailRequested = false; detailOpen = false } }
+    val shownDetailIndex = if (detailOpen) details?.bucket?.let { shown -> buckets.indexOfFirst {
+        it.start == shown.start && it.end == shown.end && it.hour == shown.hour
+    }.takeIf { it >= 0 } } else null
 
-    Column(Modifier.fillMaxWidth()) {
+    Column(Modifier.fillMaxWidth().onPreviewKeyEvent {
+        if (!exiting && detailOpen && it.key == Key.Escape && it.type == KeyEventType.KeyDown) {
+            closeDetails()
+            true
+        } else false
+    }) {
         SummaryStrip(4) { itemWidth ->
             SummaryStat(itemWidth, "累计听歌时长", summary.totalMillis, colors)
             PlainStat(itemWidth, "${summary.activeDays}", "天", "听歌天数", colors)
@@ -195,9 +223,15 @@ fun OverviewPage(
                 chartType = chartType,
                 showAverage = range.days > 1,
                 hourly = range.days == 1,
-                viewportRevision = viewportRevision
+                viewportRevision = viewportRevision,
+                selectedIndex = shownDetailIndex,
+                onBucketSelected = { index ->
+                    detailIndex = index
+                    detailRequested = true
+                }
             )
         }
+        ListeningDetailsExpansion(detailOpen, details, closeDetails)
 
         Box(Modifier.height(61.dp))
         Row(
