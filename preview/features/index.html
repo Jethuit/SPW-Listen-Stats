@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>听歌统计 · 新功能布局审核</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="review-bar">
+    <div class="review-title"><strong>布局审核</strong><span>演示数据 · 功能尚未接入插件</span></div>
+    <div class="variant-switch" role="group" aria-label="布局方案">
+      <button data-variant="a" aria-pressed="true">A　局部展开＋弹窗</button>
+      <button data-variant="b" aria-pressed="false">B　右侧抽屉</button>
+    </div>
+    <button id="theme" class="quiet">查看深色</button>
+    <nav class="review-shortcuts" aria-label="审核内容"><span>查看：</span><button data-review="detail">歌曲明细</button><button data-review="compare">周期对比</button><button data-review="ranking">范围排行</button><button data-review="share">分享卡片</button></nav>
+  </header>
+  <div class="workspace" id="workspace">
+    <header class="titlebar"><h1>听歌统计</h1><div class="menu-anchor"><button id="more" class="icon-button" aria-label="更多操作" aria-expanded="false">···</button><div id="more-menu" class="menu" hidden><button id="share-menu">分享统计卡片</button></div></div></header>
+    <main class="page">
+      <nav class="page-nav" aria-label="统计页面"><button data-page="overview" class="active" aria-current="page"><img src="../assets/icons/dashboard.svg" alt="">听歌概览</button><button data-page="ranking"><img src="../assets/icons/leaderboard.svg" alt="">听歌排行</button></nav>
+      <div id="overview">
+        <section class="summary" aria-label="累计统计"><div><p>26<small>小时</small>10<small>分</small></p><span>累计听歌时长</span></div><div><p>14<small>天</small></p><span>听歌天数</span></div><div><p>14<small>天</small></p><span>最长连续</span></div><div><p>14<small>天</small></p><span>当前连续</span></div></section>
+        <section class="heat-section"><div class="section-head"><div><h2><img src="../assets/icons/calendar_month.svg" alt="">听歌热力图</h2><p class="muted">2026 年 · 14 个听歌日 · 26小时10分钟</p></div><span class="muted">每天　　2026年⌄</span></div><div class="heat-scroll"><div class="months" aria-hidden="true"></div><div class="heat-layout"><div class="weekdays" aria-hidden="true"><span>一</span><span></span><span>三</span><span></span><span>五</span><span></span><span>日</span></div><div id="heatmap" aria-label="年度热力图示意"></div></div></div></section>
+        <section id="distribution" class="distribution"><div class="section-head wrap"><div><h2><img src="../assets/icons/show_chart.svg" alt="">时长分布</h2><p class="muted" id="range-total"></p></div><div class="controls"><label class="switch-label"><input type="checkbox" id="compare" checked>对比上一周期</label><select id="range" aria-label="日期范围"><option value="week">近7天（截至昨日）</option><option value="day">2026年10月20日</option></select></div></div><div class="comparison" id="comparison"><span id="comparison-change"></span><span class="muted" id="comparison-period"></span></div><div class="legend"><span><i class="current"></i>当前范围</span><span id="previous-key"><i class="previous"></i>上一周期</span></div><div id="chart" class="chart"></div><div id="inline-detail" hidden></div></section>
+        <section class="insights"><h2><img src="../assets/icons/lightbulb.svg" alt="">听歌小结</h2><div class="summary three"><div><p>3<small>小时</small>26<small>分</small></p><span>听得最多 · 2026年10月22日</span></div><div><p>1<small>小时</small>52<small>分</small></p><span>每日平均收听</span></div><div><p>21:00 — 22:00</p><span>最常听歌时段</span></div></div></section>
+      </div>
+      <section id="ranking" hidden><div class="section-head wrap"><div><h2 id="ranking-title">歌曲播放次数</h2><p class="muted" id="ranking-caption"></p></div><div class="controls"><select id="rank-mode" aria-label="榜单类型"><option value="song">标题</option><option value="artist">艺术家</option><option value="album">专辑</option></select><input id="search" class="search" placeholder="搜索" aria-label="搜索排行"></div></div><div class="rank-filters"><div class="segmented" role="group" aria-label="排行范围"><button data-scope="all" aria-pressed="true">全部时间</button><button data-scope="range" aria-pressed="false">当前范围</button></div><button id="edit-range" class="text-link"></button></div><div id="rank-table"></div><p class="muted footnote">每首歌独立累计 · 实际听满歌曲时长的 50% 计一次 · 本页为演示数据</p></section>
+      <p class="review-note" id="variant-note"></p>
+    </main>
+  </div>
+  <dialog id="panel" aria-labelledby="panel-title"><header class="panel-head"><div><h2 id="panel-title"></h2><p class="muted" id="panel-caption"></p></div><button id="close-panel" class="icon-button" aria-label="关闭面板">×</button></header><div id="panel-body"></div></dialog>
+  <div id="status" class="sr-only" role="status" aria-live="polite"></div>
+</body>
+</html>
