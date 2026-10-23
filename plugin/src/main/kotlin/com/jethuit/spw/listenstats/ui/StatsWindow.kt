@@ -66,6 +66,7 @@ import com.moriafly.salt.ui.rememberScrollState
 import com.moriafly.salt.ui.saltConfigs
 import com.moriafly.salt.ui.verticalScroll
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -279,6 +280,8 @@ fun ListenStatsApp(
     }
 
     LaunchedEffect(Unit) {
+        // Start the first snapshot alongside preferences, not after their IO completes.
+        val firstSnapshot = async(Dispatchers.IO) { StatsStore.load() }
         withContext(Dispatchers.IO) { Prefs.initialize() }
         chartType = ChartType.fromStorage(Prefs.getString("chartType", ChartType.Bar.storage))
         userGranularity = Granularity.fromStorage(Prefs.getString("granularity", Granularity.Day.storage))
@@ -298,10 +301,12 @@ fun ListenStatsApp(
             customStart = today.minusDays(29)
             customEnd = today
         }
+        var initialLoad = true
         while (true) {
             val (loaded, preferences) = withContext(Dispatchers.IO) {
-                StatsStore.load() to Prefs.displayPreferences()
+                (if (initialLoad) firstSnapshot.await() else StatsStore.load()) to Prefs.displayPreferences()
             }
+            initialLoad = false
             displayPreferences = preferences
             data = loaded
             today = LocalDate.now()
