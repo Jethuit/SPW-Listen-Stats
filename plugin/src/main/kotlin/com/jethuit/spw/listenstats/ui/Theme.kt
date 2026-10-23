@@ -177,7 +177,8 @@ fun StatsTheme(inheritMaterial: Boolean = false, content: @Composable () -> Unit
             delay(1_000)
         }
     }
-    val baseColors = hostStatsColors(hostAppearance.dark, systemDark)
+    val reactiveDark = readHostDarkTheme()
+    val baseColors = hostStatsColors(reactiveDark ?: hostAppearance.dark, systemDark)
     val dark = baseColors.isDark
     val colors = materialStatsColors(baseColors, hostAppearance.windowStyle, inheritMaterial)
     val scheme = if (dark) {
@@ -210,6 +211,13 @@ fun StatsTheme(inheritMaterial: Boolean = false, content: @Composable () -> Unit
     CompositionLocalProvider(LocalStatsColors provides colors, LocalHostFontFamily provides hostFont) {
         MaterialTheme(colorScheme = scheme, content = content)
     }
+}
+
+@OptIn(androidx.compose.runtime.InternalComposeApi::class)
+@Composable
+private fun readHostDarkTheme(): Boolean? {
+    val composer = androidx.compose.runtime.currentComposer
+    return runCatching { HostUiRuntime.current?.dark(composer) }.getOrNull()
 }
 
 private fun readSystemDarkTheme(): Boolean {

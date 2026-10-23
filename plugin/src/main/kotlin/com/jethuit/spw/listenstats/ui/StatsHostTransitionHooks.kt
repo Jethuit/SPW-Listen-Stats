@@ -10,15 +10,13 @@ import com.xuncorp.spw.workshop.api.hook.MethodHookParam
 
 /** Native incoming scenes cover statistics; their obsolete underlying scene must not reappear. */
 object StatsHostTransitionHooks {
-    const val TARGET_CLASS = "com.xuncorp.voxzen.ui.navigation.AppNavigationKt"
+    val TARGET_CLASS: String get() = HostUiRuntime.require().targets.page.target.className
 
     fun register(addHook: (String, List<String>, MethodHook) -> AutoCloseable): AutoCloseable {
         val handles = mutableListOf<AutoCloseable>()
         try {
-            for (prefix in listOf("voxzenTransitionSpec", "voxzenPopTransitionSpec", "voxzenPredictivePopTransitionSpec")) {
-                val parameters = listOf("androidx.compose.animation.AnimatedContentTransitionScope") +
-                    if (prefix == "voxzenPredictivePopTransitionSpec") listOf("int") else emptyList()
-                handles += addHook("${prefix}\$lambda\$0", parameters, object : MethodHook(50) {
+            for (target in HostUiRuntime.require().targets.transitions) {
+                handles += addHook(target.name, target.parameters, object : MethodHook(50) {
                     override fun after(call: MethodHookParam) {
                         if (!StatsHostState.navigating || !StatsHostState.nativeNavigation || call.throwable != null) return
                         val original = call.result as? ContentTransform ?: return

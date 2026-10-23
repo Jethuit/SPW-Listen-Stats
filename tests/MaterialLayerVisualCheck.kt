@@ -30,6 +30,8 @@ import javax.imageio.ImageIO
 
 /** The backdrop is synthetic. This verifies composition/placement, not Windows DWM rendering. */
 fun main(args: Array<String>) {
+    val targets = HostUiDiscovery.discover(HostBytecodeIndex.read(Path.of("build/tools/spw-host.jar")))
+    HostUiRuntime.activate(HostUiBridge(targets, StatsPageHook::class.java.classLoader))
     val output = Path.of(args.single())
     Files.createDirectories(output)
     var hidden by mutableStateOf(false)
@@ -207,9 +209,9 @@ private fun checkForwardCover(output: Path) {
 /** Exercise the actual native container callback with its original business arguments. */
 private fun checkContainingLayer(output: Path) {
     lateinit var callback: ComposableHook
-    val handle = StatsPageHook.register("1.19.1") { target, method, caller, parameters, content ->
+    val handle = StatsPageHook.register() { target, method, caller, parameters, content ->
         check(target != "com.xuncorp.voxzen.ui.navigation.AppNavigationKt")
-        check(caller == HostUiTargets.forVersion("1.19.1").pageCaller)
+        check(caller == HostUiRuntime.require().targets.layer.callerClass)
         val types = parameters.map { if (it == "boolean") Boolean::class.javaPrimitiveType!! else Class.forName(it) } +
             listOf(Composer::class.java, Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!)
         check(Class.forName(target).getDeclaredMethod(method, *types.toTypedArray()).returnType == Void.TYPE)

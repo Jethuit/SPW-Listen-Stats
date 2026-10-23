@@ -11,10 +11,9 @@ import java.lang.ref.WeakReference
 import java.util.Collections
 import java.util.IdentityHashMap
 
-/** Bridges the embedded page to SPW 1.19.0's Navigator without editing its back stack. */
+/** Bridges the embedded page to the discovered navigator without editing its back stack. */
 object StatsNavigationHooks {
-    const val NAVIGATOR_CLASS = "com.xuncorp.voxzen.ui.navigation.Navigator"
-    private const val ROUTE_CLASS = "com.xuncorp.voxzen.ui.navigation.ScreenRoute"
+    val NAVIGATOR_CLASS: String get() = HostUiRuntime.require().targets.navigation.navigate.className
     private class Binding(val navigator: Any, val currentRoute: () -> Any?, val navigate: (Any) -> Unit,
                           val hostHandlesBack: () -> Boolean)
     private class RouteKey(route: Any, queue: ReferenceQueue<Any>? = null) : WeakReference<Any>(route, queue) {
@@ -93,6 +92,7 @@ object StatsNavigationHooks {
     }
 
     fun register(
+        targets: HostNavigationTargets = HostUiRuntime.require().targets.navigation,
         addHook: (String, List<String>, MethodHook) -> AutoCloseable
     ): AutoCloseable {
         val handles = mutableListOf<AutoCloseable>()
@@ -100,16 +100,17 @@ object StatsNavigationHooks {
         cancelPendingOpen()
         try {
             // Close before the host's same-route early return as well as actual transitions.
-            for (method in listOf("navigate", "replace", "forward")) {
-                val parameters = if (method == "forward") emptyList() else listOf(ROUTE_CLASS)
+            for (target in listOf(targets.navigate, targets.replace, targets.forward)) {
+                val method = target.name
+                val parameters = target.parameters
                 val sameRouteCalls = Collections.newSetFromMap(IdentityHashMap<MethodHookParam, Boolean>())
                 handles += addHook(method, parameters, object : MethodHook(100) {
                     override fun before(call: MethodHookParam) {
                         // Observe ordinary navigation before another tool can defer it.
-                        if (method != "navigate" || requestOf(call.args.firstOrNull()) == null) {
+                        if (target != targets.navigate || requestOf(call.args.firstOrNull()) == null) {
                             cancelPendingOpen()
                             val host = binding
-                            val sameRoute = method == "navigate" && host != null &&
+                            val sameRoute = target == targets.navigate && host != null &&
                                 call.thisObject === host.navigator && call.args.firstOrNull() == host.currentRoute()
                             if (sameRoute) {
                                 // A tool opens synchronously after this no-op returns, outside
@@ -131,7 +132,7 @@ object StatsNavigationHooks {
             }
             // Lyrics uses priority 80. This request must reach its leave guard before
             // we consume it; it must never become a real destination in host history.
-            handles += addHook("navigate", listOf(ROUTE_CLASS), object : MethodHook(50) {
+            handles += addHook(targets.navigate.name, targets.navigate.parameters, object : MethodHook(50) {
                 override fun before(call: MethodHookParam) {
                     val request = requestOf(call.args.firstOrNull()) ?: return
                     call.setResult(null)
@@ -142,7 +143,7 @@ object StatsNavigationHooks {
                     }
                 }
             })
-            handles += addHook("back", emptyList(), object : MethodHook(100) {
+            handles += addHook(targets.back.name, targets.back.parameters, object : MethodHook(100) {
                 override fun before(call: MethodHookParam) {
                     cancelPendingOpen()
                     val host = binding

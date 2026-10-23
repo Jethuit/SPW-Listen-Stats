@@ -12,5 +12,6 @@ object PluginState {
     var spwVersion: String = "unknown"
 
     @Volatile var pluginVersion: String = "unknown"
+    @Volatile var discoveryStatus: String = "not started"
     @Volatile var registeredHooks: Set<String> = emptySet()
 }

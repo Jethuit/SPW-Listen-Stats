@@ -1,4 +1,4 @@
-"""Resolve version-bound page/material/titlebar hooks in an isolated host JVM."""
+"""Resolve structurally discovered page/material/titlebar hooks in an isolated host JVM."""
 import importlib.util
 import argparse
 import os
@@ -25,5 +25,5 @@ environment = os.environ.copy()
 environment['APPDATA'] = str(scratch / 'appdata')
 environment['LOCALAPPDATA'] = str(scratch / 'localappdata')
 subprocess.run([str(jdk / 'bin/java.exe'), '-cp', str(scratch) + os.pathsep + classpath,
-                'TitlebarHookProbe', args.host_version, *(['--before-quick'] if args.before_quick else [])],
+                'TitlebarHookProbe', args.host_version, str(host.resolve()), *(['--before-quick'] if args.before_quick else [])],
                check=True, env=environment)

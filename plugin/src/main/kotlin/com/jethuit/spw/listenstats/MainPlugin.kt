@@ -10,16 +10,15 @@ import com.xuncorp.spw.workshop.api.WorkshopApi
 import com.jethuit.spw.listenstats.ui.StatsNavigationHooks
 import com.jethuit.spw.listenstats.ui.StatsTitlebarEntry
 import com.jethuit.spw.listenstats.ui.StatsPageHook
-import com.jethuit.spw.listenstats.ui.HostUiTargets
+import com.jethuit.spw.listenstats.ui.HostUiBridge
+import com.jethuit.spw.listenstats.ui.HostUiRuntime
+import com.jethuit.spw.listenstats.ui.HostUiIntegration
 import com.jethuit.spw.listenstats.ui.StatsHostTransitionHooks
 
 class MainPlugin(
     pluginContext: PluginContext
 ) : SpwPlugin(pluginContext) {
-    private var hookHandle: AutoCloseable? = null
-    private var navigationHandle: AutoCloseable? = null
-    private var transitionHandle: AutoCloseable? = null
-    private var titlebarHandle: AutoCloseable? = null
+    private var integration: HostUiIntegration? = null
 
     override fun start() {
         PluginState.pluginPath = pluginContext.pluginPath
@@ -30,62 +29,69 @@ class MainPlugin(
         com.jethuit.spw.listenstats.data.StatsStore.initialize(pluginContext.pluginPath)
         com.jethuit.spw.listenstats.data.PlaybackTracker.initialize()
         closeHooks()
+        val host = WorkshopApi.instance.javaClass
+        integration = HostUiIntegration(
+            source = {
+                checkUiPermission()
+                java.nio.file.Path.of(checkNotNull(host.protectionDomain.codeSource) {
+                    "Host code source unavailable"
+                }.location.toURI())
+            },
+            loader = host.classLoader,
+            install = ::installHostUi,
+            failed = { failure ->
+                PluginLog.error("Structural host UI discovery/installation failed", failure)
+                WorkshopApi.ui.toast("听歌记录已启用，但统计页面接入失败，请在插件配置中写入诊断日志",
+                    WorkshopApi.Ui.ToastType.Warning)
+            },
+            report = { status -> PluginState.discoveryStatus = status; PluginLog.info("Host UI discovery: $status") }
+        ).also { it.start() }
+    }
+
+    private fun checkUiPermission() {
+        check(WorkshopApi.manager.isPermissionGranted(com.xuncorp.spw.workshop.api.PluginPermission.CLASS_TRANSFORM)) {
+            "请授予类变换权限后重新启用插件"
+        }
+    }
+
+    private fun installHostUi(bridge: HostUiBridge): AutoCloseable {
+        checkUiPermission()
+        val handles = mutableListOf<AutoCloseable>()
+        fun release() {
+            PluginState.registeredHooks = emptySet()
+            handles.asReversed().forEach { handle ->
+                runCatching { handle.close() }.onFailure { PluginLog.error("Removing host UI hook failed", it) }
+            }
+            handles.clear()
+        }
         try {
-            HostUiTargets.forVersion(pluginContext.spwVersion)
-            transitionHandle = StatsHostTransitionHooks.register { method, parameters, callback ->
+            handles += HostUiRuntime.activate(bridge)
+            handles += StatsHostTransitionHooks.register { method, parameters, callback ->
                 WorkshopApi.hookRegistrar.hookMethod(StatsHostTransitionHooks.TARGET_CLASS, method, parameters, callback)
             }
-            navigationHandle = StatsNavigationHooks.register { method, parameters, callback ->
-                WorkshopApi.hookRegistrar.hookMethod(
-                    className = StatsNavigationHooks.NAVIGATOR_CLASS,
-                    methodName = method,
-                    parameterTypes = parameters,
-                    callback = callback
-                )
+            handles += StatsNavigationHooks.register { method, parameters, callback ->
+                WorkshopApi.hookRegistrar.hookMethod(bridge.targets.navigation.navigate.className, method, parameters, callback)
             }
-            hookHandle = StatsPageHook.register(pluginContext.spwVersion) { target, method, caller, parameters, content ->
+            handles += StatsPageHook.register(bridge) { target, method, caller, parameters, content ->
                 WorkshopApi.hookRegistrar.replaceComposable(target, method, caller, parameters, 50, content)
             }
-            PluginLog.info("Containing Salt Layer and Navigator hooks registered; pageCaller=${HostUiTargets.forVersion(pluginContext.spwVersion).pageCaller}")
-        } catch (failure: Throwable) {
-            closeHooks()
-            PluginLog.error("Containing page Layer hook failed", failure)
-            WorkshopApi.ui.toast(
-                "听歌记录已启用，但统计页面加载失败，请在插件配置中写入诊断日志",
-                WorkshopApi.Ui.ToastType.Warning
-            )
-        }
-        if (hookHandle != null) {
+            PluginState.registeredHooks = setOf("page", "navigation", "page-transition", "page-isolation")
+            PluginLog.info("Structurally discovered UI registered: ${bridge.targets}")
             try {
-                titlebarHandle = StatsTitlebarEntry.register { target, method, caller, parameters, content ->
-                    WorkshopApi.hookRegistrar.afterComposable(
-                        className = target,
-                        methodName = method,
-                        inClass = caller,
-                        parameterTypes = parameters,
-                        priority = 50,
-                        content = content
-                    )
+                handles += StatsTitlebarEntry.register { target, method, caller, parameters, content ->
+                    WorkshopApi.hookRegistrar.afterComposable(target, method, caller, parameters, 50, content)
                 }
-                PluginLog.info("Titlebar statistics entry registered before Quick")
+                PluginState.registeredHooks += "titlebar"
             } catch (failure: Throwable) {
-                PluginLog.error("Optional titlebar entry unavailable; keeping the statistics page hook", failure)
-                WorkshopApi.ui.toast(
-                    "顶部统计按钮加载失败，仍可从插件配置打开",
-                    WorkshopApi.Ui.ToastType.Warning
-                )
+                PluginLog.error("Optional titlebar entry unavailable", failure)
+                WorkshopApi.ui.toast("顶部统计按钮加载失败，仍可从插件配置打开", WorkshopApi.Ui.ToastType.Warning)
             }
-        }
-        PluginState.registeredHooks = buildSet {
-            if (hookHandle != null) add("page")
-            if (navigationHandle != null) add("navigation")
-            if (transitionHandle != null) add("page-transition")
-            if (hookHandle != null) add("page-isolation")
-            if (titlebarHandle != null) add("titlebar")
-        }
-        if (hookHandle != null) {
             WorkshopApi.ui.toast("听歌统计已启用", WorkshopApi.Ui.ToastType.Success)
+        } catch (failure: Throwable) {
+            release()
+            throw failure
         }
+        return AutoCloseable { release() }
     }
 
     override fun stop() {
@@ -111,17 +117,9 @@ class MainPlugin(
     }
 
     private fun closeHooks() {
-        PluginState.registeredHooks = emptySet()
-        val pending = listOfNotNull(titlebarHandle, hookHandle, navigationHandle, transitionHandle)
-        titlebarHandle = null
-        hookHandle = null
-        navigationHandle = null
-        transitionHandle = null
-        for (handle in pending) {
-            runCatching { handle.close() }.onFailure {
-                PluginLog.error("removing UI/navigation hooks failed", it)
-            }
-        }
+        integration?.close()
+        integration = null
+        PluginState.discoveryStatus = "stopped"
     }
 
     companion object {
@@ -150,8 +148,8 @@ class MainPlugin(
                         appendLine("zone=${java.time.ZoneId.systemDefault()}; permissions=$permissions")
                         appendLine("dataDirectory=$dir; database=${com.jethuit.spw.listenstats.data.StatsStore.diagnosticPath()}")
                         appendLine("sourceId=$source; registeredHooks=${PluginState.registeredHooks} (registration only)")
-                        appendLine("hostUiTargets=${runCatching { HostUiTargets.forVersion(PluginState.spwVersion) }.getOrNull() ?: "unsupported"}")
-                        appendLine("materialBridgeActive=${com.jethuit.spw.listenstats.ui.StatsHostState.materialBridgeAvailable}; pageIsolationHook=${StatsPageHook.TARGET_CLASS}.${StatsPageHook.TARGET_METHOD}")
+                        appendLine("hostUiDiscovery=${PluginState.discoveryStatus}; hostUiTargets=${HostUiRuntime.current?.targets ?: "unavailable"}")
+                        appendLine("materialBridgeActive=${com.jethuit.spw.listenstats.ui.StatsHostState.materialBridgeAvailable}; pageIsolationHook=${HostUiRuntime.current?.targets?.layer ?: "unavailable"}")
                         appendLine("navigationReady=${StatsNavigationHooks.navigatorReady}; statisticsVisible=${com.jethuit.spw.listenstats.ui.StatsHostState.visible}")
                         appendLine("${com.jethuit.spw.listenstats.data.PlaybackTracker.diagnostics()}")
                         append("storageError=${com.jethuit.spw.listenstats.data.LiveStore.storageError() ?: "none"}")

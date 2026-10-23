@@ -4,6 +4,13 @@ See META-INF/LICENSE.
 
 Bundled components:
 
+SPW-Lyrics structural host discovery (adapted queries)
+Project: https://github.com/GaBoron/SPW-Lyrics
+Reference commit: 4fd8fd8c7881102fdebb410a2b8b7a2044715b5a
+Copyright (c) 2026 GaBoron
+License: MIT; see META-INF/LICENSE-SPW-Lyrics.
+The statistics-specific Layer, transition and back-overlay rules are maintained here.
+
 SaltUI (salt-ui-desktop and salt-core-desktop), version 3.0.0-beta02
 Project: https://github.com/Moriafly/SaltUI
 Author: Moriafly and contributors

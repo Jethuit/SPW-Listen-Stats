@@ -36,15 +36,15 @@ import java.lang.reflect.Method
 
 /** Wrap the containing Salt Layer, outside other plugins' AppNavigation replacements. */
 object StatsPageHook {
-    const val TARGET_CLASS = "androidx.compose.ui.\u0559"
-    const val TARGET_METHOD = "\u037f"
+    val TARGET_CLASS: String get() = HostUiRuntime.require().targets.layer.target.className
+    val TARGET_METHOD: String get() = HostUiRuntime.require().targets.layer.target.name
 
-    fun register(version: String,
+    fun register(bridge: HostUiBridge = HostUiRuntime.require(),
         addHook: (String, String, String, List<String>, ComposableHook) -> AutoCloseable
     ): AutoCloseable {
-        HostPageLayer.prepare()
-        val caller = HostUiTargets.forVersion(version).pageCaller
-        return addHook(TARGET_CLASS, TARGET_METHOD, caller,
+        val layer = HostPageLayer(bridge.layer)
+        val site = bridge.targets.layer
+        return addHook(site.target.className, site.target.name, site.callerClass,
             listOf("androidx.compose.ui.Modifier", "boolean", "kotlin.jvm.functions.Function3"), object : ComposableHook() {
                 @Composable
                 override fun Content(call: UiHookCall) {
@@ -54,33 +54,24 @@ object StatsPageHook {
                     val content: @Composable BoxScope.() -> Unit = {
                         val scope = this
                         StatsPageLayers(hostContent = {
-                            HostPageLayer.renderContent(original, scope, currentComposer)
+                            layer.renderContent(original, scope, currentComposer)
                         })
                     }
-                    HostPageLayer.render(modifier, decoration, content, currentComposer)
+                    layer.render(modifier, decoration, content, currentComposer)
                 }
             })
     }
 }
 
 /** Preserve the host container's parameters; these supported call sites use no default mask. */
-private object HostPageLayer {
+private class HostPageLayer(private val method: Method) {
     private val loader = StatsPageHook::class.java.classLoader
-    private val method: Method by lazy {
-        Class.forName(StatsPageHook.TARGET_CLASS, false, loader).getDeclaredMethod(
-            StatsPageHook.TARGET_METHOD, Modifier::class.java, Boolean::class.javaPrimitiveType,
-            Class.forName("kotlin.jvm.functions.Function3", false, loader),
-            Composer::class.java, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType
-        ).also { check(java.lang.reflect.Modifier.isStatic(it.modifiers) && it.returnType == Void.TYPE) }
-    }
 
     // Compose lambdas implement multiple JVM function arities; a Kotlin arity cast rejects them.
     private val invokeContent: Method by lazy {
         Class.forName("kotlin.jvm.functions.Function3", false, loader)
             .getMethod("invoke", Any::class.java, Any::class.java, Any::class.java)
     }
-
-    fun prepare() { method; invokeContent }
 
     fun render(modifier: Modifier, decoration: Boolean, content: Any, composer: Composer) {
         method.invoke(null, modifier, decoration, content, composer, 0, 0)

@@ -105,6 +105,9 @@ private fun checkNavigationGuards() {
 }
 
 fun main() {
+    com.jethuit.spw.listenstats.ui.HostUiRuntime.activate(com.jethuit.spw.listenstats.ui.HostUiBridge(
+        com.jethuit.spw.listenstats.ui.HostUiDiscovery.discover(com.jethuit.spw.listenstats.ui.HostBytecodeIndex.read(
+            java.nio.file.Path.of("build/tools/spw-host.jar"))), StatsNavigationHooks::class.java.classLoader))
     val registration = TestNavigationRegistration()
     check(registration.hooks.size == 5)
     val host = registration.host
