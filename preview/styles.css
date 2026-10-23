@@ -30,10 +30,10 @@
   --accent: #79b5ff;
   --accent-soft: rgba(121,181,255,.09);
   --cell-0: #2d3036;
-  --cell-1: #27425e;
-  --cell-2: #356a9d;
-  --cell-3: #599bdb;
-  --cell-4: #8ac5ff;
+  --cell-1: #3f78ae;
+  --cell-2: #5799d6;
+  --cell-3: #7ab7ec;
+  --cell-4: #a5d4ff;
   --tooltip-bg: #eeeeef;
   --tooltip-text: #202124;
 }

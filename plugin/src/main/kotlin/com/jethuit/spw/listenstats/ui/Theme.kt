@@ -81,10 +81,10 @@ val DarkStatsColors = StatsColors(
     accentSoft = Color(0x1779B5FF),
     cells = listOf(
         Color(0xFF2D3036),
-        Color(0xFF27425E),
-        Color(0xFF356A9D),
-        Color(0xFF599BDB),
-        Color(0xFF8AC5FF)
+        Color(0xFF3F78AE),
+        Color(0xFF5799D6),
+        Color(0xFF7AB7EC),
+        Color(0xFFA5D4FF)
     ),
     tooltipBackground = ClassicDarkCardBackground,
     tooltipText = Color(0xFFEDEDEE),
