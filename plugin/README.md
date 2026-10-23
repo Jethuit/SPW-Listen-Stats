@@ -1,6 +1,6 @@
 # 听歌统计模组源码
 
-Kotlin / Compose / Salt UI 实现，当前源码版本为 v0.2.5，基于 SPW 1.19.2 构建，采用运行时结构发现接入宿主。安装与功能介绍见[项目首页](../README.md)，产品规则见[需求](../docs/REQUIREMENTS.md)，依赖与许可证见[第三方组件](../docs/THIRD-PARTY.md)。
+Kotlin / Compose / Salt UI 实现，当前源码版本为 v0.2.6-dev.2，基于 SPW 1.19.2 构建，采用运行时结构发现接入宿主。安装与功能介绍见[项目首页](../README.md)，产品规则见[需求](../docs/REQUIREMENTS.md)，依赖与许可证见[第三方组件](../docs/THIRD-PARTY.md)。
 
 ## 目录
 
@@ -20,13 +20,15 @@ py -3.12 tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\
 py -3.12 tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-构建使用 JDK 25、缓存的 Kotlin 编译器、SaltUI 及对应宿主 jar。每次构建比较安装目录与缓存宿主文件的内容，更新后自动刷新缓存，避免相同文件大小的宿主更新被漏过。工具链缓存位于 `build/tools/`，不提交 Git。版本号以 `tools/build_plugin.py` 的 `PLUGIN_VERSION` 为准；当前正式包为 `0.2.5`；安装包输出到 `build/libs/SPW-Stats-v<版本>.spmod`，解包目录为 `build/install/spw-listen-stats/`。
+构建使用 JDK 25、缓存的 Kotlin 编译器、SaltUI 及对应宿主 jar。每次构建比较安装目录与缓存宿主文件的内容，更新后自动刷新缓存，避免相同文件大小的宿主更新被漏过。工具链缓存位于 `build/tools/`，不提交 Git。版本号以 `tools/build_plugin.py` 的 `PLUGIN_VERSION` 为准；当前开发包为 `0.2.6-dev.2`，正式版 `0.2.5` 保持不变；安装包输出到 `build/libs/SPW-Stats-v<版本>.spmod`，解包目录为 `build/install/spw-listen-stats/`。
 
 SPW 1.19.1 随附的 `runtime.kotlin_module` 缺少 Compose 顶层函数索引。构建通过 `tools/RestoreComposeIndex.java` 从当前宿主类的 Kotlin 注解重建编译索引，输出 `build/tools/spw-compose-compile-index.jar`；不需要旧宿主，也不修改安装文件。该文件只用于编译，不进入 `.spmod`，运行时仍使用宿主 Compose 类。
 
 默认只生成本地产物，不安装或发布。通过 SPW 创意工坊／模组管理本地导入 `.spmod` 并授权 `library-read`、`class-transform`。`py -3.12 tools/prepare_release.py` 仅将当前包整理到 `build/releases/v<版本>/`，不会上传 GitHub。
 
 源码变化不会自动更新已有安装包，需要重新构建。
+
+当前开发版取消小时折线／平滑曲线首尾补出的水平延长线，填充在真实端点处向下闭合，保留半个区间留白及原有线条端头样式。顶部导航首项去除左内边距，与累计卡片和热力图等正文左边缘对齐，蓝色下划线仍跟随图标与文字内容。
 
 时长分布首次默认“今天＋柱状图”，已有日期范围和图表类型仍按保存值恢复；热力图取消框选后回到今天。排行工具栏采用“标题／艺术家／专辑”菜单，分别对应歌曲、歌手、专辑的播放次数排行。
 

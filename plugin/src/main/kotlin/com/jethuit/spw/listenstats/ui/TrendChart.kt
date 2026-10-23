@@ -230,10 +230,9 @@ fun TrendChart(
                             val points = buckets.mapIndexed { index, bucket ->
                                 Offset(xAt(index), yAt(bucket.millis))
                             }
-                            // Keep hourly samples centred in their slots, but cover the outer half-slots.
-                            val extendEdges = banded && points.size > 1
-                            val pathLeft = if (extendEdges) AXIS_LEFT else points.first().x
-                            val pathRight = if (extendEdges) widthPx - AXIS_RIGHT else points.last().x
+                            // End at the actual samples; keep the outer half-slots empty.
+                            val pathLeft = points.first().x
+                            val pathRight = points.last().x
                             val path = if (chartType == ChartType.Line) {
                                 linePath(points, pathLeft, pathRight)
                             } else {

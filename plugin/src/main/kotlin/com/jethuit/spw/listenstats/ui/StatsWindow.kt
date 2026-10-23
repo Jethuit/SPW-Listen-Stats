@@ -575,6 +575,7 @@ fun PageNav(page: StatsPage, onPage: (StatsPage) -> Unit) {
     Box {
         Row {
             NavTab(IconPaths.Dashboard, "听歌概览", page == StatsPage.Overview,
+                flushStart = true,
                 modifier = Modifier.onSizeChanged { overviewWidth = it.width },
                 onContentWidthChanged = { overviewContentWidth = it }) {
                 onPage(StatsPage.Overview)
@@ -588,7 +589,7 @@ fun PageNav(page: StatsPage, onPage: (StatsPage) -> Unit) {
         if (overviewWidth > 0 && rankingWidth > 0 && overviewContentWidth > 0 && rankingContentWidth > 0) {
             val duration = statsMotionDurationMillis()
             val left by animateFloatAsState(
-                if (page == StatsPage.Overview) (overviewWidth - overviewContentWidth) / 2f
+                if (page == StatsPage.Overview) 0f
                     else overviewWidth + (rankingWidth - rankingContentWidth) / 2f,
                 tween(duration, easing = PageEasing), label = "navigation-indicator-left")
             val width by animateFloatAsState(
@@ -609,6 +610,7 @@ private fun NavTab(
     icon: String,
     label: String,
     active: Boolean,
+    flushStart: Boolean = false,
     modifier: Modifier = Modifier,
     onContentWidthChanged: (Int) -> Unit,
     onClick: () -> Unit
@@ -630,7 +632,8 @@ private fun NavTab(
     ) {
         Box(contentAlignment = Alignment.Center) {
             Row(
-                Modifier.padding(horizontal = 16.dp).onSizeChanged { onContentWidthChanged(it.width) },
+                Modifier.padding(start = if (flushStart) 0.dp else 16.dp, end = 16.dp)
+                    .onSizeChanged { onContentWidthChanged(it.width) },
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
