@@ -1,6 +1,6 @@
 # 听歌统计模组源码
 
-Kotlin / Compose / Salt UI 实现，目标宿主为 SPW 1.19.0 / 1.19.1。安装与功能介绍见[项目首页](../README.md)，产品规则见[需求](../docs/REQUIREMENTS.md)，依赖与许可证见[第三方组件](../docs/THIRD-PARTY.md)。
+Kotlin / Compose / Salt UI 实现，当前 v0.2.4 基于 SPW 1.19.2 构建，采用运行时结构发现接入宿主。安装与功能介绍见[项目首页](../README.md)，产品规则见[需求](../docs/REQUIREMENTS.md)，依赖与许可证见[第三方组件](../docs/THIRD-PARTY.md)。
 
 ## 目录
 
