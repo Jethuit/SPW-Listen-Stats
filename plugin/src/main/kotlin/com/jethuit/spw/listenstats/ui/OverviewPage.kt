@@ -235,6 +235,11 @@ fun OverviewPage(
                 onBucketDeselected = closeDetails
             )
         }
+        Text(
+            "点击柱子或曲线查看歌曲明细，再次点击收起",
+            modifier = Modifier.padding(top = 12.dp),
+            style = AppType.tiny.copy(color = colors.muted)
+        )
         ListeningDetailsExpansion(detailOpen, details, closeDetails)
 
         Box(Modifier.height(61.dp))
