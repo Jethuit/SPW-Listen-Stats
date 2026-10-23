@@ -121,11 +121,7 @@ fun OverviewPage(
         SectionHeading(
             icon = IconPaths.CalendarMonth,
             title = "听歌热力图",
-            caption = if (heatmapRolling) {
-                "近一年 · $yearActiveDays 个听歌日 · ${formatDuration(yearTotal)}"
-            } else {
-                "$year 年 · $yearActiveDays 个听歌日 · ${formatDuration(yearTotal)}"
-            }
+            caption = "$yearActiveDays 个听歌日 · ${formatDuration(yearTotal)}"
         ) {
             SegmentedControl(
                 options = listOf(

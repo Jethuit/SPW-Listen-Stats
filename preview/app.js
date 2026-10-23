@@ -316,7 +316,7 @@
     else $('heatmap').replaceChildren(fragment);
     const yearRecords = records.filter(record => record.date.startsWith(String(year)));
     const yearMs = yearRecords.reduce((sum, record) => sum + record.ms, 0);
-    $('year-caption').textContent = `${year} 年 · ${yearRecords.filter(record => record.ms > 0).length} 个听歌日 · ${duration(yearMs)}`;
+    $('year-caption').textContent = `${yearRecords.filter(record => record.ms > 0).length} 个听歌日 · ${duration(yearMs)}`;
   }
 
   function selectDay(key) {
