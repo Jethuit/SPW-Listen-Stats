@@ -72,6 +72,13 @@ fun main(args: Array<String>) {
             scene.sendPointerEvent(PointerEventType.Press, Offset(x, 160f))
             scene.sendPointerEvent(PointerEventType.Release, Offset(x, 160f))
         } }
+        fun key(code: Int) { SwingUtilities.invokeAndWait {
+            val native = java.awt.event.KeyEvent(java.awt.Canvas(), java.awt.event.KeyEvent.KEY_PRESSED,
+                System.currentTimeMillis(), 0, code, java.awt.event.KeyEvent.CHAR_UNDEFINED)
+            val compose = Class.forName("androidx.compose.ui.input.key.KeyEvent_desktopKt")
+                .getMethod("toComposeEvent", java.awt.event.KeyEvent::class.java).invoke(null, native)
+            scene.sendKeyEvent(androidx.compose.ui.input.key.KeyEvent(compose))
+        } }
         try {
             repeat(4) { frame() }
             val closed = marker
@@ -105,6 +112,20 @@ fun main(args: Array<String>) {
             }
             SwingUtilities.invokeAndWait { visibleRows = 12 }
             repeat(3) { frame() }; check(marker == expanded) { "Few songs must not leave blank rows" }
+            key(java.awt.event.KeyEvent.VK_ESCAPE)
+            check(!open && selected == null) { "Escape after a mouse click must close details" }
+            repeat(3) { frame() }; check(marker == closed)
+            click(); repeat(3) { frame() }
+            val clickedIndex = selected!!
+            key(java.awt.event.KeyEvent.VK_RIGHT); key(java.awt.event.KeyEvent.VK_ENTER)
+            check(open && selected == (clickedIndex + 1).coerceAtMost(buckets.lastIndex)) {
+                "Mouse selection must focus the chart for subsequent keyboard navigation"
+            }
+            repeat(3) { frame() }
+            key(java.awt.event.KeyEvent.VK_ESCAPE)
+            check(!open && selected == null)
+            repeat(3) { frame() }
+            click(); repeat(3) { frame() }
             click(); check(!open && selected == null)
             repeat(3) { frame() }; check(marker == closed)
             SwingUtilities.invokeAndWait { exiting = true }

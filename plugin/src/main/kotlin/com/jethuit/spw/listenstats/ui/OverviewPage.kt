@@ -106,7 +106,7 @@ fun OverviewPage(
     }.takeIf { it >= 0 } } else null
 
     Column(Modifier.fillMaxWidth().onPreviewKeyEvent {
-        if (!exiting && detailOpen && it.key == Key.Escape && it.type == KeyEventType.KeyDown) {
+        if (!exiting && detailRequested && it.key == Key.Escape && it.type == KeyEventType.KeyDown) {
             closeDetails()
             true
         } else false

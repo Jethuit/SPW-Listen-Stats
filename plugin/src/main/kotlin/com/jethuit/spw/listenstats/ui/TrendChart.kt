@@ -15,6 +15,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
@@ -62,6 +64,7 @@ fun TrendChart(
     var hoverIndex by remember(buckets, chartType, viewportRevision) { mutableStateOf<Int?>(null) }
     var keyboardIndex by remember(buckets.map { Triple(it.start, it.end, it.hour) }) { mutableStateOf(0) }
     var focused by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
     val exiting = LocalStatsPageExiting.current
     val widestLabel = remember(buckets, hostFont) {
         buckets.maxOfOrNull { measurer.measure(it.label, axisStyle).size.width.toFloat() } ?: 0f
@@ -144,13 +147,21 @@ fun TrendChart(
                         Key.DirectionLeft -> { keyboardIndex = (keyboardIndex - 1).coerceAtLeast(0); true }
                         Key.DirectionRight -> { keyboardIndex = (keyboardIndex + 1).coerceAtMost(buckets.lastIndex); true }
                         Key.Enter, Key.Spacebar -> { activateBucket(keyboardIndex); true }
+                        Key.Escape -> {
+                            if (selectedIndex != null && onBucketDeselected != null) {
+                                onBucketDeselected()
+                                true
+                            } else false
+                        }
                         else -> false
                     }
                 }
+                .focusRequester(focusRequester)
                 .focusable(enabled = onBucketSelected != null && !exiting)
                 .pointerInput(buckets, chartType, widthPx, exiting, selectedIndex, onBucketSelected, onBucketDeselected) {
                     if (onBucketSelected != null && !exiting) detectTapGestures { position ->
                         indexAt(position)?.let { index ->
+                            focusRequester.requestFocus()
                             keyboardIndex = index
                             tooltip = null
                             activateBucket(index)

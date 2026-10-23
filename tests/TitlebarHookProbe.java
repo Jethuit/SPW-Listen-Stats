@@ -10,7 +10,8 @@ public final class TitlebarHookProbe {
         var targets = HostUiDiscovery.INSTANCE.discover(index);
         if (!targets.getWarnings().isEmpty() || targets.getCaption() == null || targets.getTheme() == null)
             throw new AssertionError("Incomplete discovery: " + targets.getWarnings());
-        var bridge = new HostUiBridge(targets, TitlebarHookProbe.class.getClassLoader());
+        var bridge = new HostUiBridge(targets, TitlebarHookProbe.class.getClassLoader(),
+            () -> HostAppearanceReader.INSTANCE.read());
         if (bridge.getCaption() == null) throw new AssertionError("Caption reflection failed");
         // Exercise the exact resolver used by WorkshopHookRegistrar. No transformations.
         Class<?> resolver = Class.forName("com.xuncorp.voxzen.workshop.hooks.\u052a");
