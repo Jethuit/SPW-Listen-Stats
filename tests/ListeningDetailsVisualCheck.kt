@@ -34,6 +34,7 @@ fun main(args: Array<String>) {
         var selected by mutableStateOf<Int?>(null)
         var chart by mutableStateOf(ChartType.Bar)
         var enabled by mutableStateOf(true)
+        var visibleRows by mutableStateOf(6)
         var exiting by mutableStateOf(false)
         var details by mutableStateOf(ListeningDetails(buckets.first(), rows, 230_000))
         var marker = 0f
@@ -49,7 +50,7 @@ fun main(args: Array<String>) {
                             TrendChart(buckets, chart, false, selectedIndex = selected,
                                 onBucketSelected = { selected = it; details = details.copy(bucket = buckets[it]); open = true },
                                 onBucketDeselected = { open = false; selected = null })
-                            ListeningDetailsExpansion(open, details) { open = false; selected = null }
+                            ListeningDetailsExpansion(open, details, visibleRows) { open = false; selected = null }
                             Box(Modifier.padding(top = 30.dp).onGloballyPositioned { marker = it.positionInRoot().y }) {
                                 StatsText("听歌小结", style = AppType.sectionTitle.copy(color = palette.text))
                             }
@@ -96,6 +97,14 @@ fun main(args: Array<String>) {
             }
             SwingUtilities.invokeAndWait { enabled = false }
             repeat(3) { frame() }; click(); repeat(3) { frame() }; check(marker == expanded)
+            val selectedBeforeResize = selected
+            SwingUtilities.invokeAndWait { visibleRows = 3 }
+            repeat(3) { frame() }
+            check(marker == expanded - 64f && open && selected == selectedBeforeResize) {
+                "Three visible rows must shorten the panel without closing or resetting selection"
+            }
+            SwingUtilities.invokeAndWait { visibleRows = 12 }
+            repeat(3) { frame() }; check(marker == expanded) { "Few songs must not leave blank rows" }
             click(); check(!open && selected == null)
             repeat(3) { frame() }; check(marker == closed)
             SwingUtilities.invokeAndWait { exiting = true }

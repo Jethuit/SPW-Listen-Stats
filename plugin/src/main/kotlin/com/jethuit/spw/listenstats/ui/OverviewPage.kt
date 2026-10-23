@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jethuit.spw.listenstats.data.ChartType
+import com.jethuit.spw.listenstats.DisplayPreferences
 import com.jethuit.spw.listenstats.data.Granularity
 import com.jethuit.spw.listenstats.data.RangePreset
 import com.jethuit.spw.listenstats.data.StatsCalculations
@@ -65,7 +66,8 @@ fun OverviewPage(
     onCustomRange: () -> Unit,
     onChartType: (ChartType) -> Unit,
     onGranularity: (Granularity) -> Unit,
-    scrollState: ScrollState? = null
+    scrollState: ScrollState? = null,
+    displayPreferences: DisplayPreferences = DisplayPreferences()
 ) {
     val colors = LocalStatsColors.current
     val years = remember(data, today) { StatsCalculations.years(data, today) }
@@ -157,7 +159,8 @@ fun OverviewPage(
                 onDaySelected = onDaySelected,
                 onWeekSelected = onWeekSelected,
                 viewportRevision = viewportRevision,
-                rolling = heatmapRolling
+                rolling = heatmapRolling,
+                revealAnimations = displayPreferences.heatmapAnimations
             )
         }
 
@@ -231,12 +234,14 @@ fun OverviewPage(
                 onBucketDeselected = closeDetails
             )
         }
-        Text(
-            "点击柱子或曲线查看歌曲明细，再次点击收起",
-            modifier = Modifier.padding(top = 12.dp),
-            style = AppType.tiny.copy(color = colors.muted)
-        )
-        ListeningDetailsExpansion(detailOpen, details, closeDetails)
+        if (displayPreferences.showDetailHint) {
+            Text(
+                "点击柱子或曲线查看歌曲明细，再次点击收起",
+                modifier = Modifier.padding(top = 12.dp),
+                style = AppType.tiny.copy(color = colors.muted)
+            )
+        }
+        ListeningDetailsExpansion(detailOpen, details, displayPreferences.detailVisibleRows, closeDetails)
 
         Box(Modifier.height(61.dp))
         Row(

@@ -6,7 +6,11 @@ import com.xuncorp.spw.workshop.api.config.ConfigHelper
 
 data class DisplayPreferences(
     val rankingPageSize: Int = 25,
-    val pageAnimations: Boolean = true
+    val pageAnimations: Boolean = true,
+    val refreshIntervalSeconds: Int = 5,
+    val detailVisibleRows: Int = 6,
+    val showDetailHint: Boolean = true,
+    val heatmapAnimations: Boolean = true
 )
 
 @OptIn(UnstableSpwWorkshopApi::class)
@@ -50,10 +54,17 @@ object Prefs {
         }
         val pageSize = getString("rankingPageSize", "25").trim().toIntOrNull()
             ?.takeIf { it > 0 } ?: 25
-        val animations = try { helper?.get("pageAnimations", true) ?: true }
-            catch (_: Throwable) { true }
+        fun readBoolean(key: String): Boolean = try { helper?.get(key, true) ?: true }
+            catch (_: Exception) { true }
+        fun readBoundedInt(key: String, default: Int, range: IntRange): Int =
+            getString(key, default.toString()).trim().toIntOrNull()?.takeIf { it in range } ?: default
         return DisplayPreferences(
-            pageSize, animations
+            rankingPageSize = pageSize,
+            pageAnimations = readBoolean("pageAnimations"),
+            refreshIntervalSeconds = readBoundedInt("refreshIntervalSeconds", 5, 2..60),
+            detailVisibleRows = readBoundedInt("detailVisibleRows", 6, 3..12),
+            showDetailHint = readBoolean("showDetailHint"),
+            heatmapAnimations = readBoolean("heatmapAnimations")
         )
     }
 

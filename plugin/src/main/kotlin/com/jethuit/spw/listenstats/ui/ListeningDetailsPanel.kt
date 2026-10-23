@@ -36,21 +36,21 @@ import com.moriafly.salt.ui.ControlSize
 import com.jethuit.spw.listenstats.ui.StatsText as Text
 
 @Composable
-fun ListeningDetailsExpansion(visible: Boolean, details: ListeningDetails?, onClose: () -> Unit) {
+fun ListeningDetailsExpansion(visible: Boolean, details: ListeningDetails?, visibleRows: Int = 6, onClose: () -> Unit) {
     val duration = statsMotionDurationMillis()
     AnimatedVisibility(visible && details != null,
         enter = expandVertically(tween(duration, easing = PageEasing), expandFrom = Alignment.Top) + fadeIn(tween(duration)),
         exit = shrinkVertically(tween(duration, easing = PageEasing), shrinkTowards = Alignment.Top) + fadeOut(tween(duration))) {
         details?.let { shown ->
             Box(Modifier.animateContentSize(tween(duration, easing = PageEasing)).padding(top = 20.dp)) {
-                ListeningDetailsPanel(shown.bucket, shown, onClose)
+                ListeningDetailsPanel(shown.bucket, shown, visibleRows, onClose)
             }
         }
     }
 }
 
 @Composable
-fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, onClose: () -> Unit) {
+fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visibleRows: Int = 6, onClose: () -> Unit) {
     val colors = LocalStatsColors.current
     val current = details?.takeIf {
         it.bucket.start == bucket.start && it.bucket.end == bucket.end && it.bucket.hour == bucket.hour
@@ -92,7 +92,7 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, onClo
                     }
                     key(shown.start, shown.end, shown.hour) {
                         val scroll = rememberLazyListState()
-                        Box(Modifier.fillMaxWidth().height((minOf(current.rows.size, 6) * 64).dp)) {
+                        Box(Modifier.fillMaxWidth().height((minOf(current.rows.size, visibleRows.coerceIn(3, 12)) * 64).dp)) {
                             LazyColumn(Modifier.fillMaxSize().padding(end = 12.dp), state = scroll) {
                                 itemsIndexed(current.rows, key = { _, row -> row.track.id }) { index, row ->
                                     Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically,

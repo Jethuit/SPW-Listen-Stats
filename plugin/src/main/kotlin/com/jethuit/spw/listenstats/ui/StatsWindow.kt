@@ -305,7 +305,7 @@ fun ListenStatsApp(
                 displayPreferences = loaded.preferences
             }
             today = LocalDate.now()
-            delay(5_000)
+            delay(displayPreferences.refreshIntervalSeconds * 1_000L)
         }
     }
     LaunchedEffect(query, displayPreferences.rankingPageSize) { rankPage = 1 }
@@ -500,7 +500,8 @@ fun ListenStatsApp(
                                         userGranularity = it
                                         Prefs.putStringAsync("granularity", it.storage)
                                     },
-                                    scrollState = if (embedded) scrollState else null
+                                    scrollState = if (embedded) scrollState else null,
+                                    displayPreferences = displayPreferences
                                 )
                                 StatsPage.Ranking -> RankingPage(
                                     entries = rankingEntries,
