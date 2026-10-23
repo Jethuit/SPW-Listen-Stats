@@ -12,6 +12,7 @@ import androidx.compose.animation.slideOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.AnimationVector2D
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.spring
@@ -47,6 +48,7 @@ const val StatsPageSpringStiffness = 500f
 val LocalStatsAnimationsEnabled = staticCompositionLocalOf { true }
 val LocalStatsPageExiting = staticCompositionLocalOf { false }
 internal val LocalStatsHostFade = staticCompositionLocalOf<Animatable<Float, AnimationVector1D>?> { null }
+internal val LocalStatsPageOffset = staticCompositionLocalOf<Animatable<IntOffset, AnimationVector2D>?> { null }
 
 // Animatable resets velocity on cancellation; retain the last frame for a reversed spring.
 private class PageSpringVelocity {
@@ -85,7 +87,7 @@ fun StatsPageEnter(
     content: @Composable () -> Unit
 ) {
     val enabled = LocalStatsAnimationsEnabled.current
-    val offset = remember {
+    val offset = LocalStatsPageOffset.current ?: remember {
         Animatable(IntOffset(0, if (enabled) StatsPageOffsetPixels else 0), IntOffset.VectorConverter)
     }
     val opacity = remember { Animatable(1f) }

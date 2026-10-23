@@ -95,6 +95,22 @@ val DarkStatsColors = StatsColors(
 )
 
 val LocalStatsColors = staticCompositionLocalOf { LightStatsColors }
+internal val LocalStatsMaterialBridge = staticCompositionLocalOf { false }
+internal val LocalHostAppearance = staticCompositionLocalOf<HostAppearance?> { null }
+
+/** Kept alive by the containing page layer, including while statistics is closed. */
+@Composable
+internal fun rememberHostAppearance(initial: HostAppearance = HostAppearance(),
+    read: () -> HostAppearance = HostAppearanceReader::read): HostAppearance {
+    var appearance by remember(read) { mutableStateOf(initial) }
+    LaunchedEffect(read) {
+        while (true) {
+            appearance = withContext(Dispatchers.IO) { read() }
+            delay(1_000)
+        }
+    }
+    return appearance
+}
 
 /** DWM belongs to the host window. Transparent page paint is safe only behind an active wrapper. */
 fun materialStatsColors(base: StatsColors, windowStyle: String?,
@@ -159,7 +175,8 @@ fun hostStatsColors(hostDark: Boolean?, systemDark: Boolean): StatsColors =
 
 @Composable
 fun StatsTheme(inheritMaterial: Boolean = false, content: @Composable () -> Unit) {
-    var hostAppearance by remember { mutableStateOf(HostAppearance()) }
+    val inheritedAppearance = LocalHostAppearance.current
+    val hostAppearance = if (inheritedAppearance != null) inheritedAppearance else rememberHostAppearance()
     var systemDark by remember { mutableStateOf(false) }
     var hostFont by remember { mutableStateOf<androidx.compose.ui.text.font.FontFamily>(androidx.compose.ui.text.font.FontFamily.Default) }
     LaunchedEffect(hostAppearance.fontStrategy, hostAppearance.customFontPath) {
@@ -167,14 +184,12 @@ fun StatsTheme(inheritMaterial: Boolean = false, content: @Composable () -> Unit
             HostFont.load(hostAppearance.fontStrategy, hostAppearance.customFontPath)
         }
     }
-    LaunchedEffect(Unit) {
-        while (true) {
-            val appearance = withContext(Dispatchers.IO) { HostAppearanceReader.read() }
-            hostAppearance = appearance
-            if (appearance.dark == null) {
+    LaunchedEffect(hostAppearance.dark) {
+        if (hostAppearance.dark == null) {
+            while (true) {
                 systemDark = withContext(Dispatchers.IO) { readSystemDarkTheme() }
+                delay(1_000)
             }
-            delay(1_000)
         }
     }
     val reactiveDark = readHostDarkTheme()

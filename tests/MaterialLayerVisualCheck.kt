@@ -31,9 +31,10 @@ import javax.imageio.ImageIO
 /** The backdrop is synthetic. This verifies composition/placement, not Windows DWM rendering. */
 fun main(args: Array<String>) {
     val targets = HostUiDiscovery.discover(HostBytecodeIndex.read(Path.of("build/tools/spw-host.jar")))
-    HostUiRuntime.activate(HostUiBridge(targets, StatsPageHook::class.java.classLoader))
     val output = Path.of(args.single())
     Files.createDirectories(output)
+    checkMaterialEntrance(targets, output)
+    HostUiRuntime.activate(HostUiBridge(targets, StatsPageHook::class.java.classLoader))
     var hidden by mutableStateOf(false)
     var created = 0
     var disposed = 0
@@ -91,6 +92,107 @@ fun main(args: Array<String>) {
     checkNestedMaterialHook(output)
     checkForwardCover(output)
     checkHeatmapExitInput()
+}
+
+/** At 120 fps the real page edge must occlude host text from the very first frame. */
+private fun checkMaterialEntrance(targets: HostUiTargets, output: Path) {
+    for (style in listOf("WindowsAcrylic", "WindowsMica", "WindowsMicaAlt")) {
+        for (dark in listOf(false, true)) for (density in listOf(1f, 1.5f)) {
+            val bridge = HostUiBridge(targets, StatsPageHook::class.java.classLoader,
+                readAppearance = { HostAppearance(windowStyle = style, dark = dark) })
+            check(bridge.initialAppearance.windowStyle == style)
+            val session = HostUiRuntime.activate(bridge)
+            var loaded by mutableStateOf(false)
+            var firstBackground: Color? = null
+            var creates = 0
+            var disposes = 0
+            var hostClicks = 0
+            lateinit var scene: ImageComposeScene
+            lateinit var presenter: AutoCloseable
+            SwingUtilities.invokeAndWait {
+                StatsHostState.close()
+                StatsHostState.setAnimationsEnabled(true)
+                presenter = StatsHostState.attachPresenter()
+                scene = ImageComposeScene(400, 300, density = Density(density)) {
+                    Box(Modifier.fillMaxSize().drawWith { drawRect(Color(0xFF276B56)) }) {
+                        StatsPageLayers(hostContent = {
+                            remember { creates++; Any() }
+                            DisposableEffect(Unit) { onDispose { disposes++ } }
+                            Box(Modifier.fillMaxSize().onPointerEvent(PointerEventType.Release) { event ->
+                                if (event.changes.none { it.isConsumed }) hostClicks++
+                            }.drawWith { drawRect(Color(0xFFBB2244)) })
+                        }, statistics = {
+                            if (StatsHostState.visible) StatsTheme(inheritMaterial = LocalStatsMaterialBridge.current) {
+                                val background = LocalStatsColors.current.pageBackground
+                                if (firstBackground == null) firstBackground = background
+                                StatsPageEnter(StatsHostState.closing, exitMotion = StatsHostState.exitMotion) {
+                                    Box(Modifier.fillMaxSize().drawWith {
+                                        drawRect(background)
+                                        drawRect(Color.White, size = androidx.compose.ui.geometry.Size(size.width, 2f))
+                                        if (loaded) drawRect(Color.Cyan, topLeft = Offset(size.width - 10f, 20f),
+                                            size = androidx.compose.ui.geometry.Size(4f, 4f))
+                                    })
+                                }
+                            }
+                        })
+                    }
+                }
+            }
+            var time = 0L
+            fun frame(): java.awt.image.BufferedImage {
+                time += 8_333_333L
+                var bytes = byteArrayOf()
+                SwingUtilities.invokeAndWait {
+                    scene.render(time).use { image ->
+                        image.encodeToData(EncodedImageFormat.PNG)!!.use { bytes = it.bytes }
+                    }
+                }
+                Thread.sleep(3)
+                return ImageIO.read(java.io.ByteArrayInputStream(bytes))
+            }
+            try {
+                // Mount with statistics already visible: no prior effect may initialize material support.
+                SwingUtilities.invokeAndWait { StatsHostState.open() }
+                var uncoveredFrames = 0
+                var observedEdges = 0
+                repeat(90) { index ->
+                    if (index == 3) SwingUtilities.invokeAndWait { loaded = true }
+                    val image = frame()
+                    val edge = (0 until image.height).firstOrNull {
+                        image.getRGB(200, it) and 0xffffff == 0xffffff
+                    }
+                    if (edge != null) {
+                        observedEdges++
+                        for (y in edge + 3 until image.height) check(image.getRGB(200, y) and 0xffffff == 0x276B56) {
+                            "Host bleeds through $style, dark=$dark, density=$density at frame $index, edge=$edge, y=$y"
+                        }
+                        if (edge > 4 && image.getRGB(200, edge - 3) and 0xffffff != 0x276B56) uncoveredFrames++
+                    }
+                    if (index == 4 && style == "WindowsAcrylic") {
+                        ImageIO.write(image, "png", output.resolve("material-entry-$dark-$density.png").toFile())
+                    }
+                }
+                check(firstBackground?.alpha == 0f) { "First material frame used an opaque fallback: $firstBackground" }
+                check(observedEdges > 20 && uncoveredFrames > 0) { "Entrance no longer slides over a fading uncovered host" }
+                SwingUtilities.invokeAndWait {
+                    scene.sendPointerEvent(PointerEventType.Press, Offset(200f, 150f))
+                    scene.sendPointerEvent(PointerEventType.Release, Offset(200f, 150f))
+                }
+                check(hostClicks == 0 && creates == 1 && disposes == 0)
+                // Reverse a return before it completes; the old page must remain composed.
+                SwingUtilities.invokeAndWait { StatsHostState.requestClose() }
+                repeat(5) { frame() }
+                SwingUtilities.invokeAndWait { StatsHostState.open() }
+                repeat(90) { frame() }
+                check(creates == 1 && disposes == 0 && StatsHostState.visible)
+            } finally {
+                SwingUtilities.invokeAndWait { presenter.close(); StatsHostState.close(); scene.close() }
+                session.close()
+            }
+            check(disposes == 1)
+        }
+    }
+    println("PASS material entry at 120 fps: three styles, light/dark, two densities, first-frame transparency, edge clipping, data refresh and reversed return")
 }
 
 /** Raw pointer handlers must respect both page exit state and an already consumed press. */

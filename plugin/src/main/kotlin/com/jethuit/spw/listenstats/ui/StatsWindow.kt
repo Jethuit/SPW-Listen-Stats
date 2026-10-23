@@ -325,7 +325,7 @@ fun ListenStatsApp(
     }
 
     CompositionLocalProvider(LocalStatsAnimationsEnabled provides displayPreferences.pageAnimations) {
-    StatsTheme(inheritMaterial = embedded && StatsHostState.materialBridgeAvailable) {
+    StatsTheme(inheritMaterial = embedded && LocalStatsMaterialBridge.current) {
         val colors = LocalStatsColors.current
         val font = LocalHostFontFamily.current
         val inheritedText = SaltTheme.textStyles

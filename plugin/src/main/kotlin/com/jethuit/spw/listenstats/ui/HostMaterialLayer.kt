@@ -19,6 +19,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -99,6 +101,7 @@ fun RetainedHostContent(
     opacity: () -> Float = { 1f },
     aboveStatistics: Boolean = false,
     translationY: () -> Float = { 0f },
+    visibleHeight: (() -> Float)? = null,
     content: @Composable () -> Unit
 ) {
     val focus = LocalFocusManager.current
@@ -112,6 +115,13 @@ fun RetainedHostContent(
             }
         }
         .graphicsLayer { alpha = opacity().coerceIn(0f, 1f); this.translationY = translationY() }
+        .drawWithContent {
+            if (visibleHeight == null) drawContent()
+            else {
+                val bottom = visibleHeight().coerceIn(0f, size.height)
+                if (bottom > 0f) clipRect(bottom = bottom) { this@drawWithContent.drawContent() }
+            }
+        }
     ) { content() }
 }
 
@@ -124,6 +134,10 @@ fun HostMaterialLayer(content: @Composable () -> Unit) {
     }
     val visible = StatsHostState.visible
     val fade = LocalStatsHostFade.current
+    val pageOffset = LocalStatsPageOffset.current
+    val windowStyle = LocalHostAppearance.current?.windowStyle
+    val materialEntrance = visible && !StatsHostState.closing && pageOffset != null &&
+        windowStyle in setOf("WindowsAcrylic", "WindowsMica", "WindowsMicaAlt")
     val navigating = StatsHostState.navigating
     // Same-route tool pages do not participate in NavDisplay's entrance.
     val toolOffset = remember(StatsHostState.navigationTicket) {
@@ -139,6 +153,9 @@ fun HostMaterialLayer(content: @Composable () -> Unit) {
         opacity = { if (!visible || navigating) 1f else fade?.value ?: 0f },
         aboveStatistics = navigating,
         translationY = { toolOffset.value.y.toFloat() },
+        // A transparent material page cannot occlude host text by painting a background.
+        // Read its actual spring position during drawing, without a delayed callback.
+        visibleHeight = if (materialEntrance) ({ pageOffset.value.y.toFloat() }) else null,
         content = content
     )
 }
@@ -147,7 +164,14 @@ fun HostMaterialLayer(content: @Composable () -> Unit) {
 fun StatsPageLayers(hostContent: @Composable () -> Unit, statistics: @Composable () -> Unit = { StatsOverlay() }) {
     // One fade per presented page, shared with its spring rather than a second timer.
     val fade = if (StatsHostState.visible) remember { Animatable(1f) } else null
-    CompositionLocalProvider(LocalStatsHostFade provides fade) {
+    val offset = if (StatsHostState.visible) remember {
+        Animatable(IntOffset(0, StatsPageOffsetPixels), IntOffset.VectorConverter)
+    } else null
+    val bridge = HostUiRuntime.current
+    val appearance = rememberHostAppearance(bridge?.initialAppearance ?: HostAppearance(),
+        bridge?.readAppearance ?: HostAppearanceReader::read)
+    CompositionLocalProvider(LocalStatsHostFade provides fade, LocalStatsPageOffset provides offset,
+        LocalStatsMaterialBridge provides true, LocalHostAppearance provides appearance) {
         HostMaterialLayer(hostContent)
         statistics()
     }

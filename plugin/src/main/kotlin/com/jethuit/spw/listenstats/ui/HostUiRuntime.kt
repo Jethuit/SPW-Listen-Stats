@@ -10,7 +10,10 @@ import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 
 /** All reflected host members belong to one enable session. No process-lifetime lazy targets. */
-class HostUiBridge(val targets: HostUiTargets, private val loader: ClassLoader) {
+class HostUiBridge(val targets: HostUiTargets, private val loader: ClassLoader,
+    val readAppearance: () -> HostAppearance = HostAppearanceReader::read) {
+    // Prepared on the discovery worker before any statistics page can be presented.
+    val initialAppearance = readAppearance()
     private val preparationWarnings = mutableListOf<String>()
     val warnings: List<String> get() = targets.warnings + preparationWarnings
     private fun <T> optional(role: String, prepare: () -> T): T? = runCatching(prepare)
