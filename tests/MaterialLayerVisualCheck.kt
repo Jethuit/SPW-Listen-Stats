@@ -107,6 +107,7 @@ private fun checkMaterialEntrance(targets: HostUiTargets, output: Path) {
             var creates = 0
             var disposes = 0
             var hostClicks = 0
+            var entrancesCompleted = 0
             lateinit var scene: ImageComposeScene
             lateinit var presenter: AutoCloseable
             SwingUtilities.invokeAndWait {
@@ -125,7 +126,8 @@ private fun checkMaterialEntrance(targets: HostUiTargets, output: Path) {
                             if (StatsHostState.visible) StatsTheme(inheritMaterial = LocalStatsMaterialBridge.current) {
                                 val background = LocalStatsColors.current.pageBackground
                                 if (firstBackground == null) firstBackground = background
-                                StatsPageEnter(StatsHostState.closing, exitMotion = StatsHostState.exitMotion) {
+                                StatsPageEnter(StatsHostState.closing, exitMotion = StatsHostState.exitMotion,
+                                    onEntered = { entrancesCompleted++ }) {
                                     Box(Modifier.fillMaxSize().drawWith {
                                         drawRect(background)
                                         drawRect(Color.White, size = androidx.compose.ui.geometry.Size(size.width, 2f))
@@ -181,6 +183,7 @@ private fun checkMaterialEntrance(targets: HostUiTargets, output: Path) {
                     }
                 }
                 check(firstBackground?.alpha == 0f) { "First material frame used an opaque fallback: $firstBackground" }
+                check(entrancesCompleted == 1) { "Entrance completion must be delivered once after the spring" }
                 check(observedEdges > 20 && uncoveredFrames > 0) { "Entrance no longer slides over a fading uncovered host" }
                 check(overlappingFrames > 0) { "Native entrance overlap was lost" }
                 check(lastImage!!.getRGB(200, 250) and 0xffffff == 0x276B56) { "Old host remains visible after entrance" }
@@ -195,6 +198,7 @@ private fun checkMaterialEntrance(targets: HostUiTargets, output: Path) {
                 SwingUtilities.invokeAndWait { StatsHostState.open() }
                 repeat(90) { frame() }
                 check(creates == 1 && disposes == 0 && StatsHostState.visible)
+                check(entrancesCompleted == 2) { "Reversed entry must complete before applying deferred data" }
             } finally {
                 SwingUtilities.invokeAndWait { presenter.close(); StatsHostState.close(); scene.close() }
                 session.close()

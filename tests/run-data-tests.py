@@ -36,7 +36,7 @@ java = str(jdk / 'bin/java.exe')
 subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
                 '-no-stdlib', '-classpath', classpath, '-jvm-target', '25', '-d', str(scratch),
                 str(ROOT / 'tests' / (test_name + '.kt')),
-                *([str(ROOT / 'tests/NavigationTestSupport.kt')] if suite == 'navigation' else []),
+                *([str(ROOT / 'tests/NavigationTestSupport.kt'), str(ROOT / 'tests/SnapshotRegressionTest.kt')] if suite == 'navigation' else []),
                 *([str(ROOT / 'plugin/src/main/kotlin/com/jethuit/spw/listenstats/util/Format.kt')]
                   if suite == 'format' else [])], check=True)
 environment = os.environ.copy()

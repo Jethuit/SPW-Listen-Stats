@@ -27,6 +27,7 @@ object StatsNavigationHooks {
     private val requests = HashMap<RouteKey, OpenRequest>()
     private var binding: Binding? = null
     private var pending: OpenRequest? = null
+    private var preparationTicket = 0L
     private var registered = false
     val navigatorReady: Boolean get() = registered && binding != null
 
@@ -40,7 +41,7 @@ object StatsNavigationHooks {
         }
     }
 
-    fun cancelPendingOpen() { pending = null }
+    fun cancelPendingOpen() { pending = null; preparationTicket++ }
 
     /** Ask other tools to leave first; they may synchronously accept or defer for draft confirmation. */
     fun openStats() {
@@ -51,6 +52,13 @@ object StatsNavigationHooks {
             return
         }
         cancelPendingOpen()
+        val ticket = preparationTicket
+        com.jethuit.spw.listenstats.data.StatsSnapshots.prepareOpen {
+            if (ticket == preparationTicket && registered && binding === host) requestPreparedOpen(host)
+        }
+    }
+
+    private fun requestPreparedOpen(host: Binding) {
         // A destination may already be preparing under the isolation layer.
         // Reverse the exit only after its leave guard accepts.
         var request: OpenRequest? = null

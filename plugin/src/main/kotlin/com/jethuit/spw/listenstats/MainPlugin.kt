@@ -29,6 +29,7 @@ class MainPlugin(
         com.jethuit.spw.listenstats.data.StatsStore.initialize(pluginContext.pluginPath)
         com.jethuit.spw.listenstats.data.PlaybackTracker.initialize()
         closeHooks()
+        com.jethuit.spw.listenstats.data.StatsSnapshots.start()
         val host = WorkshopApi.instance.javaClass
         integration = HostUiIntegration(
             source = {
@@ -117,6 +118,7 @@ class MainPlugin(
     }
 
     private fun closeHooks() {
+        com.jethuit.spw.listenstats.data.StatsSnapshots.stop()
         integration?.close()
         integration = null
         PluginState.discoveryStatus = "stopped"

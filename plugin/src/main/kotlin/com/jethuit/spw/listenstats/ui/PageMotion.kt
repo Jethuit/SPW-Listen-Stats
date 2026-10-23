@@ -84,6 +84,7 @@ fun StatsPageEnter(
     exiting: Boolean = false,
     exitMotion: StatsExitMotion = StatsExitMotion.Return,
     onExited: () -> Unit = {},
+    onEntered: () -> Unit = {},
     content: @Composable () -> Unit
 ) {
     val enabled = LocalStatsAnimationsEnabled.current
@@ -94,6 +95,7 @@ fun StatsPageEnter(
     val velocities = remember { PageSpringVelocity() }
     val hostFade = LocalStatsHostFade.current
     val finished by rememberUpdatedState(onExited)
+    val entered by rememberUpdatedState(onEntered)
     LaunchedEffect(enabled, exiting, exitMotion, hostFade) {
         val navigating = exiting && exitMotion == StatsExitMotion.Navigate
         val targetOffset = if (navigating) offset.value else IntOffset(0, if (exiting) StatsPageOffsetPixels else 0)
@@ -127,7 +129,7 @@ fun StatsPageEnter(
             }
         }
         // A canceled/reversed exit cannot acknowledge completion or replay navigation.
-        if (exiting) finished()
+        if (exiting) finished() else entered()
     }
     Box(Modifier.fillMaxSize().clipToBounds().onPreviewKeyEvent { exiting }
         .onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { event ->

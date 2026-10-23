@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,7 +67,10 @@ import com.moriafly.salt.ui.rememberScrollState
 import com.moriafly.salt.ui.saltConfigs
 import com.moriafly.salt.ui.verticalScroll
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.snapshotFlow
+import com.jethuit.spw.listenstats.data.StatsSnapshots
+import com.jethuit.spw.listenstats.data.StatsSnapshotSession
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -219,6 +223,9 @@ object StatsWindow {
     }
 }
 
+private fun savedDate(key: String): LocalDate? = Prefs.getString(key, "")
+    .takeIf { it.isNotBlank() }?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+
 enum class StatsPage { Overview, Ranking }
 
 @Composable
@@ -237,8 +244,11 @@ fun ListenStatsApp(
             onScrollTop()
         }
     }
-    var data by remember { mutableStateOf<StatsData?>(null) }
-    var displayPreferences by remember { mutableStateOf(DisplayPreferences()) }
+    val snapshots = remember { StatsSnapshots.current ?: StatsSnapshotSession() }
+    val initial = remember { snapshots.latest }
+    var entering by remember { mutableStateOf(true) }
+    var data by remember { mutableStateOf(initial?.data) }
+    var displayPreferences by remember { mutableStateOf(initial?.preferences ?: DisplayPreferences()) }
     var today by remember { mutableStateOf(LocalDate.now()) }
     var page by remember {
         mutableStateOf(
@@ -249,24 +259,25 @@ fun ListenStatsApp(
             }
         )
     }
-    var chartType by remember { mutableStateOf(ChartType.Bar) }
-    var userGranularity by remember { mutableStateOf(Granularity.Day) }
-    var rangePreset by remember { mutableStateOf(RangePreset.Today) }
-    var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
+    var chartType by remember { mutableStateOf(ChartType.fromStorage(Prefs.getString("chartType", ChartType.Bar.storage))) }
+    var userGranularity by remember { mutableStateOf(Granularity.fromStorage(Prefs.getString("granularity", Granularity.Day.storage))) }
+    var rangePreset by remember { mutableStateOf(RangePreset.fromStorage(Prefs.getString("range", RangePreset.Today.storage))) }
+    var selectedDate by remember { mutableStateOf(savedDate("selectedDate") ?: if (rangePreset == RangePreset.Selected) today else null) }
     var heatmapYear by remember { mutableStateOf(today.year) }
     var heatmapRolling by remember { mutableStateOf(false) }
     var heatmapWeekly by remember { mutableStateOf(false) }
-    var customStart by remember { mutableStateOf<LocalDate?>(null) }
-    var customEnd by remember { mutableStateOf<LocalDate?>(null) }
+    var customStart by remember { mutableStateOf(savedDate("customStart") ?: if (rangePreset == RangePreset.Custom) today.minusDays(29) else null) }
+    var customEnd by remember { mutableStateOf(savedDate("customEnd") ?: if (rangePreset == RangePreset.Custom) today else null) }
     var query by remember { mutableStateOf("") }
     var rankPage by remember { mutableStateOf(1) }
-    var rankingMode by remember { mutableStateOf(RankingMode.Song) }
+    var rankingMode by remember { mutableStateOf(RankingMode.fromStorage(Prefs.getString("rankingMode", RankingMode.Song.storage))) }
     var bottomScrollRequest by remember { mutableStateOf(0) }
     var reloadTick by remember { mutableStateOf(0) }
     var dateDialogOpen by remember { mutableStateOf(false) }
     var backupBusy by remember { mutableStateOf(false) }
     var localExiting by remember { mutableStateOf(false) }
     val exiting = if (embedded) StatsHostState.closing else localExiting
+    val latestExiting by rememberUpdatedState(exiting)
     val closeTicket = StatsHostState.closeTicket
     val requestExit: () -> Unit = { if (embedded) onClose() else localExiting = true }
     val focus = LocalFocusManager.current
@@ -276,46 +287,25 @@ fun ListenStatsApp(
     }
     SideEffect { if (embedded) StatsHostState.setAnimationsEnabled(displayPreferences.pageAnimations) }
     LaunchedEffect(exiting) {
-        if (exiting) { dateDialogOpen = false; focus.clearFocus(force = true) }
+        if (exiting) { entering = true; dateDialogOpen = false; focus.clearFocus(force = true) }
     }
 
-    LaunchedEffect(Unit) {
-        // Start the first snapshot alongside preferences, not after their IO completes.
-        val firstSnapshot = async(Dispatchers.IO) { StatsStore.load() }
-        withContext(Dispatchers.IO) { Prefs.initialize() }
-        chartType = ChartType.fromStorage(Prefs.getString("chartType", ChartType.Bar.storage))
-        userGranularity = Granularity.fromStorage(Prefs.getString("granularity", Granularity.Day.storage))
-        rankingMode = RankingMode.fromStorage(Prefs.getString("rankingMode", RankingMode.Song.storage))
-        rangePreset = RangePreset.fromStorage(Prefs.getString("range", RangePreset.Today.storage))
-        selectedDate = Prefs.getString("selectedDate", "")
-            .takeIf { it.isNotBlank() }
-            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-        customStart = Prefs.getString("customStart", "")
-            .takeIf { it.isNotBlank() }
-            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-        customEnd = Prefs.getString("customEnd", "")
-            .takeIf { it.isNotBlank() }
-            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-        if (rangePreset == RangePreset.Selected && selectedDate == null) selectedDate = today
-        if (rangePreset == RangePreset.Custom && (customStart == null || customEnd == null)) {
-            customStart = today.minusDays(29)
-            customEnd = today
-        }
-        var initialLoad = true
+    LaunchedEffect(reloadTick) {
+        // The embedded entry is prepared before navigation. Standalone previews may load here.
+        if (initial == null) withContext(Dispatchers.IO) { Prefs.initialize() }
         while (true) {
-            val (loaded, preferences) = withContext(Dispatchers.IO) {
-                (if (initialLoad) firstSnapshot.await() else StatsStore.load()) to Prefs.displayPreferences()
+            val loaded = withContext(Dispatchers.IO) { snapshots.load() }
+            if (data == null) {
+                data = loaded.data
+                displayPreferences = loaded.preferences
+            } else {
+                // Wait for the actual spring completion, including interrupted/reversed entrances.
+                snapshotFlow { !entering && !latestExiting }.first { it }
+                data = loaded.data
+                displayPreferences = loaded.preferences
             }
-            initialLoad = false
-            displayPreferences = preferences
-            data = loaded
             today = LocalDate.now()
             delay(5_000)
-        }
-    }
-    LaunchedEffect(reloadTick) {
-        if (reloadTick > 0) {
-            data = withContext(Dispatchers.IO) { StatsStore.load() }
         }
     }
     LaunchedEffect(query, displayPreferences.rankingPageSize) { rankPage = 1 }
@@ -351,7 +341,8 @@ fun ListenStatsApp(
         LaunchedEffect(totalPages) {
             if (rankPage > totalPages) rankPage = totalPages
         }
-        StatsPageEnter(exiting, exitMotion = if (embedded) StatsHostState.exitMotion else StatsExitMotion.Return, onExited = {
+        StatsPageEnter(exiting, exitMotion = if (embedded) StatsHostState.exitMotion else StatsExitMotion.Return,
+            onEntered = { entering = false }, onExited = {
             if (embedded) StatsHostState.finishClose(closeTicket) else onClose()
         }) {
         Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {
