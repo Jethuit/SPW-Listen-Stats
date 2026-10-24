@@ -64,13 +64,6 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text(label, style = AppType.sectionTitle.copy(color = colors.text))
-                    if (current != null) {
-                        Text(
-                            "${current.rows.size}首 · ${formatDurationSeconds(shown.millis)}",
-                            modifier = Modifier.padding(top = 6.dp),
-                            style = AppType.bodySmall.copy(color = colors.muted)
-                        )
-                    }
                 }
                 BasicButton(onClick = onClose,
                     modifier = Modifier.size(32.dp).semantics { contentDescription = "收起歌曲明细" },
@@ -78,6 +71,27 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
                     colors = ButtonColors(Color.Transparent, colors.text, Color.Transparent, colors.muted),
                     contentPadding = PaddingValues(0.dp)) {
                     AppIcon(IconPaths.Close, colors.muted, iconSize = 18.dp)
+                }
+            }
+            if (current != null) {
+                BoxWithConstraints(
+                    Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp, end = 12.dp)
+                ) {
+                    val widths = tableWidths(maxWidth)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            "${current.rows.size}首 ·",
+                            modifier = Modifier.padding(end = 8.dp),
+                            style = AppType.bodySmall.copy(color = colors.muted)
+                        )
+                        Text(
+                            formatDurationSeconds(shown.millis),
+                            modifier = Modifier.width(widths.count),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                            style = AppType.bodySmall.copy(color = colors.muted)
+                        )
+                    }
                 }
             }
             when {
@@ -124,7 +138,7 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
                                             if (widths.album > 0.dp) Text(row.track.album.ifBlank { "未知专辑" },
                                                 Modifier.width(widths.album).padding(end = 16.dp), maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis, style = AppType.tiny.copy(color = colors.muted))
-                                            Row(Modifier.width(widths.count), horizontalArrangement = Arrangement.Center) {
+                                            Row(Modifier.width(widths.count), horizontalArrangement = Arrangement.End) {
                                                 Text(formatDurationSeconds(row.millis), style = AppType.bodySmall.copy(color = colors.text))
                                             }
                                         }
