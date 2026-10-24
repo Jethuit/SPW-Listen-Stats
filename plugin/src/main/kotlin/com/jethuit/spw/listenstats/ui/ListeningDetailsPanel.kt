@@ -86,11 +86,13 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
                 current.rows.isNotEmpty() -> {
                     Row(Modifier.fillMaxWidth().padding(bottom = 8.dp, end = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Spacer(Modifier.width(20.dp))
+                        Text("排名", Modifier.width(20.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            style = AppType.tiny.copy(color = colors.muted))
                         Spacer(Modifier.width(48.dp))
                         Text("标题", Modifier.weight(1f), style = AppType.tiny.copy(color = colors.muted))
                         Text("专辑", Modifier.weight(0.9f), style = AppType.tiny.copy(color = colors.muted))
-                        Text("本时段收听", style = AppType.tiny.copy(color = colors.muted))
+                        Text("本时段收听", textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                            style = AppType.tiny.copy(color = colors.muted))
                     }
                     key(shown.start, shown.end, shown.hour) {
                         val scroll = rememberLazyListState()
@@ -99,7 +101,9 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
                                 itemsIndexed(current.rows, key = { _, row -> row.track.id }) { index, row ->
                                     Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        Text("${index + 1}", Modifier.width(20.dp), style = AppType.tiny.copy(color = colors.muted))
+                                        Text("${index + 1}", Modifier.width(20.dp),
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            style = AppType.tiny.copy(color = colors.muted))
                                         Cover(row.track.id)
                                         Column(Modifier.weight(1f)) {
                                             Text(row.track.title, maxLines = 1, overflow = TextOverflow.Ellipsis,

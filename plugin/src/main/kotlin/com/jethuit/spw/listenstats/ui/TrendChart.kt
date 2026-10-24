@@ -97,7 +97,11 @@ fun TrendChart(
         val plotWidth = (widthPx - AXIS_LEFT - AXIS_RIGHT).coerceAtLeast(1f)
         val plotHeight = (heightPx - AXIS_TOP - AXIS_BOTTOM).coerceAtLeast(1f)
         val slot = if (buckets.isEmpty()) plotWidth else plotWidth / buckets.size
-        val banded = hourly || chartType == ChartType.Bar
+        // Bars represent intervals and stay centered in their slots. Lines and
+        // curves use their actual sample positions, so hourly 00:00 and 23:00
+        // land on the plot edges just like the daily chart's first and last
+        // points.
+        val banded = chartType == ChartType.Bar
         val tickCount = 4
 
         fun xAt(index: Int): Float {
