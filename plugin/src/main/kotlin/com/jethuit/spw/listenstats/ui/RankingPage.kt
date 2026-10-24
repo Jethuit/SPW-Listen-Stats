@@ -504,14 +504,14 @@ internal fun Cover(trackId: String) {
     }
 }
 
-private data class TableWidths(
+internal data class TableWidths(
     val rank: Dp,
     val song: Dp,
     val album: Dp,
     val count: Dp
 )
 
-private fun tableWidths(maxWidth: Dp): TableWidths {
+internal fun tableWidths(maxWidth: Dp): TableWidths {
     if (maxWidth < 440.dp) {
         val rank = 36.dp
         val count = 72.dp

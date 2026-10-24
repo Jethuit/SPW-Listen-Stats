@@ -84,36 +84,49 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
                 current.rows.isEmpty() && current.unknownMillis == 0L -> Text("该时段没有听歌记录",
                     style = AppType.bodySmall.copy(color = colors.muted))
                 current.rows.isNotEmpty() -> {
-                    Row(Modifier.fillMaxWidth().padding(bottom = 8.dp, end = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("排名", Modifier.width(20.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            style = AppType.tiny.copy(color = colors.muted))
-                        Spacer(Modifier.width(48.dp))
-                        Text("标题", Modifier.weight(1f), style = AppType.tiny.copy(color = colors.muted))
-                        Text("专辑", Modifier.weight(0.9f), style = AppType.tiny.copy(color = colors.muted))
-                        Text("本时段收听", textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                            style = AppType.tiny.copy(color = colors.muted))
+                    BoxWithConstraints(Modifier.fillMaxWidth().padding(bottom = 8.dp, end = 12.dp)) {
+                        val widths = tableWidths(maxWidth)
+                        Row(Modifier.fillMaxWidth()) {
+                            Text("排名", Modifier.width(widths.rank), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                style = AppType.tableHead.copy(color = colors.muted))
+                            Text("标题", Modifier.width(widths.song),
+                                style = AppType.tableHead.copy(color = colors.muted))
+                            if (widths.album > 0.dp) Text("专辑", Modifier.width(widths.album).padding(end = 16.dp),
+                                style = AppType.tableHead.copy(color = colors.muted))
+                            Text("本时段收听", Modifier.width(widths.count),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                style = AppType.tableHead.copy(color = colors.muted))
+                        }
                     }
                     key(shown.start, shown.end, shown.hour) {
                         val scroll = rememberLazyListState()
                         Box(Modifier.fillMaxWidth().height((minOf(current.rows.size, visibleRows.coerceIn(3, 12)) * 64).dp)) {
                             LazyColumn(Modifier.fillMaxSize().padding(end = 12.dp), state = scroll) {
                                 itemsIndexed(current.rows, key = { _, row -> row.track.id }) { index, row ->
-                                    Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        Text("${index + 1}", Modifier.width(20.dp),
-                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                            style = AppType.tiny.copy(color = colors.muted))
-                                        Cover(row.track.id)
-                                        Column(Modifier.weight(1f)) {
-                                            Text(row.track.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                                style = AppType.table.copy(color = colors.text))
-                                            Text(row.track.artist, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    BoxWithConstraints(Modifier.fillMaxWidth().height(64.dp)) {
+                                        val widths = tableWidths(maxWidth)
+                                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                            Text("${index + 1}", Modifier.width(widths.rank),
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                                 style = AppType.tiny.copy(color = colors.muted))
+                                            Row(Modifier.width(widths.song).padding(end = 16.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically) {
+                                                Cover(row.track.id)
+                                                Column(Modifier.weight(1f)) {
+                                                    Text(row.track.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                                        style = AppType.table.copy(color = colors.text))
+                                                    Text(row.track.artist, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                                        style = AppType.tiny.copy(color = colors.muted))
+                                                }
+                                            }
+                                            if (widths.album > 0.dp) Text(row.track.album.ifBlank { "未知专辑" },
+                                                Modifier.width(widths.album).padding(end = 16.dp), maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis, style = AppType.tiny.copy(color = colors.muted))
+                                            Row(Modifier.width(widths.count), horizontalArrangement = Arrangement.Center) {
+                                                Text(formatDurationSeconds(row.millis), style = AppType.bodySmall.copy(color = colors.text))
+                                            }
                                         }
-                                        Text(row.track.album.ifBlank { "未知专辑" }, Modifier.weight(0.9f), maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis, style = AppType.tiny.copy(color = colors.muted))
-                                        Text(formatDurationSeconds(row.millis), style = AppType.bodySmall.copy(color = colors.text))
                                     }
                                 }
                             }
