@@ -73,27 +73,6 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
                     AppIcon(IconPaths.Close, colors.muted, iconSize = 18.dp)
                 }
             }
-            if (current != null) {
-                BoxWithConstraints(
-                    Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp, end = 12.dp)
-                ) {
-                    val widths = tableWidths(maxWidth)
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            "${current.rows.size}首 ·",
-                            modifier = Modifier.padding(end = 8.dp),
-                            style = AppType.bodySmall.copy(color = colors.muted)
-                        )
-                        Text(
-                            formatDurationSeconds(shown.millis),
-                            modifier = Modifier.width(widths.count),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                            style = AppType.bodySmall.copy(color = colors.muted)
-                        )
-                    }
-                }
-            }
             when {
                 current == null -> Text("正在读取明细…", style = AppType.bodySmall.copy(color = colors.muted))
                 current.rows.isEmpty() && current.unknownMillis == 0L -> Text("该时段没有听歌记录",
@@ -150,15 +129,36 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
                     }
                 }
             }
-            if (current != null && current.unknownMillis > 0L) {
-                Text("无法关联歌曲 · ${formatDurationSeconds(current.unknownMillis)}",
-                    Modifier.padding(top = 16.dp), style = AppType.bodySmall.copy(color = colors.text))
-                Text("这部分历史仅保留汇总时长，无法恢复对应歌曲。", Modifier.padding(top = 6.dp),
-                    style = AppType.tiny.copy(color = colors.muted))
-            }
-            if (current?.rows?.any { it.approximateMillis > 0L } == true) {
-                Text("包含近似历史记录，时段归属可能有偏差。", Modifier.padding(top = 16.dp),
-                    style = AppType.tiny.copy(color = colors.muted))
+            if (current != null) {
+                BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 16.dp, end = 12.dp)) {
+                    val widths = tableWidths(maxWidth)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                        Column(Modifier.weight(1f)) {
+                            if (current.unknownMillis > 0L) {
+                                Text("无法关联歌曲 · ${formatDurationSeconds(current.unknownMillis)}",
+                                    style = AppType.bodySmall.copy(color = colors.text))
+                                Text("这部分历史仅保留汇总时长，无法恢复对应歌曲。",
+                                    Modifier.padding(top = 6.dp), style = AppType.tiny.copy(color = colors.muted))
+                            }
+                            if (current.rows.any { it.approximateMillis > 0L }) {
+                                Text("包含近似历史记录，时段归属可能有偏差。",
+                                    Modifier.padding(top = if (current.unknownMillis > 0L) 16.dp else 0.dp),
+                                    style = AppType.tiny.copy(color = colors.muted))
+                            }
+                        }
+                        Text(
+                            "${current.rows.size}首 ·",
+                            modifier = Modifier.padding(end = 8.dp),
+                            style = AppType.bodySmall.copy(color = colors.muted)
+                        )
+                        Text(
+                            formatDurationSeconds(shown.millis),
+                            modifier = Modifier.width(widths.count),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                            style = AppType.bodySmall.copy(color = colors.muted)
+                        )
+                    }
+                }
             }
         }
     }
