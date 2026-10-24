@@ -100,10 +100,10 @@ elif args.heatmap_scale:
 elif args.dark_materials:
     from collections import Counter
     for name, background, card, border in [
-            ('dark-acrylic', (80, 80, 80), (95, 95, 95), (115, 115, 117)),
-            ('dark-acrylic-brighter', (89, 89, 89), (95, 95, 95), (115, 115, 117)),
-            ('dark-mica', (39, 39, 39), (68, 68, 68), (97, 97, 99)),
-            ('dark-mica-alt', (39, 39, 39), (68, 68, 68), (97, 97, 99))]:
+            ('dark-acrylic', (80, 80, 80), (88, 88, 88), (110, 110, 112)),
+            ('dark-acrylic-brighter', (89, 89, 89), (97, 97, 97), (116, 116, 118)),
+            ('dark-mica', (39, 39, 39), (50, 50, 50), (85, 85, 87)),
+            ('dark-mica-alt', (39, 39, 39), (50, 50, 50), (85, 85, 87))]:
         rendered = Image.open(output / f'acrylic-{name}.png').convert('RGB')
         assert rendered.getpixel((5, 5)) == background
         actual = Counter(rendered.crop((40, 35, 760, 125)).getdata()).most_common(1)[0][0]

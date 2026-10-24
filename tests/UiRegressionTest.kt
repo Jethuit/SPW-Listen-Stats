@@ -85,10 +85,10 @@ fun main(args: Array<String>) {
         for (style in listOf("WindowsAcrylic", "WindowsMica", "WindowsMicaAlt")) {
             val material = materialStatsColors(base, style, true)
             check(material.pageBackground.alpha == 0f)
-            if (base.isDark && style == "WindowsAcrylic") {
-                val nativeCard = androidx.compose.ui.graphics.Color(0xFF5F5F5F)
-                check(material.cardBackground == nativeCard && material.controlBackground == nativeCard)
-                check(material.subtle == nativeCard)
+            if (base.isDark) {
+                val nativeSubBackground = androidx.compose.ui.graphics.Color.White.copy(alpha = 13f / 255f)
+                check(material.cardBackground == nativeSubBackground && material.controlBackground == nativeSubBackground)
+                check(material.subtle == nativeSubBackground)
             } else {
                 check(material.cardBackground.alpha in 0.1f..0.99f)
             }

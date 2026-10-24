@@ -138,11 +138,11 @@ fun materialStatsColors(base: StatsColors, windowStyle: String?,
         )
     }
     if (base.isDark) {
-        // Acrylic cards use the user's confirmed native #5F5F5F regardless of backdrop.
-        // Mica / Mica Alt retain their tint: #272727 backdrop -> #444444 card.
-        val acrylic = windowStyle == "WindowsAcrylic"
-        val surfaceTint = if (acrylic) Color(0xFF5F5F5F)
-            else Color(0xFF7C7C7C).copy(alpha = 0.34f)
+        // SPW's dark material palette uses Salt UI's native subBackground:
+        // white overlay with alpha 13/255. Keeping the alpha lets DWM's
+        // Acrylic/Mica backdrop show through instead of freezing one sampled
+        // composite such as #5F5F5F.
+        val surfaceTint = Color.White.copy(alpha = 13f / 255f)
         return base.copy(
             pageBackground = Color.Transparent,
             text = Color(0xFFEBEEF1),
@@ -150,9 +150,9 @@ fun materialStatsColors(base: StatsColors, windowStyle: String?,
             cardBackground = surfaceTint,
             controlBackground = surfaceTint,
             selectedControlBackground = Color.White.copy(alpha = 0.10f),
-            // Borders over the card composite to #737375 / #616163.
+            // Keep the existing calibrated border over the translucent card.
             line = Color(0xFF9B9BA1).copy(alpha = 1f / 3f),
-            subtle = if (acrylic) surfaceTint else Color.White.copy(alpha = 0.08f),
+            subtle = surfaceTint,
             hover = Color.White.copy(alpha = 0.08f),
             // Unlike the former dark fill, native hovered rows become lighter:
             // Acrylic #676769, Mica #515153 on the supplied backgrounds.
