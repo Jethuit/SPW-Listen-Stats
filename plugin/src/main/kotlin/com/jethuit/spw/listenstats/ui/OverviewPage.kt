@@ -101,9 +101,10 @@ fun OverviewPage(
     }
     val exiting = LocalStatsPageExiting.current
     val closeDetails: () -> Unit = { if (!exiting) { detailRequested = false; detailOpen = false } }
-    val shownDetailIndex = if (detailOpen) details?.bucket?.let { shown -> buckets.indexOfFirst {
-        it.start == shown.start && it.end == shown.end && it.hour == shown.hour
-    }.takeIf { it >= 0 } } else null
+    // Keep the marker tied to the requested bucket immediately. While the
+    // detail rows are loading, the old detail card may still be visible; the
+    // chart marker must already move to the newly clicked bucket.
+    val shownDetailIndex = detailIndex?.takeIf { detailRequested && it in buckets.indices }
 
     Column(Modifier.fillMaxWidth().onPreviewKeyEvent {
         if (!exiting && detailRequested && it.key == Key.Escape && it.type == KeyEventType.KeyDown) {

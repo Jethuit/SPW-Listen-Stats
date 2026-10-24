@@ -14,7 +14,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.*
@@ -63,7 +62,6 @@ fun TrendChart(
     var tooltip by remember(buckets, chartType, viewportRevision) { mutableStateOf<TooltipData?>(null) }
     var hoverIndex by remember(buckets, chartType, viewportRevision) { mutableStateOf<Int?>(null) }
     var keyboardIndex by remember(buckets.map { Triple(it.start, it.end, it.hour) }) { mutableStateOf(0) }
-    var focused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val exiting = LocalStatsPageExiting.current
     val widestLabel = remember(buckets, hostFont) {
@@ -140,7 +138,6 @@ fun TrendChart(
                         if (!exiting && buckets.isNotEmpty()) { activateBucket(keyboardIndex); true } else false
                     }
                 }
-                .onFocusChanged { focused = it.isFocused }
                 .onKeyEvent { event ->
                     if (exiting || onBucketSelected == null || buckets.isEmpty() || event.type != KeyEventType.KeyDown) false
                     else when (event.key) {
@@ -164,6 +161,9 @@ fun TrendChart(
                             focusRequester.requestFocus()
                             keyboardIndex = index
                             tooltip = null
+                            // A tap is a new selection. Do not let the last
+                            // pointer-move target keep drawing its marker.
+                            hoverIndex = null
                             activateBucket(index)
                         }
                     }
@@ -276,14 +276,6 @@ fun TrendChart(
                         topLeft = Offset(lastLeft, AXIS_TOP + plotHeight + 9f)
                     )
 
-                    selectedIndex?.takeIf { it in buckets.indices }?.let { index ->
-                        val center = xAt(index)
-                        val halfWidth = if (banded || buckets.size <= 1) slot / 2f else plotWidth / (buckets.size - 1) / 2f
-                        val left = max(AXIS_LEFT, center - halfWidth)
-                        val right = min(widthPx - AXIS_RIGHT, center + halfWidth)
-                        drawRect(colors.accentSoft, Offset(left, AXIS_TOP), Size(right - left, plotHeight))
-                    }
-
                     // Bars or line
                     if (!empty) when (chartType) {
                         ChartType.Bar -> {
@@ -363,7 +355,10 @@ fun TrendChart(
                     }
 
                     // Crosshair and hovered point
-                    val hovered = hoverIndex ?: if (focused) keyboardIndex else selectedIndex
+                    // Only an actual hover or active selection draws the
+                    // marker. Focus alone must not keep an old line visible
+                    // after details are closed or the chart is switched.
+                    val hovered = hoverIndex ?: selectedIndex
                     if (hovered != null && hovered in buckets.indices) {
                         val x = xAt(hovered)
                         drawLine(
