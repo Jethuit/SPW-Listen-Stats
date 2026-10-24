@@ -64,6 +64,13 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text(label, style = AppType.sectionTitle.copy(color = colors.text))
+                    if (current != null) {
+                        Text(
+                            "${current.rows.size}首 · ${formatDurationSeconds(shown.millis)}",
+                            modifier = Modifier.padding(top = 6.dp),
+                            style = AppType.bodySmall.copy(color = colors.muted)
+                        )
+                    }
                 }
                 BasicButton(onClick = onClose,
                     modifier = Modifier.size(32.dp).semantics { contentDescription = "收起歌曲明细" },
@@ -72,12 +79,6 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
                     contentPadding = PaddingValues(0.dp)) {
                     AppIcon(IconPaths.Close, colors.muted, iconSize = 18.dp)
                 }
-            }
-            Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 18.dp),
-                horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                Text("${formatDurationSeconds(shown.millis)} 收听时长", style = AppType.table.copy(color = colors.text))
-                if (current != null) Text("${current.rows.size} 首歌曲",
-                    style = AppType.table.copy(color = colors.text))
             }
             when {
                 current == null -> Text("正在读取明细…", style = AppType.bodySmall.copy(color = colors.muted))
@@ -93,7 +94,7 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
                                 style = AppType.tableHead.copy(color = colors.muted))
                             if (widths.album > 0.dp) Text("专辑", Modifier.width(widths.album).padding(end = 16.dp),
                                 style = AppType.tableHead.copy(color = colors.muted))
-                            Text("本时段收听", Modifier.width(widths.count),
+                            Text("收听时长", Modifier.width(widths.count),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                 style = AppType.tableHead.copy(color = colors.muted))
                         }
