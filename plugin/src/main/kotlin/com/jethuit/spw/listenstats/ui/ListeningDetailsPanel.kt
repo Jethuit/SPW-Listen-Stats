@@ -88,7 +88,7 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
                             if (widths.album > 0.dp) Text("专辑", Modifier.width(widths.album).padding(end = 16.dp),
                                 style = AppType.tableHead.copy(color = colors.muted))
                             Text("收听时长", Modifier.width(widths.count),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.End,
                                 style = AppType.tableHead.copy(color = colors.muted))
                         }
                     }
@@ -147,13 +147,8 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
                             }
                         }
                         Text(
-                            "${current.rows.size}首 ·",
-                            modifier = Modifier.padding(end = 8.dp),
-                            style = AppType.bodySmall.copy(color = colors.muted)
-                        )
-                        Text(
-                            formatDurationSeconds(shown.millis),
-                            modifier = Modifier.width(widths.count),
+                            "${current.rows.size}首 · ${formatDurationSeconds(shown.millis)}",
+                            modifier = Modifier.weight(1f),
                             textAlign = androidx.compose.ui.text.style.TextAlign.End,
                             style = AppType.bodySmall.copy(color = colors.muted)
                         )
