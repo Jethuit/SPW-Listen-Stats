@@ -64,8 +64,6 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text(label, style = AppType.sectionTitle.copy(color = colors.text))
-                    Text("歌曲收听明细", modifier = Modifier.padding(top = 6.dp),
-                        style = AppType.bodySmall.copy(color = colors.muted))
                 }
                 BasicButton(onClick = onClose,
                     modifier = Modifier.size(32.dp).semantics { contentDescription = "收起歌曲明细" },
@@ -86,8 +84,12 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
                 current.rows.isEmpty() && current.unknownMillis == 0L -> Text("该时段没有听歌记录",
                     style = AppType.bodySmall.copy(color = colors.muted))
                 current.rows.isNotEmpty() -> {
-                    Row(Modifier.fillMaxWidth().padding(bottom = 8.dp, end = 12.dp)) {
-                        Text("歌曲", Modifier.weight(1f).padding(start = 32.dp), style = AppType.tiny.copy(color = colors.muted))
+                    Row(Modifier.fillMaxWidth().padding(bottom = 8.dp, end = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Spacer(Modifier.width(20.dp))
+                        Spacer(Modifier.width(48.dp))
+                        Text("标题", Modifier.weight(1f), style = AppType.tiny.copy(color = colors.muted))
+                        Text("专辑", Modifier.weight(0.9f), style = AppType.tiny.copy(color = colors.muted))
                         Text("本时段收听", style = AppType.tiny.copy(color = colors.muted))
                     }
                     key(shown.start, shown.end, shown.hour) {
@@ -105,6 +107,8 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
                                             Text(row.track.artist, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                                 style = AppType.tiny.copy(color = colors.muted))
                                         }
+                                        Text(row.track.album.ifBlank { "未知专辑" }, Modifier.weight(0.9f), maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis, style = AppType.tiny.copy(color = colors.muted))
                                         Text(formatDurationSeconds(row.millis), style = AppType.bodySmall.copy(color = colors.text))
                                     }
                                 }

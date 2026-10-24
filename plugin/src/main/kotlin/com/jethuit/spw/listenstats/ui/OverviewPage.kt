@@ -237,7 +237,7 @@ fun OverviewPage(
         }
         if (displayPreferences.showDetailHint) {
             Text(
-                "点击柱子或曲线查看歌曲明细，再次点击收起",
+                "点击任意时段查看歌曲明细，再次点击收起",
                 modifier = Modifier.padding(top = 12.dp),
                 style = AppType.tiny.copy(color = colors.muted)
             )
