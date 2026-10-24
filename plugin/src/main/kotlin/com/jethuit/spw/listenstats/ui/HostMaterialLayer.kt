@@ -148,9 +148,10 @@ fun HostMaterialLayer(content: @Composable () -> Unit) {
 @Composable
 fun StatsPageLayers(hostContent: @Composable () -> Unit, statistics: @Composable () -> Unit = { StatsOverlay() }) {
     // One fade per presented page, shared with its spring rather than a second timer.
-    val fade = if (StatsHostState.visible) remember { Animatable(1f) } else null
+    val animations = com.jethuit.spw.listenstats.data.StatsSnapshots.current?.latest?.preferences?.pageAnimations ?: true
+    val fade = if (StatsHostState.visible) remember { Animatable(if (animations) 1f else 0f) } else null
     val offset = if (StatsHostState.visible) remember {
-        Animatable(IntOffset(0, StatsPageOffsetPixels), IntOffset.VectorConverter)
+        Animatable(IntOffset(0, if (animations) StatsPageOffsetPixels else 0), IntOffset.VectorConverter)
     } else null
     val bridge = HostUiRuntime.current
     val appearance = rememberHostAppearance(bridge?.initialAppearance ?: HostAppearance(),

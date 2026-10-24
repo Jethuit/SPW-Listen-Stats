@@ -12,10 +12,18 @@ public final class RestoreComposeIndex {
     public static void main(String[] args) throws Exception {
         Map<String, PackageParts> packages = new TreeMap<>();
         int[] count = {0};
+        Set<String> foundationParts = Set.of(
+            "androidx/compose/foundation/FocusableKt.class",
+            "androidx/compose/foundation/gestures/TapGestureDetectorKt.class",
+            "androidx/compose/foundation/lazy/LazyDslKt.class",
+            "androidx/compose/foundation/lazy/LazyListStateKt.class",
+            "androidx/compose/foundation/Scrollbar_desktopKt.class",
+            "androidx/compose/foundation/v2/Scrollbar_desktopKt.class"
+        );
         try (var host = new JarFile(args[0])) {
             for (var entry : Collections.list(host.entries())) {
                 String path = entry.getName();
-                if (!path.startsWith("androidx/compose/runtime/") || !path.endsWith(".class") ||
+                if ((!path.startsWith("androidx/compose/runtime/") && !foundationParts.contains(path)) || !path.endsWith(".class") ||
                     path.startsWith("androidx/compose/runtime/saveable/") ||
                     path.startsWith("androidx/compose/runtime/retain/") ||
                     path.startsWith("androidx/compose/runtime/annotation/")) continue;

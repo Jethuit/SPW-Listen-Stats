@@ -21,7 +21,10 @@ class StatsSnapshotSession(
     suspend fun load(reuse: Boolean = false): PreparedStatistics {
         mutex.lock()
         try {
-        if (reuse) latest?.let { return it }
+        // Reuse listening data, but refresh settings before the page's first frame.
+        if (reuse) latest?.let { cached ->
+            return cached.copy(preferences = preferences()).also { latest = it }
+        }
         val result = try { read() }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Exception) { StatsData.empty(error = "统计数据读取失败：${failure.message}") }
@@ -58,10 +61,10 @@ object StatsSnapshots {
         val session = current
         // Standalone synthetic navigation checks do not start the plugin lifecycle.
         if (session == null) { ready(); return }
-        if (session.latest != null) { ready(); return }
         val preparation = preload ?: return
         scope?.launch {
             preparation.await()
+            session.load(reuse = true)
             ensureActive()
             SwingUtilities.invokeLater { if (current === session) ready() }
         }

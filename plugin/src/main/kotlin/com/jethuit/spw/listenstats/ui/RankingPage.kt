@@ -461,7 +461,7 @@ private fun ArtistMonogram(name: String) {
 }
 
 @Composable
-private fun Cover(trackId: String) {
+internal fun Cover(trackId: String) {
     val colors = LocalStatsColors.current
     val targetPx = with(LocalDensity.current) { RankingCoverSize.roundToPx() }
     var image by remember(trackId, targetPx) { mutableStateOf<ImageBitmap?>(null) }
@@ -504,14 +504,14 @@ private fun Cover(trackId: String) {
     }
 }
 
-private data class TableWidths(
+internal data class TableWidths(
     val rank: Dp,
     val song: Dp,
     val album: Dp,
     val count: Dp
 )
 
-private fun tableWidths(maxWidth: Dp): TableWidths {
+internal fun tableWidths(maxWidth: Dp): TableWidths {
     if (maxWidth < 440.dp) {
         val rank = 36.dp
         val count = 72.dp

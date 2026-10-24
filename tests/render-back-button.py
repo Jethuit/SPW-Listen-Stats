@@ -20,6 +20,7 @@ parser.add_argument('--acrylic-ranking', action='store_true', help='render actua
 parser.add_argument('--material-ranking', action='store_true', help='check separator-free ranking across all four styles')
 parser.add_argument('--dark-materials', action='store_true', help='compare actual dark material components against native screenshot colors')
 parser.add_argument('--heatmap-scale', action='store_true', help='check adaptive heatmap colors and weekly cell outlines')
+parser.add_argument('--details', action='store_true', help='check chart selection and animated listening details')
 args = parser.parse_args()
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
@@ -29,9 +30,9 @@ kotlin = builder.find_kotlinc().parent.parent
 scratch = ROOT / 'build/tests/back-button'
 scratch.mkdir(parents=True, exist_ok=True)
 classpath = os.pathsep.join(map(str, [kotlin / 'lib/kotlin-stdlib.jar', ROOT / 'build/plugin-classes',
-    *builder.saltui_jars(), ROOT / 'build/tools/spw-host.jar']))
+    *builder.saltui_jars(), ROOT / 'build/tools/spw-compose-compile-index.jar', ROOT / 'build/tools/spw-host.jar']))
 java = str(jdk / 'bin/java.exe')
-test_name = ('HeatmapScaleVisualCheck' if args.heatmap_scale else 'AcrylicColorsVisualCheck' if args.acrylic or args.dark_materials else 'MaterialLayerVisualCheck' if args.material else 'RankingModesVisualCheck' if args.ranking or args.acrylic_ranking or args.material_ranking else 'CardColorsVisualCheck' if args.colors else 'CalendarNavigationVisualCheck' if args.calendar else
+test_name = ('ListeningDetailsVisualCheck' if args.details else 'HeatmapScaleVisualCheck' if args.heatmap_scale else 'AcrylicColorsVisualCheck' if args.acrylic or args.dark_materials else 'MaterialLayerVisualCheck' if args.material else 'RankingModesVisualCheck' if args.ranking or args.acrylic_ranking or args.material_ranking else 'CardColorsVisualCheck' if args.colors else 'CalendarNavigationVisualCheck' if args.calendar else
              'ResponsiveLayoutVisualCheck' if args.layout else 'BackButtonVisualCheck')
 subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
     '-no-stdlib', '-classpath', classpath,
@@ -61,6 +62,8 @@ if args.dark_materials:
     output = ROOT / 'build/screenshots' / f'dark-materials-v{builder.PLUGIN_VERSION}'
 if args.heatmap_scale:
     output = ROOT / 'build/screenshots' / f'heatmap-scale-v{builder.PLUGIN_VERSION}'
+if args.details:
+    output = ROOT / 'build/screenshots' / f'listening-details-v{builder.PLUGIN_VERSION}'
 native_dir = (args.spw_dir or builder.DEFAULT_SPW_DIR) / 'app'
 native_temp = scratch / 'native-temp'
 native_temp.mkdir(exist_ok=True)
@@ -68,7 +71,13 @@ subprocess.run([java, f'-Dskiko.library.path={native_dir}', f'-Djna.tmpdir={nati
     f'-Djava.io.tmpdir={native_temp}', '--enable-native-access=ALL-UNNAMED',
     '-cp', str(scratch) + os.pathsep + classpath,
     test_name + 'Kt', str(output), *(['dark'] if args.dark_materials else ['materials'] if args.material_ranking else ['acrylic'] if args.acrylic_ranking else [])], check=True, env=environment)
-if args.heatmap_scale:
+if args.details:
+    import shutil
+    preview = ROOT / 'preview/features/screenshots/native-details'
+    preview.mkdir(parents=True, exist_ok=True)
+    for image in output.glob('*.png'):
+        shutil.copyfile(image, preview / image.name)
+elif args.heatmap_scale:
     from collections import Counter
     daily = Counter(Image.open(output / 'heatmap-daily.png').convert('RGB').getdata())
     changed = Counter(Image.open(output / 'heatmap-rebalanced.png').convert('RGB').getdata())
@@ -91,9 +100,10 @@ if args.heatmap_scale:
 elif args.dark_materials:
     from collections import Counter
     for name, background, card, border in [
-            ('dark-acrylic', (80, 80, 80), (95, 95, 95), (115, 115, 117)),
-            ('dark-mica', (39, 39, 39), (68, 68, 68), (97, 97, 99)),
-            ('dark-mica-alt', (39, 39, 39), (68, 68, 68), (97, 97, 99))]:
+            ('dark-acrylic', (80, 80, 80), (88, 88, 88), (110, 110, 112)),
+            ('dark-acrylic-brighter', (89, 89, 89), (97, 97, 97), (116, 116, 118)),
+            ('dark-mica', (39, 39, 39), (50, 50, 50), (85, 85, 87)),
+            ('dark-mica-alt', (39, 39, 39), (50, 50, 50), (85, 85, 87))]:
         rendered = Image.open(output / f'acrylic-{name}.png').convert('RGB')
         assert rendered.getpixel((5, 5)) == background
         actual = Counter(rendered.crop((40, 35, 760, 125)).getdata()).most_common(1)[0][0]

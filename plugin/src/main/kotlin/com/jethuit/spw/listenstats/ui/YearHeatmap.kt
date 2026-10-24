@@ -58,14 +58,15 @@ fun YearHeatmap(
     onDaySelected: (LocalDate) -> Unit,
     onWeekSelected: (LocalDate, LocalDate) -> Unit,
     viewportRevision: Int = 0,
-    rolling: Boolean = false
+    rolling: Boolean = false,
+    revealAnimations: Boolean = true
 ) {
     val colors = LocalStatsColors.current
     val measurer = rememberTextMeasurer()
     val labelStyle = AppType.tiny.copy(fontFamily = LocalTextStyle.current.fontFamily)
     val grid = remember(year, rolling, today) { StatsCalculations.heatmapGrid(year, rolling, today) }
     val dailyScale = remember(data.dailyMillis, today) { HeatmapScale.daily(data.dailyMillis, today) }
-    val animations = LocalStatsAnimationsEnabled.current
+    val animations = LocalStatsAnimationsEnabled.current && revealAnimations
     val exiting = LocalStatsPageExiting.current
     val reveal = remember(grid.firstDay, grid.lastDay, weekly) { Animatable(if (animations) 0f else 1f) }
     LaunchedEffect(reveal, animations) {

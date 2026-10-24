@@ -15,14 +15,42 @@
           "key": "rankingPageSize",
           "type": "edittext",
           "title": "排行每页数量",
-          "summary": "适用于歌曲、歌手和专辑排行。请输入正整数，默认25；无效输入按25计算。更改后回到第一页，重新打开统计页或自动刷新时生效。",
+          "summary": "歌曲、歌手和专辑排行每页显示的数量。默认25；请输入正整数，无效输入按25计算。更改后回到第一页，重新打开统计页或下次自动刷新时生效。",
           "default_value": "25"
+        },
+        {
+          "key": "refreshIntervalSeconds",
+          "type": "edittext",
+          "title": "页面刷新间隔（秒）",
+          "summary": "请输入2～60的整数，默认5秒；无效输入按5秒计算。只影响页面更新频率，听歌记录持续进行。重新打开统计页或按原间隔完成下一次刷新后生效。",
+          "default_value": "5"
+        },
+        {
+          "key": "detailVisibleRows",
+          "type": "edittext",
+          "title": "明细可见行数",
+          "summary": "歌曲明细最多同时显示的行数，超出后在卡片内滚动。请输入3～12的整数，默认6行；无效输入按6行计算。重新打开统计页或下次自动刷新时生效。",
+          "default_value": "6"
+        },
+        {
+          "key": "showDetailHint",
+          "type": "switch",
+          "title": "显示明细操作提示",
+          "summary": "在时长分布下方显示点击查看及再次点击收起的提示。默认开启；关闭后仍可点击图表查看明细。重新打开统计页或下次自动刷新时生效。",
+          "default_value": true
         },
         {
           "key": "pageAnimations",
           "type": "switch",
           "title": "页面动画",
-          "summary": "统计页进出采用与 SPW 一致的动画，同时控制页内切换、菜单、搜索和热力图动画。默认开启，关闭后直接显示或切换。重新打开统计页或自动刷新后生效。",
+          "summary": "控制统计页进出、页内切换、菜单、搜索及明细动画。默认开启；关闭时也会关闭热力图展开动画。重新打开统计页或下次自动刷新时生效。",
+          "default_value": true
+        },
+        {
+          "key": "heatmapAnimations",
+          "type": "switch",
+          "title": "热力图展开动画",
+          "summary": "热力格从左往右逐列出现，默认开启。可以单独关闭；仅在“页面动画”也开启时播放。重新打开统计页或下次自动刷新时生效。",
           "default_value": true
         },
         {

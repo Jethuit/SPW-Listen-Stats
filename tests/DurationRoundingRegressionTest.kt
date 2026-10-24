@@ -2,6 +2,7 @@ import com.jethuit.spw.listenstats.util.DurationPart
 import com.jethuit.spw.listenstats.util.durationParts
 import com.jethuit.spw.listenstats.util.formatDuration
 import com.jethuit.spw.listenstats.util.formatDurationCompact
+import com.jethuit.spw.listenstats.util.formatDurationSeconds
 
 fun main(args: Array<String>) {
     val cases = mapOf(
@@ -37,4 +38,13 @@ fun main(args: Array<String>) {
     check(formatDuration(Long.MAX_VALUE).isNotEmpty())
     check(durationParts(Long.MAX_VALUE).first().unit == "小时")
     println("PASS minute half-up boundaries, hour/day carry, shared displays and aggregate-before-rounding")
+    mapOf(-1L to "0秒", 0L to "0秒", 1L to "不足1秒", 999L to "不足1秒",
+        1_000L to "1秒", 59_999L to "59秒", 60_000L to "1分0秒",
+        207_000L to "3分27秒", 3_599_999L to "59分59秒", 3_600_000L to "1小时0分0秒",
+        3_728_999L to "1小时2分8秒", 86_400_000L to "24小时0分0秒").forEach { (millis, expected) ->
+        check(formatDurationSeconds(millis) == expected) { "seconds $millis: ${formatDurationSeconds(millis)} != $expected" }
+    }
+    check(formatDurationSeconds(Long.MAX_VALUE).isNotEmpty())
+    check(formatDurationSeconds(600L + 600L) == "1秒")
+    println("PASS detail seconds, subsecond records, minute/hour boundaries and aggregate-before-formatting")
 }
