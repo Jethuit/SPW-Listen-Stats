@@ -55,6 +55,7 @@ object StatsSnapshots {
         scope?.cancel()
         scope = null
         preload = null
+        HostDatabase.close()
     }
 
     fun prepareOpen(ready: () -> Unit) {
