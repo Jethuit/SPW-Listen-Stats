@@ -52,6 +52,7 @@ import com.jethuit.spw.listenstats.data.ChartType
 import com.jethuit.spw.listenstats.data.Granularity
 import com.jethuit.spw.listenstats.data.RangePreset
 import com.jethuit.spw.listenstats.data.RankingMode
+import com.jethuit.spw.listenstats.data.RankingMetric
 import com.jethuit.spw.listenstats.data.Rankings
 import com.jethuit.spw.listenstats.data.StatsCalculations
 import com.jethuit.spw.listenstats.data.StatsData
@@ -271,6 +272,7 @@ fun ListenStatsApp(
     var query by remember { mutableStateOf("") }
     var rankPage by remember { mutableStateOf(1) }
     var rankingMode by remember { mutableStateOf(RankingMode.fromStorage(Prefs.getString("rankingMode", RankingMode.Song.storage))) }
+    var rankingMetric by remember { mutableStateOf(RankingMetric.fromStorage(Prefs.getString("rankingMetric", RankingMetric.Count.storage))) }
     var bottomScrollRequest by remember { mutableStateOf(0) }
     var reloadTick by remember { mutableStateOf(0) }
     var dateDialogOpen by remember { mutableStateOf(false) }
@@ -332,8 +334,8 @@ fun ListenStatsApp(
         )) {
         val snapshot = data
         val summary = remember(snapshot, today) { snapshot?.let { StatsCalculations.summary(it, today) } }
-        val rankingEntries = remember(snapshot, query, rankingMode) {
-            snapshot?.let { Rankings.ranked(it, rankingMode, query) } ?: emptyList()
+        val rankingEntries = remember(snapshot, query, rankingMode, rankingMetric) {
+            snapshot?.let { Rankings.ranked(it, rankingMode, query, rankingMetric) } ?: emptyList()
         }
         val rankCount = rankingEntries.size
         val totalPages = rankingTotalPages(rankCount, displayPreferences.rankingPageSize)
@@ -511,6 +513,14 @@ fun ListenStatsApp(
                                             rankingMode = it
                                             rankPage = 1
                                             Prefs.putStringAsync("rankingMode", it.storage)
+                                        }
+                                    },
+                                    metric = rankingMetric,
+                                    onMetricChange = {
+                                        if (rankingMetric != it) {
+                                            rankingMetric = it
+                                            rankPage = 1
+                                            Prefs.putStringAsync("rankingMetric", it.storage)
                                         }
                                     },
                                     query = query,

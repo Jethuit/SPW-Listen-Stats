@@ -63,7 +63,9 @@ import com.jethuit.spw.listenstats.data.CoverDiagnostics
 import com.jethuit.spw.listenstats.data.CoverStore
 import com.jethuit.spw.listenstats.data.RankedEntry
 import com.jethuit.spw.listenstats.data.RankingEntry
+import com.jethuit.spw.listenstats.data.RankingMetric
 import com.jethuit.spw.listenstats.data.RankingMode
+import com.jethuit.spw.listenstats.util.formatDurationSeconds
 import com.jethuit.spw.listenstats.util.formatNumber
 import kotlinx.coroutines.delay
 
@@ -83,6 +85,7 @@ fun rankingSafePage(count: Int, page: Int, pageSize: Int = RANKING_PAGE_SIZE): I
 
 private data class RankingPanel(
     val mode: RankingMode,
+    val metric: RankingMetric,
     val page: Int,
     val pageSize: Int,
     val rows: List<RankedEntry>,
@@ -98,7 +101,9 @@ fun RankingPage(
     onQueryChange: (String) -> Unit,
     page: Int,
     onPageChange: (Int) -> Unit,
-    pageSize: Int = RANKING_PAGE_SIZE
+    pageSize: Int = RANKING_PAGE_SIZE,
+    metric: RankingMetric = RankingMetric.Count,
+    onMetricChange: (RankingMetric) -> Unit = {}
 ) {
     val colors = LocalStatsColors.current
     var searchState by remember { mutableStateOf(TextFieldState(query)) }
@@ -134,6 +139,14 @@ fun RankingPage(
                     onSelected = { onModeChange(RankingMode.fromStorage(it)) },
                     checkable = true
                 ) { HostToolbarIcon("ic_sort_a_z", IconPaths.QueueMusic, colors.text) }
+                CompactMenuButton(
+                    description = "排行指标",
+                    options = listOf(RankingMetric.Count.storage to "播放次数",
+                        RankingMetric.Duration.storage to "收听时长"),
+                    selected = metric.storage,
+                    onSelected = { onMetricChange(RankingMetric.fromStorage(it)) },
+                    checkable = true
+                ) { AppIcon(IconPaths.BarChart, colors.text, iconSize = 20.dp) }
                 SearchExpansion(searchExpanded) { expanded ->
                     if (expanded) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -155,7 +168,7 @@ fun RankingPage(
                     Row(verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         AppIcon(IconPaths.QueueMusic, colors.muted, iconSize = 19.dp)
-                        Text(mode.title, style = AppType.sectionTitle.copy(color = colors.text,
+                        Text(mode.title(metric), style = AppType.sectionTitle.copy(color = colors.text,
                             fontSize = 18.sp, lineHeight = 24.sp))
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
@@ -164,32 +177,36 @@ fun RankingPage(
             } else {
                 SectionHeading(
                     icon = IconPaths.QueueMusic,
-                    title = mode.title,
+                    title = mode.title(metric),
                     headingHeight = 34.dp,
                     titleStyle = AppType.sectionTitle.copy(fontSize = 18.sp, lineHeight = 24.sp)
                 ) { controls() }
             }
         }
         DirectionalContent(
-            target = RankingPanel(mode, currentPage, size, rows, query),
-            contentKey = { Triple(it.mode, it.page, it.pageSize) },
+            target = RankingPanel(mode, metric, currentPage, size, rows, query),
+            contentKey = { "${it.metric.storage}:${it.mode.storage}:${it.page}:${it.pageSize}" },
             direction = { from, to ->
-                if (from.mode == to.mode) to.page.compareTo(from.page)
+                if (from.metric != to.metric) to.metric.ordinal.compareTo(from.metric.ordinal)
+                else if (from.mode == to.mode) to.page.compareTo(from.page)
                 else to.mode.ordinal.compareTo(from.mode.ordinal)
             },
             label = "ranking-panel"
         ) { shown ->
             Column(Modifier.fillMaxWidth()) {
-                SongTableHeader(shown.mode)
+                SongTableHeader(shown.mode, shown.metric)
                 shown.rows.forEach { rank ->
                     key(rank.value.key) {
-                        SongRow(rank.value, rank.position)
+                        SongRow(rank.value, rank.position, shown.metric)
                     }
                 }
                 if (shown.rows.isEmpty()) {
                     Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
                         Text(
-                            if (shown.query.isBlank()) "还没有达到计次条件的${shown.mode.label}" else "没有找到匹配的${shown.mode.label}",
+                            if (shown.query.isBlank()) {
+                                if (shown.metric == RankingMetric.Duration) "还没有收听时长记录的${shown.mode.label}"
+                                else "还没有达到计次条件的${shown.mode.label}"
+                            } else "没有找到匹配的${shown.mode.label}",
                             style = AppType.bodySmall.copy(color = colors.muted)
                         )
                     }
@@ -198,7 +215,7 @@ fun RankingPage(
         }
         Box(Modifier.height(1.dp))
         Box(Modifier.height(16.dp))
-        RankingFooter(filtered.size, currentPage, totalPages, onPageChange, mode)
+        RankingFooter(filtered.size, currentPage, totalPages, onPageChange, mode, metric)
     }
 }
 
@@ -289,9 +306,14 @@ private fun RankingIconButton(
 
 @Composable
 fun RankingFooter(count: Int, currentPage: Int, totalPages: Int, onPageChange: (Int) -> Unit,
-                  mode: RankingMode = RankingMode.Song) {
+                  mode: RankingMode = RankingMode.Song,
+                  metric: RankingMetric = RankingMetric.Count) {
     val colors = LocalStatsColors.current
-    val caption = "共 ${formatNumber(count.toLong())} ${mode.itemUnit} · 听满单曲 50% 计一次"
+    val caption = if (metric == RankingMetric.Duration) {
+        "共 ${formatNumber(count.toLong())} ${mode.itemUnit} · 按实际收听时长累计"
+    } else {
+        "共 ${formatNumber(count.toLong())} ${mode.itemUnit} · 听满单曲 50% 计一次"
+    }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         if (maxWidth < 840.dp) {
             val compact = maxWidth < 440.dp
@@ -343,7 +365,7 @@ fun RankingFooter(count: Int, currentPage: Int, totalPages: Int, onPageChange: (
 }
 
 @Composable
-private fun SongTableHeader(mode: RankingMode) {
+private fun SongTableHeader(mode: RankingMode, metric: RankingMetric) {
     val colors = LocalStatsColors.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val widths = tableWidths(maxWidth)
@@ -365,7 +387,7 @@ private fun SongTableHeader(mode: RankingMode) {
                 style = AppType.tableHead.copy(color = colors.muted)
             )
             Text(
-                "播放次数",
+                metric.header,
                 modifier = Modifier.width(widths.count),
                 style = AppType.tableHead.copy(color = colors.muted),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -376,7 +398,7 @@ private fun SongTableHeader(mode: RankingMode) {
 }
 
 @Composable
-private fun SongRow(rank: RankingEntry, position: Int) {
+private fun SongRow(rank: RankingEntry, position: Int, metric: RankingMetric) {
     val colors = LocalStatsColors.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val widths = tableWidths(maxWidth)
@@ -432,15 +454,22 @@ private fun SongRow(rank: RankingEntry, position: Int) {
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.Bottom
                     ) {
-                        Text(
-                            formatNumber(rank.count),
-                            style = RankingRowText.copy(color = colors.text)
-                        )
-                        Text(
-                            "次",
-                            modifier = Modifier.padding(start = 4.dp, bottom = 2.dp),
-                            style = AppType.tiny.copy(color = colors.muted)
-                        )
+                        if (metric == RankingMetric.Duration) {
+                            Text(
+                                formatDurationSeconds(rank.durationMs),
+                                style = RankingRowText.copy(color = colors.text)
+                            )
+                        } else {
+                            Text(
+                                formatNumber(rank.count),
+                                style = RankingRowText.copy(color = colors.text)
+                            )
+                            Text(
+                                "次",
+                                modifier = Modifier.padding(start = 4.dp, bottom = 2.dp),
+                                style = AppType.tiny.copy(color = colors.muted)
+                            )
+                        }
                     }
                 }
                 Box(Modifier.height(1.dp))

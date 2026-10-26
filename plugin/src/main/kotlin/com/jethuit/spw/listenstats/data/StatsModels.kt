@@ -38,17 +38,28 @@ data class StatsData(
 
     fun playCount(trackId: String): Int = playCounts[trackId] ?: 0
 
-    fun sortedTracks(): List<TrackRank> {
+    fun sortedTracks(metric: RankingMetric = RankingMetric.Count): List<TrackRank> {
         val collator = java.text.Collator.getInstance(java.util.Locale.CHINA)
-        val entries = playCounts.entries
-            .filter { it.value > 0 }
-            .mapNotNull { (id, count) ->
-                tracks[id]?.let { TrackRank(it, count) }
+        val durations = listeningMillisByTrack()
+        val entries = (playCounts.keys + durations.keys).distinct()
+            .mapNotNull { id ->
+                tracks[id]?.let { TrackRank(it, playCounts[id] ?: 0, durations[id] ?: 0L) }
             }
+            .filter { if (metric == RankingMetric.Count) it.count > 0 else it.durationMs > 0L }
         return entries.sortedWith(
-            compareByDescending<TrackRank> { it.count }
+            compareByDescending<TrackRank> { if (metric == RankingMetric.Count) it.count.toLong() else it.durationMs }
                 .thenComparator { left, right -> collator.compare(left.track.title, right.track.title) }
         )
+    }
+
+    fun listeningMillisByTrack(): Map<String, Long> {
+        if (events.isNotEmpty()) {
+            val sourceId = DataFiles.sourceId()
+            return events.groupingBy { event ->
+                if (event.libraryId == sourceId) event.track.id else "${event.libraryId}:${event.track.id}"
+            }.fold(0L) { total, event -> total + event.durationMs }
+        }
+        return listens.groupingBy { it.trackId }.fold(0L) { total, listen -> total + listen.durationMs }
     }
 
     fun rankedTracks(query: String = ""): List<RankedTrack> {
@@ -75,7 +86,8 @@ data class StatsData(
 
 data class TrackRank(
     val track: TrackMeta,
-    val count: Int
+    val count: Int,
+    val durationMs: Long = 0L
 )
 
 data class RankedTrack(val position: Int, val value: TrackRank)
