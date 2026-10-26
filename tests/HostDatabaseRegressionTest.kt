@@ -45,11 +45,12 @@ fun main(args: Array<String>) {
         // (timestamp, id) boundary. The earlier start time exercises final ordering.
         exec(connection, "INSERT INTO Listen VALUES ('c', 'one', ${epoch + 1000}, 7000)")
         exec(connection, "INSERT INTO Listen VALUES ('d', 'two', ${epoch + 2000}, 15000)")
+        exec(connection, "INSERT INTO Listen VALUES (NULL, 'one', ${epoch + 2500}, 5000)")
         connection.commit()
     }
     val appended = HostDatabase.load(database, ZoneId.of("UTC"), aggregate = false)
-    check(appended.listens.map { it.id } == listOf("c", "a", "b", "d"))
-    check(appended.listens.size == 4)
+    check(appended.listens.map { it.id } == listOf("c", "a", "b", "d", "one-${epoch + 2500}"))
+    check(appended.listens.size == 5)
 
     DriverManager.getConnection("jdbc:sqlite:${database.toAbsolutePath()}").use { connection ->
         connection.autoCommit = false
@@ -75,7 +76,7 @@ fun main(args: Array<String>) {
         connection.commit()
     }
     val deleted = HostDatabase.load(database, ZoneId.of("UTC"), aggregate = false)
-    check(deleted.listens.map { it.id } == listOf("c", "b", "d", "e"))
+    check(deleted.listens.map { it.id } == listOf("c", "b", "d", "one-${epoch + 2500}", "e"))
 
     HostDatabase.close()
     println("PASS host database uses append refresh, preserves same-time rows, and falls back for edits/deletes")
