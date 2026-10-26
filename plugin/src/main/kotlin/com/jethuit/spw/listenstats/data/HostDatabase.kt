@@ -15,6 +15,7 @@ import java.time.ZoneId
 object HostDatabase {
     private const val DRIVER = "org.sqlite.JDBC"
     private const val RECENT_ROW_WINDOW = 256L
+    private const val TRACK_QUERY_CHUNK = 500
 
     private val cacheLock = Any()
     private var cache: Cache? = null
@@ -209,7 +210,7 @@ object HostDatabase {
                 state.rawDurationSum = summary.durationSum
                 state.rawStartTimeSum = summary.startTimeSum
                 state.rawTextLengthSum = summary.textLengthSum
-                state.tracks = readTracks(state.connection)
+                state.tracks = readTracks(state.connection, state.rows.values.asSequence().map { it.trackId }.toSet())
                 invalidateBuiltData(state)
             }
         } else {
@@ -241,7 +242,7 @@ object HostDatabase {
         state.rawDurationSum = batch.durationSum
         state.rawStartTimeSum = batch.startTimeSum
         state.rawTextLengthSum = batch.textLengthSum
-        state.tracks = readTracks(state.connection)
+        state.tracks = readTracks(state.connection, state.rows.values.asSequence().map { it.trackId }.toSet())
         invalidateBuiltData(state)
     }
 
@@ -377,23 +378,29 @@ object HostDatabase {
             raw.startTimeMs, raw.durationMs)
     }
 
-    private fun readTracks(connection: Connection): LinkedHashMap<String, TrackMeta> {
+    /** Only history-referenced tracks can affect the statistics snapshot. */
+    private fun readTracks(connection: Connection, ids: Set<String>): LinkedHashMap<String, TrackMeta> {
         val result = LinkedHashMap<String, TrackMeta>()
-        connection.prepareStatement(
-            "SELECT id, title, artist, album, albumArtist, duration FROM Track"
-        ).use { statement ->
-            statement.executeQuery().use { rows ->
-                while (rows.next()) {
-                    val id = rows.getString("id") ?: continue
-                    val title = rows.getString("title") ?: continue
-                    result[id] = TrackMeta(
-                        id = id,
-                        title = title,
-                        artist = rows.getString("artist").orEmpty(),
-                        album = rows.getString("album").orEmpty(),
-                        albumArtist = rows.getString("albumArtist").orEmpty(),
-                        durationMs = rows.getLong("duration")
-                    )
+        if (ids.isEmpty()) return result
+        ids.chunked(TRACK_QUERY_CHUNK).forEach { chunk ->
+            val placeholders = chunk.joinToString(",") { "?" }
+            connection.prepareStatement(
+                "SELECT id, title, artist, album, albumArtist, duration FROM Track WHERE id IN ($placeholders)"
+            ).use { statement ->
+                chunk.forEachIndexed { index, id -> statement.setString(index + 1, id) }
+                statement.executeQuery().use { rows ->
+                    while (rows.next()) {
+                        val id = rows.getString("id") ?: continue
+                        val title = rows.getString("title") ?: continue
+                        result[id] = TrackMeta(
+                            id = id,
+                            title = title,
+                            artist = rows.getString("artist").orEmpty(),
+                            album = rows.getString("album").orEmpty(),
+                            albumArtist = rows.getString("albumArtist").orEmpty(),
+                            durationMs = rows.getLong("duration")
+                        )
+                    }
                 }
             }
         }

@@ -54,6 +54,18 @@ data class RankingEntry(
 
 data class RankedEntry(val position: Int, val value: RankingEntry)
 
+class RankingIndex internal constructor(private val entries: List<RankedEntry>) {
+    fun filter(query: String): List<RankedEntry> {
+        val needle = query.trim().lowercase(Locale.ROOT)
+        return entries.filter {
+            needle.isEmpty() || normalized(it.value.title).contains(needle) ||
+                normalized(it.value.subtitle).contains(needle)
+        }
+    }
+
+    private fun normalized(value: String) = value.trim().lowercase(Locale.ROOT)
+}
+
 object Rankings {
     private fun normalized(value: String) = value.trim().lowercase(Locale.ROOT)
     private val slashBand = Regex("(?i)(?<![\\p{L}\\p{N}])AC/DC(?![\\p{L}\\p{N}])")
@@ -84,7 +96,12 @@ object Rankings {
     }
 
     fun ranked(data: StatsData, mode: RankingMode, query: String = "",
-               metric: RankingMetric = RankingMetric.Count): List<RankedEntry> {
+               metric: RankingMetric = RankingMetric.Count): List<RankedEntry> =
+        index(data, mode, metric).filter(query)
+
+    /** Build the expensive sorted/grouped list once; searches only filter this index. */
+    fun index(data: StatsData, mode: RankingMode,
+              metric: RankingMetric = RankingMetric.Count): RankingIndex {
         val tracks = data.sortedTracks(metric)
         val entries = if (mode == RankingMode.Song) {
             tracks.map {
@@ -120,10 +137,6 @@ object Rankings {
                 .thenComparator { a, b -> collator.compare(a.title, b.title) }
                 .thenComparator { a, b -> collator.compare(a.subtitle, b.subtitle) })
         }
-        val needle = normalized(query)
-        return entries.mapIndexed { index, entry -> RankedEntry(index + 1, entry) }.filter {
-            needle.isEmpty() || normalized(it.value.title).contains(needle) ||
-                normalized(it.value.subtitle).contains(needle)
-        }
+        return RankingIndex(entries.mapIndexed { index, entry -> RankedEntry(index + 1, entry) })
     }
 }

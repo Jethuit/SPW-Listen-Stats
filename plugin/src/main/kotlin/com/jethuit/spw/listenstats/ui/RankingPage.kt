@@ -103,7 +103,8 @@ fun RankingPage(
     onPageChange: (Int) -> Unit,
     pageSize: Int = RANKING_PAGE_SIZE,
     metric: RankingMetric = RankingMetric.Count,
-    onMetricChange: (RankingMetric) -> Unit = {}
+    onMetricChange: (RankingMetric) -> Unit = {},
+    loading: Boolean = false
 ) {
     val colors = LocalStatsColors.current
     var searchState by remember { mutableStateOf(TextFieldState(query)) }
@@ -203,7 +204,9 @@ fun RankingPage(
                 if (shown.rows.isEmpty()) {
                     Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
                         Text(
-                            if (shown.query.isBlank()) {
+                            if (loading) {
+                                "正在整理排行…"
+                            } else if (shown.query.isBlank()) {
                                 if (shown.metric == RankingMetric.Duration) "还没有收听时长记录的${shown.mode.label}"
                                 else "还没有达到计次条件的${shown.mode.label}"
                             } else "没有找到匹配的${shown.mode.label}",

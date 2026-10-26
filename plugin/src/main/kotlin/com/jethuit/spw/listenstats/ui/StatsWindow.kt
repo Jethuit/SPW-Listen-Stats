@@ -53,6 +53,8 @@ import com.jethuit.spw.listenstats.data.Granularity
 import com.jethuit.spw.listenstats.data.RangePreset
 import com.jethuit.spw.listenstats.data.RankingMode
 import com.jethuit.spw.listenstats.data.RankingMetric
+import com.jethuit.spw.listenstats.data.RankedEntry
+import com.jethuit.spw.listenstats.data.RankingIndex
 import com.jethuit.spw.listenstats.data.Rankings
 import com.jethuit.spw.listenstats.data.StatsCalculations
 import com.jethuit.spw.listenstats.data.StatsData
@@ -273,6 +275,10 @@ fun ListenStatsApp(
     var rankPage by remember { mutableStateOf(1) }
     var rankingMode by remember { mutableStateOf(RankingMode.fromStorage(Prefs.getString("rankingMode", RankingMode.Song.storage))) }
     var rankingMetric by remember { mutableStateOf(RankingMetric.fromStorage(Prefs.getString("rankingMetric", RankingMetric.Count.storage))) }
+    var rankingIndex by remember { mutableStateOf<RankingIndex?>(null) }
+    var rankingIndexKey by remember { mutableStateOf<String?>(null) }
+    var rankingEntries by remember { mutableStateOf<List<RankedEntry>>(emptyList()) }
+    var rankingReadyKey by remember { mutableStateOf<String?>(null) }
     var bottomScrollRequest by remember { mutableStateOf(0) }
     var reloadTick by remember { mutableStateOf(0) }
     var dateDialogOpen by remember { mutableStateOf(false) }
@@ -333,11 +339,38 @@ fun ListenStatsApp(
             largeTitle = inheritedText.largeTitle.copy(fontFamily = font)
         )) {
         val snapshot = data
-        val summary = remember(snapshot, today) { snapshot?.let { StatsCalculations.summary(it, today) } }
-        val rankingEntries = remember(snapshot, query, rankingMode, rankingMetric) {
-            snapshot?.let { Rankings.ranked(it, rankingMode, query, rankingMetric) } ?: emptyList()
+        val summary = remember(snapshot?.loadedAt, today) { snapshot?.let { StatsCalculations.summary(it, today) } }
+        val rankingBaseKey = "${snapshot?.loadedAt ?: 0L}|${rankingMode.storage}|${rankingMetric.storage}"
+        val rankingKey = "$rankingBaseKey|$query"
+        LaunchedEffect(rankingBaseKey) {
+            rankingIndex = null
+            rankingIndexKey = null
+            rankingReadyKey = null
+            if (snapshot == null) {
+                rankingEntries = emptyList()
+                rankingIndexKey = rankingBaseKey
+                rankingReadyKey = rankingKey
+                return@LaunchedEffect
+            }
+            val source = snapshot
+            val computed = withContext(Dispatchers.Default) {
+                Rankings.index(source, rankingMode, rankingMetric)
+            }
+            rankingIndex = computed
+            rankingIndexKey = rankingBaseKey
         }
-        val rankCount = rankingEntries.size
+        LaunchedEffect(rankingBaseKey, rankingIndexKey, query) {
+            if (rankingIndexKey != rankingBaseKey) return@LaunchedEffect
+            val index = rankingIndex ?: return@LaunchedEffect
+            rankingReadyKey = null
+            if (query.isNotBlank()) delay(150)
+            val computed = withContext(Dispatchers.Default) { index.filter(query) }
+            rankingEntries = computed
+            rankingReadyKey = rankingKey
+        }
+        val rankingReady = rankingReadyKey == rankingKey
+        val displayedRankingEntries = if (rankingReady) rankingEntries else emptyList()
+        val rankCount = displayedRankingEntries.size
         val totalPages = rankingTotalPages(rankCount, displayPreferences.rankingPageSize)
         val safePage = rankingSafePage(rankCount, rankPage, displayPreferences.rankingPageSize)
         LaunchedEffect(totalPages) {
@@ -506,7 +539,7 @@ fun ListenStatsApp(
                                     displayPreferences = displayPreferences
                                 )
                                 StatsPage.Ranking -> RankingPage(
-                                    entries = rankingEntries,
+                                    entries = displayedRankingEntries,
                                     mode = rankingMode,
                                     onModeChange = {
                                         if (rankingMode != it) {
@@ -527,6 +560,7 @@ fun ListenStatsApp(
                                     onQueryChange = { query = it },
                                     page = safePage,
                                     pageSize = displayPreferences.rankingPageSize,
+                                    loading = !rankingReady,
                                     onPageChange = {
                                         val wasAtBottom = scrollState.maxValue > 0 &&
                                             scrollState.value >= scrollState.maxValue - 2
