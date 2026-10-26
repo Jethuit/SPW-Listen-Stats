@@ -369,7 +369,9 @@ fun ListenStatsApp(
             rankingReadyKey = rankingKey
         }
         val rankingReady = rankingReadyKey == rankingKey
-        val displayedRankingEntries = if (rankingReady) rankingEntries else emptyList()
+        // Keep the last completed result visible while a refresh/search builds the
+        // replacement index. Clearing it here caused a visible blank/loading flash.
+        val displayedRankingEntries = rankingEntries
         val rankCount = displayedRankingEntries.size
         val totalPages = rankingTotalPages(rankCount, displayPreferences.rankingPageSize)
         val safePage = rankingSafePage(rankCount, rankPage, displayPreferences.rankingPageSize)
@@ -560,7 +562,7 @@ fun ListenStatsApp(
                                     onQueryChange = { query = it },
                                     page = safePage,
                                     pageSize = displayPreferences.rankingPageSize,
-                                    loading = !rankingReady,
+                                    loading = !rankingReady && rankingEntries.isEmpty(),
                                     onPageChange = {
                                         val wasAtBottom = scrollState.maxValue > 0 &&
                                             scrollState.value >= scrollState.maxValue - 2
