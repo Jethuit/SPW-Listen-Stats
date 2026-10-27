@@ -2,7 +2,7 @@
 
 SPW-Listen Stats 是 Salt Player for Windows 的本地听歌统计模组。它在播放器页面中显示听歌概览、热力图、时长分布、歌曲明细，以及歌曲、歌手和专辑排行。
 
-本文说明当前源码和本地构建的实际行为。当前正式源码版本为 v0.3.2；工作区最近的开发构建为 v0.3.3-dev.4。开发版本用于兼容性研究和测试，不代表已经发布的正式版本。
+这是一份面向普通使用者的说明，介绍插件的用途、安装、数据来源、备份、隐私和常见问题。当前正式版本为 v0.3.2；带 dev 后缀的版本是开发测试包，不代表正式发布版本。
 
 ## 功能
 
@@ -268,42 +268,6 @@ start plugin <版本> for SPW <版本>
 
 日志可能包含本机路径、版本、曲库来源身份和宿主结构信息，公开前应按需打码。
 
-## 开发与构建
-
-源码主要位于 plugin/src/main/kotlin/，数据层包括：
-
-- HostDatabase.kt：只读读取宿主 SQLite。
-- LiveStore.kt、PlaybackTracker.kt：实时会话记录。
-- BackupCodec.kt、BackupService.kt：备份编码、校验和合并。
-- Rankings.kt：歌曲、歌手、专辑排行。
-- StatsWindow.kt、RankingPage.kt：页面和排行 UI。
-
-构建前应阅读：
-
-- 正式需求：REQUIREMENTS.md
-- 源码与构建说明：plugin/README.md
-
-构建命令：
-
-~~~~powershell
-py -3.12 tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
-~~~~
-
-构建产物位于：
-
-~~~~text
-build/libs/SPW-Stats-v<版本>.spmod
-~~~~
-
-轻量检查：
-
-~~~~powershell
-py -3.12 tests/spmod-structure.py build/libs/SPW-Stats-v<版本>.spmod
-py -3.12 tests/check-host-discovery.py
-py -3.12 tests/check-page-isolation.py
-~~~~
-
-静态检查和离屏检查不能替代真实 SPW 窗口、AOT、DWM 材质、插件更新和多插件共存验收。构建缓存、宿主安装文件、真实听歌历史和私人备份不提交到 Git。
 
 ## 已知限制
 
@@ -314,4 +278,3 @@ py -3.12 tests/check-page-isolation.py
 - 宿主页面结构、Compose、Workshop API 或字节码重新混淆后可能需要适配。
 - AOT、真实 DWM 材质、窗口帧率和多插件共存仍需实机核对。
 - 当前宿主插件更新器可能无法在同一进程内热替换已加载插件。
-
