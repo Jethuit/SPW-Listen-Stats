@@ -221,10 +221,7 @@ fun YearHeatmap(
                     }
 
                     // Weekday labels
-                    // Weekly columns grow upward from the bottom, so their scale
-                    // labels must run bottom-to-top to match the filled blocks.
-                    val weekdays = if (weekly) listOf("日", "五", "三", "一")
-                        else listOf("一", "三", "五", "日")
+                    val weekdays = listOf("一", "三", "五", "日")
                     weekdays.forEachIndexed { index, label ->
                         val row = index * 2
                         val layout = measurer.measure(
