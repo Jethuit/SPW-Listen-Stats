@@ -52,6 +52,9 @@ import com.jethuit.spw.listenstats.data.ChartType
 import com.jethuit.spw.listenstats.data.Granularity
 import com.jethuit.spw.listenstats.data.RangePreset
 import com.jethuit.spw.listenstats.data.RankingMode
+import com.jethuit.spw.listenstats.data.RankingMetric
+import com.jethuit.spw.listenstats.data.RankedEntry
+import com.jethuit.spw.listenstats.data.RankingIndex
 import com.jethuit.spw.listenstats.data.Rankings
 import com.jethuit.spw.listenstats.data.StatsCalculations
 import com.jethuit.spw.listenstats.data.StatsData
@@ -219,7 +222,10 @@ object StatsWindow {
     fun bounds(): Rectangle? = dialog?.bounds
 
     fun close() {
-        SwingUtilities.invokeLater { dialog?.dispose(); dialog = null }
+        val dispose = { dialog?.dispose(); dialog = null }
+        if (SwingUtilities.isEventDispatchThread()) dispose()
+        else runCatching { SwingUtilities.invokeAndWait(dispose) }
+            .onFailure { SwingUtilities.invokeLater(dispose) }
     }
 }
 
@@ -271,6 +277,11 @@ fun ListenStatsApp(
     var query by remember { mutableStateOf("") }
     var rankPage by remember { mutableStateOf(1) }
     var rankingMode by remember { mutableStateOf(RankingMode.fromStorage(Prefs.getString("rankingMode", RankingMode.Song.storage))) }
+    var rankingMetric by remember { mutableStateOf(RankingMetric.fromStorage(Prefs.getString("rankingMetric", RankingMetric.Count.storage))) }
+    var rankingIndex by remember { mutableStateOf<RankingIndex?>(null) }
+    var rankingIndexKey by remember { mutableStateOf<String?>(null) }
+    var rankingEntries by remember { mutableStateOf<List<RankedEntry>>(emptyList()) }
+    var rankingReadyKey by remember { mutableStateOf<String?>(null) }
     var bottomScrollRequest by remember { mutableStateOf(0) }
     var reloadTick by remember { mutableStateOf(0) }
     var dateDialogOpen by remember { mutableStateOf(false) }
@@ -305,7 +316,7 @@ fun ListenStatsApp(
                 displayPreferences = loaded.preferences
             }
             today = LocalDate.now()
-            delay(5_000)
+            delay(displayPreferences.refreshIntervalSeconds * 1_000L)
         }
     }
     LaunchedEffect(query, displayPreferences.rankingPageSize) { rankPage = 1 }
@@ -331,11 +342,40 @@ fun ListenStatsApp(
             largeTitle = inheritedText.largeTitle.copy(fontFamily = font)
         )) {
         val snapshot = data
-        val summary = remember(snapshot, today) { snapshot?.let { StatsCalculations.summary(it, today) } }
-        val rankingEntries = remember(snapshot, query, rankingMode) {
-            snapshot?.let { Rankings.ranked(it, rankingMode, query) } ?: emptyList()
+        val summary = remember(snapshot?.loadedAt, today) { snapshot?.let { StatsCalculations.summary(it, today) } }
+        val rankingBaseKey = "${snapshot?.loadedAt ?: 0L}|${rankingMode.storage}|${rankingMetric.storage}"
+        val rankingKey = "$rankingBaseKey|$query"
+        LaunchedEffect(rankingBaseKey) {
+            rankingIndex = null
+            rankingIndexKey = null
+            rankingReadyKey = null
+            if (snapshot == null) {
+                rankingEntries = emptyList()
+                rankingIndexKey = rankingBaseKey
+                rankingReadyKey = rankingKey
+                return@LaunchedEffect
+            }
+            val source = snapshot
+            val computed = withContext(Dispatchers.Default) {
+                Rankings.index(source, rankingMode, rankingMetric)
+            }
+            rankingIndex = computed
+            rankingIndexKey = rankingBaseKey
         }
-        val rankCount = rankingEntries.size
+        LaunchedEffect(rankingBaseKey, rankingIndexKey, query) {
+            if (rankingIndexKey != rankingBaseKey) return@LaunchedEffect
+            val index = rankingIndex ?: return@LaunchedEffect
+            rankingReadyKey = null
+            if (query.isNotBlank()) delay(150)
+            val computed = withContext(Dispatchers.Default) { index.filter(query) }
+            rankingEntries = computed
+            rankingReadyKey = rankingKey
+        }
+        val rankingReady = rankingReadyKey == rankingKey
+        // Keep the last completed result visible while a refresh/search builds the
+        // replacement index. Clearing it here caused a visible blank/loading flash.
+        val displayedRankingEntries = rankingEntries
+        val rankCount = displayedRankingEntries.size
         val totalPages = rankingTotalPages(rankCount, displayPreferences.rankingPageSize)
         val safePage = rankingSafePage(rankCount, rankPage, displayPreferences.rankingPageSize)
         LaunchedEffect(totalPages) {
@@ -500,10 +540,11 @@ fun ListenStatsApp(
                                         userGranularity = it
                                         Prefs.putStringAsync("granularity", it.storage)
                                     },
-                                    scrollState = if (embedded) scrollState else null
+                                    scrollState = if (embedded) scrollState else null,
+                                    displayPreferences = displayPreferences
                                 )
                                 StatsPage.Ranking -> RankingPage(
-                                    entries = rankingEntries,
+                                    entries = displayedRankingEntries,
                                     mode = rankingMode,
                                     onModeChange = {
                                         if (rankingMode != it) {
@@ -512,10 +553,19 @@ fun ListenStatsApp(
                                             Prefs.putStringAsync("rankingMode", it.storage)
                                         }
                                     },
+                                    metric = rankingMetric,
+                                    onMetricChange = {
+                                        if (rankingMetric != it) {
+                                            rankingMetric = it
+                                            rankPage = 1
+                                            Prefs.putStringAsync("rankingMetric", it.storage)
+                                        }
+                                    },
                                     query = query,
                                     onQueryChange = { query = it },
                                     page = safePage,
                                     pageSize = displayPreferences.rankingPageSize,
+                                    loading = !rankingReady && rankingEntries.isEmpty(),
                                     onPageChange = {
                                         val wasAtBottom = scrollState.maxValue > 0 &&
                                             scrollState.value >= scrollState.maxValue - 2
@@ -575,6 +625,7 @@ fun PageNav(page: StatsPage, onPage: (StatsPage) -> Unit) {
     Box {
         Row {
             NavTab(IconPaths.Dashboard, "听歌概览", page == StatsPage.Overview,
+                flushStart = true,
                 modifier = Modifier.onSizeChanged { overviewWidth = it.width },
                 onContentWidthChanged = { overviewContentWidth = it }) {
                 onPage(StatsPage.Overview)
@@ -588,7 +639,7 @@ fun PageNav(page: StatsPage, onPage: (StatsPage) -> Unit) {
         if (overviewWidth > 0 && rankingWidth > 0 && overviewContentWidth > 0 && rankingContentWidth > 0) {
             val duration = statsMotionDurationMillis()
             val left by animateFloatAsState(
-                if (page == StatsPage.Overview) (overviewWidth - overviewContentWidth) / 2f
+                if (page == StatsPage.Overview) 0f
                     else overviewWidth + (rankingWidth - rankingContentWidth) / 2f,
                 tween(duration, easing = PageEasing), label = "navigation-indicator-left")
             val width by animateFloatAsState(
@@ -609,6 +660,7 @@ private fun NavTab(
     icon: String,
     label: String,
     active: Boolean,
+    flushStart: Boolean = false,
     modifier: Modifier = Modifier,
     onContentWidthChanged: (Int) -> Unit,
     onClick: () -> Unit
@@ -630,7 +682,8 @@ private fun NavTab(
     ) {
         Box(contentAlignment = Alignment.Center) {
             Row(
-                Modifier.padding(horizontal = 16.dp).onSizeChanged { onContentWidthChanged(it.width) },
+                Modifier.padding(start = if (flushStart) 0.dp else 16.dp, end = 16.dp)
+                    .onSizeChanged { onContentWidthChanged(it.width) },
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

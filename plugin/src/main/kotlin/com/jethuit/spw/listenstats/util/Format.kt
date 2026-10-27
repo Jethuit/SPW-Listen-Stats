@@ -20,6 +20,21 @@ fun formatDuration(millis: Long): String {
     }
 }
 
+/** Details show completed seconds; subsecond records remain distinguishable from zero. */
+fun formatDurationSeconds(millis: Long): String {
+    if (millis <= 0L) return "0秒"
+    if (millis < 1_000L) return "不足1秒"
+    val totalSeconds = millis / 1_000L
+    val hours = totalSeconds / 3_600L
+    val minutes = totalSeconds / 60L % 60L
+    val seconds = totalSeconds % 60L
+    return when {
+        hours > 0L -> "${hours}小时${minutes}分${seconds}秒"
+        minutes > 0L -> "${minutes}分${seconds}秒"
+        else -> "${seconds}秒"
+    }
+}
+
 fun formatDurationCompact(millis: Long): Pair<String, String> {
     if (millis <= 0) return "0" to "分钟"
     val totalMinutes = roundedDisplayMinutes(millis)

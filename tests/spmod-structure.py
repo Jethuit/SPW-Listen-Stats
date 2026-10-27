@@ -74,6 +74,12 @@ def main() -> None:
         preferences = json.loads(archive.read('classes/preference_config.json'))
         group = next(g for g in preferences['configs'] if g['config'] == 'config.json')
         assert all(p.get('key') != 'dailyHighHours' for p in group['preferences']), 'removed heatmap setting still exposed'
+        settings = {p['key']: p for p in group['preferences'] if 'key' in p}
+        for key, kind, default in [('refreshIntervalSeconds', 'edittext', '5'),
+                                   ('detailVisibleRows', 'edittext', '6'),
+                                   ('showDetailHint', 'switch', True),
+                                   ('heatmapAnimations', 'switch', True)]:
+            assert settings[key]['type'] == kind and settings[key]['default_value'] == default, key
         libraries = sorted(n for n in names if n.startswith('lib/') and n.endswith('.jar'))
         assert 'lib/sqlite-jdbc.jar' in libraries, libraries
         assert any(n.startswith('lib/salt-ui-desktop-') for n in libraries), libraries

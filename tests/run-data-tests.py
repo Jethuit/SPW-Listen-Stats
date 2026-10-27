@@ -11,12 +11,13 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 suite = sys.argv[1] if len(sys.argv) > 1 else 'data'
-assert suite in ('data', 'ui', 'cover', 'navigation', 'integrity', 'ranking', 'heatmap', 'format', 'astra', 'review'), 'unknown regression suite'
+assert suite in ('data', 'ui', 'cover', 'navigation', 'integrity', 'ranking', 'heatmap', 'format', 'astra', 'review', 'details', 'host'), 'unknown regression suite'
 test_name = {'data': 'DataRegressionTest', 'ui': 'UiRegressionTest', 'cover': 'CoverRegressionTest',
              'navigation': 'NavigationRegressionTest', 'integrity': 'DataIntegrityRegressionTest',
              'ranking': 'RankingRegressionTest', 'heatmap': 'HeatmapScaleRegressionTest',
              'format': 'DurationRoundingRegressionTest', 'astra': 'AstraRegressionTest',
-             'review': 'ReviewFixRegressionTest'}[suite]
+             'review': 'ReviewFixRegressionTest', 'details': 'ListeningDetailsRegressionTest',
+             'host': 'HostDatabaseRegressionTest'}[suite]
 spec = importlib.util.spec_from_file_location('builder', ROOT / 'tools/build_plugin.py')
 builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)
@@ -42,5 +43,6 @@ subprocess.run([java, '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jv
 environment = os.environ.copy()
 environment['APPDATA'] = str(state / 'appdata')
 environment['LOCALAPPDATA'] = str(state / 'localappdata')
-subprocess.run([java, '-Duser.timezone=UTC', '-cp', str(scratch) + os.pathsep + classpath,
+subprocess.run([java, '-Duser.timezone=UTC', f'-Dorg.sqlite.tmpdir={scratch}',
+                '-cp', str(scratch) + os.pathsep + classpath,
                 test_name + 'Kt', str(state)], check=True, env=environment)

@@ -16,18 +16,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jethuit.spw.listenstats.data.ChartType
+import com.jethuit.spw.listenstats.DisplayPreferences
 import com.jethuit.spw.listenstats.data.Granularity
 import com.jethuit.spw.listenstats.data.RangePreset
 import com.jethuit.spw.listenstats.data.StatsCalculations
 import com.jethuit.spw.listenstats.data.StatsData
 import com.jethuit.spw.listenstats.data.StatsSummary
+import com.jethuit.spw.listenstats.data.ListeningDetails
+import com.jethuit.spw.listenstats.data.ListeningDetailsCalculator
 import com.jethuit.spw.listenstats.util.durationParts
 import com.jethuit.spw.listenstats.util.formatDay
 import com.jethuit.spw.listenstats.util.formatDuration
@@ -35,6 +40,8 @@ import com.jethuit.spw.listenstats.util.formatHourRange
 import com.jethuit.spw.listenstats.util.formatMonthDay
 import com.moriafly.salt.ui.ScrollState
 import java.time.LocalDate
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun OverviewPage(
@@ -59,7 +66,8 @@ fun OverviewPage(
     onCustomRange: () -> Unit,
     onChartType: (ChartType) -> Unit,
     onGranularity: (Granularity) -> Unit,
-    scrollState: ScrollState? = null
+    scrollState: ScrollState? = null,
+    displayPreferences: DisplayPreferences = DisplayPreferences()
 ) {
     val colors = LocalStatsColors.current
     val years = remember(data, today) { StatsCalculations.years(data, today) }
@@ -79,8 +87,31 @@ fun OverviewPage(
     val rangeTotal = buckets.sumOf { it.millis }
     val maxBucket = buckets.maxOfOrNull { it.millis } ?: 0L
     val trendAxis = UiGeometry.trendAxis(maxBucket, hourly = range.days == 1)
+    var detailIndex by remember(range, effectiveGranularity) { mutableStateOf<Int?>(null) }
+    var detailOpen by remember(range, effectiveGranularity) { mutableStateOf(false) }
+    var detailRequested by remember(range, effectiveGranularity) { mutableStateOf(false) }
+    var details by remember(range, effectiveGranularity) { mutableStateOf<ListeningDetails?>(null) }
+    val detailBucket = detailIndex?.let { buckets.getOrNull(it) }
+    LaunchedEffect(data, detailBucket, detailRequested) {
+        if (detailRequested && detailBucket != null) {
+            val result = withContext(Dispatchers.Default) { ListeningDetailsCalculator.calculate(data, detailBucket) }
+            details = result
+            detailOpen = true
+        }
+    }
+    val exiting = LocalStatsPageExiting.current
+    val closeDetails: () -> Unit = { if (!exiting) { detailRequested = false; detailOpen = false } }
+    // Keep the marker tied to the requested bucket immediately. While the
+    // detail rows are loading, the old detail card may still be visible; the
+    // chart marker must already move to the newly clicked bucket.
+    val shownDetailIndex = detailIndex?.takeIf { detailRequested && it in buckets.indices }
 
-    Column(Modifier.fillMaxWidth()) {
+    Column(Modifier.fillMaxWidth().onPreviewKeyEvent {
+        if (!exiting && detailRequested && it.key == Key.Escape && it.type == KeyEventType.KeyDown) {
+            closeDetails()
+            true
+        } else false
+    }) {
         SummaryStrip(4) { itemWidth ->
             SummaryStat(itemWidth, "累计听歌时长", summary.totalMillis, colors)
             PlainStat(itemWidth, "${summary.activeDays}", "天", "听歌天数", colors)
@@ -93,11 +124,7 @@ fun OverviewPage(
         SectionHeading(
             icon = IconPaths.CalendarMonth,
             title = "听歌热力图",
-            caption = if (heatmapRolling) {
-                "近一年 · $yearActiveDays 个听歌日 · ${formatDuration(yearTotal)}"
-            } else {
-                "$year 年 · $yearActiveDays 个听歌日 · ${formatDuration(yearTotal)}"
-            }
+            caption = "$yearActiveDays 个听歌日 · ${formatDuration(yearTotal)}"
         ) {
             SegmentedControl(
                 options = listOf(
@@ -133,7 +160,8 @@ fun OverviewPage(
                 onDaySelected = onDaySelected,
                 onWeekSelected = onWeekSelected,
                 viewportRevision = viewportRevision,
-                rolling = heatmapRolling
+                rolling = heatmapRolling,
+                revealAnimations = displayPreferences.heatmapAnimations
             )
         }
 
@@ -195,9 +223,26 @@ fun OverviewPage(
                 chartType = chartType,
                 showAverage = range.days > 1,
                 hourly = range.days == 1,
-                viewportRevision = viewportRevision
+                viewportRevision = viewportRevision,
+                selectedIndex = shownDetailIndex,
+                onBucketSelected = { index ->
+                    if (detailRequested && detailIndex == index) closeDetails()
+                    else {
+                        detailIndex = index
+                        detailRequested = true
+                    }
+                },
+                onBucketDeselected = closeDetails
             )
         }
+        if (displayPreferences.showDetailHint) {
+            Text(
+                "点击任意时段查看歌曲明细，再次点击收起",
+                modifier = Modifier.padding(top = 12.dp),
+                style = AppType.tiny.copy(color = colors.muted)
+            )
+        }
+        ListeningDetailsExpansion(detailOpen, details, displayPreferences.detailVisibleRows, closeDetails)
 
         Box(Modifier.height(61.dp))
         Row(

@@ -18,6 +18,29 @@ fun main() {
         check(actual.map { it.value.count } == original.map { it.value.count.toLong() })
         check(Rankings.ranked(d, RankingMode.Song, "Song 2").single().position == 1)
     }
+    test("duration ranking uses actual listening time and includes sub-50-percent plays") {
+        val first = track("1", "A", "One")
+        val second = track("2", "B", "Two")
+        val third = track("3", "A", "One")
+        val d = StatsData.empty().copy(
+            tracks = listOf(first, second, third).associateBy { it.id },
+            playCounts = mapOf("1" to 1, "3" to 2),
+            listens = listOf(
+                ListenEntry("first", "1", 1L, 70_000L),
+                ListenEntry("second", "2", 2L, 90_000L),
+                ListenEntry("third", "3", 3L, 30_000L)
+            )
+        )
+        val songs = Rankings.ranked(d, RankingMode.Song, metric = RankingMetric.Duration)
+        check(songs.map { it.value.key.name } == listOf("2", "1", "3"))
+        check(songs.map { it.value.durationMs } == listOf(90_000L, 70_000L, 30_000L))
+        val artists = Rankings.ranked(d, RankingMode.Artist, metric = RankingMetric.Duration)
+        check(artists.map { it.value.title } == listOf("A", "B"))
+        check(artists.first().value.durationMs == 100_000L)
+        val albums = Rankings.ranked(d, RankingMode.Album, metric = RankingMetric.Duration)
+        check(albums.map { it.value.title } == listOf("One", "Two"))
+        check(RankingMetric.fromStorage("duration") == RankingMetric.Duration)
+    }
     test("collaborations count once per credited artist and sum different songs") {
         val d = data(track("1", "A/B/A") to 5, track("2", " a ") to 3,
             track("3", "B; C；C") to 2, track("4", "AC/DC") to 4,

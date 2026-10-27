@@ -29,6 +29,7 @@ fun main(args: Array<String>) {
     val lightColors = materialStatsColors(LightStatsColors, "WindowsAcrylic", true)
     val cases = if (darkMaterials) listOf(
         Triple("dark-acrylic", materialStatsColors(DarkStatsColors, "WindowsAcrylic", true), Color(0xFF505050)),
+        Triple("dark-acrylic-brighter", materialStatsColors(DarkStatsColors, "WindowsAcrylic", true), Color(0xFF595959)),
         Triple("dark-mica", materialStatsColors(DarkStatsColors, "WindowsMica", true), Color(0xFF272727)),
         Triple("dark-mica-alt", materialStatsColors(DarkStatsColors, "WindowsMicaAlt", true), Color(0xFF272727))
     ) else listOf(

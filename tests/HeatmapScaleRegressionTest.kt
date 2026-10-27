@@ -98,6 +98,8 @@ fun main(args: Array<String>) {
     } as WorkshopApi
     Prefs.initialize()
     val initial = Prefs.displayPreferences()
+    check(initial.refreshIntervalSeconds == 5 && initial.detailVisibleRows == 6)
+    check(initial.showDetailHint && initial.heatmapAnimations)
     saved["dailyHighHours"] = "24"
     check(Prefs.displayPreferences() == initial)
     Prefs.putString("range", "7")
@@ -119,6 +121,31 @@ fun main(args: Array<String>) {
     Prefs.putString("chartType", "line")
     check(saved["rankingPageSize"] == "100" && saved["pageAnimations"] == true)
     println("PASS display defaults, typed switches, external edits, reinitialization and unrelated writes")
+    saved["refreshIntervalSeconds"] = " 60 "
+    saved["detailVisibleRows"] = "12"
+    saved["showDetailHint"] = false
+    saved["heatmapAnimations"] = false
+    Prefs.initialize()
+    check(Prefs.displayPreferences().let {
+        it.refreshIntervalSeconds == 60 && it.detailVisibleRows == 12 && !it.showDetailHint && !it.heatmapAnimations
+    })
+    Prefs.putString("range", "today")
+    check(saved["refreshIntervalSeconds"] == " 60 " && saved["detailVisibleRows"] == "12")
+    check(saved["showDetailHint"] == false && saved["heatmapAnimations"] == false)
+    for ((key, valid, invalid) in listOf(
+        Triple("refreshIntervalSeconds", listOf("2", "5", "60"), listOf<Any>("1", "61", "-5", "", "bad", "2.5", "2147483648", 10)),
+        Triple("detailVisibleRows", listOf("3", "6", "12"), listOf<Any>("2", "13", "-5", "", "bad", "3.5", "2147483648", 10))
+    )) {
+        fun value() = Prefs.displayPreferences().let {
+            if (key == "refreshIntervalSeconds") it.refreshIntervalSeconds else it.detailVisibleRows
+        }
+        for (raw in valid) { saved[key] = raw; check(value() == raw.toInt()) }
+        for (raw in invalid) { saved[key] = raw; check(value() == if (key == "refreshIntervalSeconds") 5 else 6) }
+    }
+    saved["showDetailHint"] = "false"
+    saved["heatmapAnimations"] = "false"
+    check(Prefs.displayPreferences().let { it.showDetailHint && it.heatmapAnimations })
+    println("PASS custom display bounds, malformed values, external changes and persistence across unrelated writes")
     for (raw in listOf("1", "26", "72", "200", " 60 ", "2147483647")) {
         saved["rankingPageSize"] = raw
         check(Prefs.displayPreferences().rankingPageSize == raw.trim().toInt())

@@ -81,10 +81,10 @@ val DarkStatsColors = StatsColors(
     accentSoft = Color(0x1779B5FF),
     cells = listOf(
         Color(0xFF2D3036),
-        Color(0xFF27425E),
-        Color(0xFF356A9D),
-        Color(0xFF599BDB),
-        Color(0xFF8AC5FF)
+        Color(0xFF3F78AE),
+        Color(0xFF5799D6),
+        Color(0xFF7AB7EC),
+        Color(0xFFA5D4FF)
     ),
     tooltipBackground = ClassicDarkCardBackground,
     tooltipText = Color(0xFFEDEDEE),
@@ -138,9 +138,11 @@ fun materialStatsColors(base: StatsColors, windowStyle: String?,
         )
     }
     if (base.isDark) {
-        // Fitted to the user's native dark captures, retaining the real backdrop:
-        // Acrylic #505050 -> card #5F5F5F; Mica / Mica Alt #272727 -> #444444.
-        val surfaceTint = Color(0xFF7C7C7C).copy(alpha = 0.34f)
+        // SPW's dark material palette uses Salt UI's native subBackground:
+        // white overlay with alpha 13/255. Keeping the alpha lets DWM's
+        // Acrylic/Mica backdrop show through instead of freezing one sampled
+        // composite such as #5F5F5F.
+        val surfaceTint = Color.White.copy(alpha = 13f / 255f)
         return base.copy(
             pageBackground = Color.Transparent,
             text = Color(0xFFEBEEF1),
@@ -148,9 +150,9 @@ fun materialStatsColors(base: StatsColors, windowStyle: String?,
             cardBackground = surfaceTint,
             controlBackground = surfaceTint,
             selectedControlBackground = Color.White.copy(alpha = 0.10f),
-            // Borders over the card composite to #737375 / #616163.
+            // Keep the existing calibrated border over the translucent card.
             line = Color(0xFF9B9BA1).copy(alpha = 1f / 3f),
-            subtle = Color.White.copy(alpha = 0.08f),
+            subtle = surfaceTint,
             hover = Color.White.copy(alpha = 0.08f),
             // Unlike the former dark fill, native hovered rows become lighter:
             // Acrylic #676769, Mica #515153 on the supplied backgrounds.
