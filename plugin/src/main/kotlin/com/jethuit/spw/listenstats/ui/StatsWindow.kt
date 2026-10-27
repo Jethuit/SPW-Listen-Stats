@@ -222,7 +222,10 @@ object StatsWindow {
     fun bounds(): Rectangle? = dialog?.bounds
 
     fun close() {
-        SwingUtilities.invokeLater { dialog?.dispose(); dialog = null }
+        val dispose = { dialog?.dispose(); dialog = null }
+        if (SwingUtilities.isEventDispatchThread()) dispose()
+        else runCatching { SwingUtilities.invokeAndWait(dispose) }
+            .onFailure { SwingUtilities.invokeLater(dispose) }
     }
 }
 

@@ -47,6 +47,11 @@ class HostUiIntegration(
         if (!stopped.compareAndSet(false, true)) return
         worker.shutdownNow()
         val release = { hooks?.close(); hooks = null; Unit }
-        if (EventQueue.isDispatchThread()) release() else EventQueue.invokeLater(release)
+        // Do not wait for a discovery scan, but do finish releasing installed
+        // hooks before the host tries to move this plugin directory during an update.
+        if (EventQueue.isDispatchThread()) release() else {
+            runCatching { EventQueue.invokeAndWait(release) }
+                .onFailure { EventQueue.invokeLater(release) }
+        }
     }
 }
