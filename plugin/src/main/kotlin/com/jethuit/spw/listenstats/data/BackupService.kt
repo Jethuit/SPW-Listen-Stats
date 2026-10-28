@@ -12,7 +12,9 @@ import javax.swing.SwingUtilities
 import java.nio.file.attribute.BasicFileAttributes
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resumeWithException
 
 object BackupService {
     private data class CachedImport(val path: Path, val modified: java.nio.file.attribute.FileTime,
@@ -57,15 +59,25 @@ object BackupService {
         DataFiles.writeAtomic(file, text)
     }
 
-    /** Run Swing modal dialogs on the EDT, outside the Compose coroutine dispatcher. */
-    private fun <T> onEdt(block: () -> T): T {
-        if (SwingUtilities.isEventDispatchThread()) return block()
-        var result: Result<T>? = null
-        SwingUtilities.invokeAndWait { result = runCatching(block) }
-        return checkNotNull(result).getOrThrow()
+    /** Run a modal Swing dialog on the EDT without blocking a Compose or IO thread. */
+    private suspend fun <T> onEdt(block: () -> T): T = suspendCancellableCoroutine { continuation ->
+        if (SwingUtilities.isEventDispatchThread()) {
+            runCatching(block).fold(
+                { continuation.resumeWith(Result.success(it)) },
+                { continuation.resumeWithException(it) }
+            )
+            return@suspendCancellableCoroutine
+        }
+        SwingUtilities.invokeLater {
+            if (!continuation.isActive) return@invokeLater
+            runCatching(block).fold(
+                { continuation.resumeWith(Result.success(it)) },
+                { continuation.resumeWithException(it) }
+            )
+        }
     }
 
-    private fun chooseExportFile(): Path? = onEdt {
+    private suspend fun chooseExportFile(): Path? = onEdt {
         val chooser = JFileChooser().apply {
             dialogTitle = "导出听歌统计备份"
             fileFilter = FileNameExtensionFilter("JSON 备份 (*.json)", "json")
@@ -75,7 +87,7 @@ object BackupService {
         else chooser.selectedFile.toPath()
     }
 
-    private fun chooseImportFile(): Path? = onEdt {
+    private suspend fun chooseImportFile(): Path? = onEdt {
         val chooser = JFileChooser().apply {
             dialogTitle = "导入听歌统计备份"
             fileFilter = FileNameExtensionFilter("JSON 备份 (*.json)", "json")
@@ -84,15 +96,15 @@ object BackupService {
         else chooser.selectedFile.toPath()
     }
 
-    private fun confirmOverwrite(file: Path): Boolean = onEdt {
+    private suspend fun confirmOverwrite(file: Path): Boolean = onEdt {
         !Files.exists(file) || JOptionPane.showConfirmDialog(
             null, "替换现有备份文件？", "导出备份", JOptionPane.YES_NO_OPTION
         ) == JOptionPane.YES_OPTION
     }
 
     suspend fun export(data: StatsData) {
-        val file = withContext(Dispatchers.IO) { chooseExportFile() } ?: return
-        if (!withContext(Dispatchers.IO) { confirmOverwrite(file) }) return
+        val file = chooseExportFile() ?: return
+        if (!confirmOverwrite(file)) return
         try {
             withContext(Dispatchers.IO) { exportFile(file, data) }
             WorkshopApi.ui.toast("已导出听歌统计备份", WorkshopApi.Ui.ToastType.Success)
@@ -101,16 +113,14 @@ object BackupService {
     }
 
     suspend fun importBackup(): Boolean {
-        val path = withContext(Dispatchers.IO) { chooseImportFile() } ?: return false
+        val path = chooseImportFile() ?: return false
         return try {
             val incoming = withContext(Dispatchers.IO) { importFile(path) }
             if (incoming.legacy.hours.isNotEmpty() || incoming.legacy.tracks.isNotEmpty()) {
-                withContext(Dispatchers.IO) {
-                    onEdt {
-                        JOptionPane.showMessageDialog(null,
-                            "已合并备份。旧版汇总没有会话 ID，按小时和次数取较大值保留，可能少计重叠日期中的不同收听。",
-                            "旧版备份已兼容导入", JOptionPane.INFORMATION_MESSAGE)
-                    }
+                onEdt {
+                    JOptionPane.showMessageDialog(null,
+                        "已合并备份。旧版汇总没有会话 ID，按小时和次数取较大值保留，可能少计重叠日期中的不同收听。",
+                        "旧版备份已兼容导入", JOptionPane.INFORMATION_MESSAGE)
                 }
             }
             WorkshopApi.ui.toast("已合并备份，重复会话不会重复累计", WorkshopApi.Ui.ToastType.Success)
@@ -135,8 +145,9 @@ object BackupService {
         return BackupCodec.applyLegacy(LiveStore.merge(host, bundle.events), bundle.legacy)
     }
 
-    private fun report(action: String, failure: Exception) {
+    private suspend fun report(action: String, failure: Exception) {
         PluginLog.error("backup $action failed", failure)
+        // Error reporting is best effort; the original failure remains in the log.
         runCatching {
             onEdt {
                 JOptionPane.showMessageDialog(null, "$action 失败：${failure.message}", "$action 失败",
