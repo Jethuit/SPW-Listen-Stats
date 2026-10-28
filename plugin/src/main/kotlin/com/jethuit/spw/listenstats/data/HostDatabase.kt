@@ -1,19 +1,16 @@
 package com.jethuit.spw.listenstats.data
 
 import com.jethuit.spw.listenstats.PluginLog
-import org.sqlite.SQLiteConfig
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
 import java.sql.Connection
-import java.sql.DriverManager
 import java.time.LocalDate
 import java.time.ZoneId
 
 /** Reads the host history while keeping an in-memory append cursor for the enable session. */
 object HostDatabase {
-    private const val DRIVER = "org.sqlite.JDBC"
     private const val RECENT_ROW_WINDOW = 256L
 
     private val cacheLock = Any()
@@ -99,12 +96,14 @@ object HostDatabase {
         }
 
     /** Closes the session-owned read connection when the plugin is disabled. */
-    fun close() = synchronized(cacheLock) { closeLocked() }
+    fun close() = synchronized(cacheLock) {
+        closeLocked()
+        SqliteDriver.close()
+    }
 
     private fun ensureCache(identity: FileIdentity): Cache {
         cache?.takeIf { sameFile(it.identity, identity) }?.let { return it }
         closeLocked()
-        Class.forName(DRIVER)
         val connection = open(identity.path)
         return try {
             val state = Cache(
@@ -438,13 +437,7 @@ object HostDatabase {
         }
     }
 
-    private fun open(path: Path): Connection {
-        val absolute = path.toAbsolutePath().toString()
-        val config = SQLiteConfig()
-        config.setReadOnly(true)
-        config.setBusyTimeout(4_000)
-        return DriverManager.getConnection("jdbc:sqlite:$absolute", config.toProperties())
-    }
+    private fun open(path: Path): Connection = SqliteDriver.openReadOnly(path)
 
     private fun closeLocked() {
         cache?.let { runCatching { it.connection.close() } }
