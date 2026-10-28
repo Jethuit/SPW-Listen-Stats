@@ -41,13 +41,13 @@ object StatsStore {
     private fun resolveDatabasePath(pluginPath: String?): Path? {
         if (!pluginPath.isNullOrBlank()) {
             val pluginDirectory = runCatching { Path.of(pluginPath) }.getOrNull()
-            val appData = pluginDirectory?.parent?.parent?.parent
-            if (appData != null) {
-                val candidate = appData.resolve("spw.db")
-                if (java.nio.file.Files.isRegularFile(candidate)) {
-                    return candidate
-                }
-            }
+            // Steam subscription caches add account, item and revision directories.
+            // Check only ancestors of this plugin, rather than assuming three parents
+            // or searching other installations and potentially mixing library IDs.
+            generateSequence(pluginDirectory) { it.parent }
+                .map { it.resolve("spw.db") }
+                .firstOrNull { java.nio.file.Files.isRegularFile(it) }
+                ?.let { return it }
         }
         val appData = System.getenv("APPDATA")?.let { Path.of(it, "Salt Player for Windows", "spw.db") }
         if (appData != null && java.nio.file.Files.isRegularFile(appData)) {

@@ -6,6 +6,7 @@ import net.bytebuddy.jar.asm.FieldVisitor
 import net.bytebuddy.jar.asm.MethodVisitor
 import net.bytebuddy.jar.asm.Opcodes
 import net.bytebuddy.jar.asm.Type
+import java.net.JarURLConnection
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.jar.JarFile
@@ -29,6 +30,31 @@ class HostBytecodeIndex(val methods: List<HostMethodBody>, val fields: List<Host
     fun body(method: HostMethod): HostMethodBody? = bodies[method]
 
     companion object {
+        /** Class resources still identify the host when its loader omits CodeSource.location. */
+        fun source(host: Class<*>): Path {
+            val location = host.protectionDomain?.codeSource?.location
+            if (location?.protocol == "file") return Path.of(location.toURI())
+
+            val name = host.name.replace('.', '/') + ".class"
+            val resource = host.getResource("/$name")
+            if (resource?.protocol == "jar") {
+                val connection = resource.openConnection() as JarURLConnection
+                // Only inspect the URL; do not open a cached JarFile that can lock an update.
+                connection.useCaches = false
+                val archive = connection.jarFileURL
+                if (archive.protocol == "file") return Path.of(archive.toURI())
+            }
+            if (resource?.protocol == "file") {
+                var root = Path.of(resource.toURI())
+                repeat(name.count { it == '/' } + 1) {
+                    root = checkNotNull(root.parent) { "Host class resource has no classpath root: $resource" }
+                }
+                return root
+            }
+            error("Cannot locate host bytecode: ${host.name} " +
+                "(source=${location?.protocol ?: "none"}, resource=${resource?.protocol ?: "none"})")
+        }
+
         fun read(source: Path): HostBytecodeIndex {
             val methods = mutableListOf<HostMethodBody>()
             val fields = mutableListOf<HostField>()

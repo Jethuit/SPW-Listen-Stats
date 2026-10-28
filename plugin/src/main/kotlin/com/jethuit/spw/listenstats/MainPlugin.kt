@@ -13,6 +13,7 @@ import com.jethuit.spw.listenstats.ui.StatsPageHook
 import com.jethuit.spw.listenstats.ui.HostUiBridge
 import com.jethuit.spw.listenstats.ui.HostUiRuntime
 import com.jethuit.spw.listenstats.ui.HostUiIntegration
+import com.jethuit.spw.listenstats.ui.HostBytecodeIndex
 import com.jethuit.spw.listenstats.ui.StatsHostTransitionHooks
 
 class MainPlugin(
@@ -34,9 +35,7 @@ class MainPlugin(
         integration = HostUiIntegration(
             source = {
                 checkUiPermission()
-                java.nio.file.Path.of(checkNotNull(host.protectionDomain.codeSource) {
-                    "Host code source unavailable"
-                }.location.toURI())
+                HostBytecodeIndex.source(host).also { PluginLog.info("Host bytecode source: $it") }
             },
             loader = host.classLoader,
             install = ::installHostUi,
