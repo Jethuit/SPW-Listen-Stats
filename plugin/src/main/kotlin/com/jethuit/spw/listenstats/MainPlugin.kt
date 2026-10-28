@@ -148,6 +148,7 @@ class MainPlugin(
                         appendLine("java=${System.getProperty("java.version")}; os=${System.getProperty("os.name")}")
                         appendLine("zone=${java.time.ZoneId.systemDefault()}; permissions=$permissions")
                         appendLine("dataDirectory=$dir; database=${com.jethuit.spw.listenstats.data.StatsStore.diagnosticPath()}")
+                        appendLine("databaseCandidates=${com.jethuit.spw.listenstats.data.StatsStore.diagnosticCandidates()}")
                         appendLine("sourceId=$source; registeredHooks=${PluginState.registeredHooks} (registration only)")
                         appendLine("hostUiDiscovery=${PluginState.discoveryStatus}; hostUiTargets=${HostUiRuntime.current?.targets ?: "unavailable"}")
                         appendLine("materialBridgeActive=${com.jethuit.spw.listenstats.ui.StatsHostState.materialBridgeAvailable}; pageIsolationHook=${HostUiRuntime.current?.targets?.layer ?: "unavailable"}")
