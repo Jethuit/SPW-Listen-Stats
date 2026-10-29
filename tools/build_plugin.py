@@ -27,7 +27,7 @@ TOOLS = BUILD / 'tools'
 PLUGIN_SRC = ROOT / 'plugin' / 'src' / 'main' / 'kotlin'
 RESOURCES = ROOT / 'plugin' / 'src' / 'main' / 'resources'
 PLUGIN_ID = 'com.jethuit.spw.listenstats'
-PLUGIN_VERSION = '0.3.3'
+PLUGIN_VERSION = '0.3.4'
 PLUGIN_NAME = '听歌统计'
 PACKAGE_FILENAME = f'SPW-Stats-v{PLUGIN_VERSION}.spmod'
 PLUGIN_CLASS = 'com.jethuit.spw.listenstats.MainPlugin'
@@ -232,3 +232,4 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
+
