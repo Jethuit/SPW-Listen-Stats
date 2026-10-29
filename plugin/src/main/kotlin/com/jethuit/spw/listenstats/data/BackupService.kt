@@ -8,15 +8,20 @@ import java.time.LocalDate
 import javax.swing.JFileChooser
 import javax.swing.JOptionPane
 import javax.swing.filechooser.FileNameExtensionFilter
-import javax.swing.SwingUtilities
 import java.nio.file.attribute.BasicFileAttributes
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlin.concurrent.thread
+import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import java.util.concurrent.atomic.AtomicLong
 
 object BackupService {
+    private val operationSequence = AtomicLong(0)
+    private val dialogLock = Any()
+    @Volatile private var activeChooser: JFileChooser? = null
     private data class CachedImport(val path: Path, val modified: java.nio.file.attribute.FileTime,
         val size: Long, val fileKey: Any?, val bundle: BackupBundle)
     private var cache: CachedImport? = null
@@ -59,74 +64,104 @@ object BackupService {
         DataFiles.writeAtomic(file, text)
     }
 
-    /** Run a modal Swing dialog on the EDT without blocking a Compose or IO thread. */
-    private suspend fun <T> onEdt(block: () -> T): T = suspendCancellableCoroutine { continuation ->
-        if (SwingUtilities.isEventDispatchThread()) {
-            runCatching(block).fold(
-                { continuation.resumeWith(Result.success(it)) },
-                { continuation.resumeWithException(it) }
-            )
-            return@suspendCancellableCoroutine
+    /**
+     * Swing's modal chooser must not run in Compose's AWT event loop.  A
+     * dedicated worker also avoids the Compose 1.7 coroutine continuation
+     * failure that occurs when showOpenDialog/showSaveDialog blocks a click
+     * coroutine.  The worker is daemonized so a cancelled plugin cannot keep
+     * the host process alive.
+     */
+    private suspend fun <T> onDialogThread(action: String, block: () -> T): T = suspendCancellableCoroutine { continuation ->
+        PluginLog.info("backup dialog start action=$action callerThread=${Thread.currentThread().name}")
+        continuation.invokeOnCancellation {
+            val chooser = synchronized(dialogLock) { activeChooser }
+            if (chooser != null) {
+                PluginLog.info("backup dialog cancelled action=$action")
+                runCatching { chooser.cancelSelection() }
+            }
         }
-        SwingUtilities.invokeLater {
-            if (!continuation.isActive) return@invokeLater
+        thread(start = true, isDaemon = true, name = "spw-listen-stats-file-dialog") {
+            PluginLog.info("backup dialog running action=$action thread=${Thread.currentThread().name}")
             runCatching(block).fold(
-                { continuation.resumeWith(Result.success(it)) },
-                { continuation.resumeWithException(it) }
+                {
+                    PluginLog.info("backup dialog finish action=$action result=${if (it == null) "cancel" else "selected"}")
+                    if (continuation.isActive) continuation.resume(it)
+                },
+                {
+                    PluginLog.error("backup dialog failed action=$action", it)
+                    if (continuation.isActive) continuation.resumeWithException(it)
+                }
             )
         }
     }
 
-    private suspend fun chooseExportFile(): Path? = onEdt {
+    private fun chooseExportFileBlocking(): Path? {
         val chooser = JFileChooser().apply {
             dialogTitle = "导出听歌统计备份"
             fileFilter = FileNameExtensionFilter("JSON 备份 (*.json)", "json")
             selectedFile = java.io.File("spw-listen-stats-${LocalDate.now()}.json")
         }
-        if (chooser.showSaveDialog(null) != JFileChooser.APPROVE_OPTION) null
-        else chooser.selectedFile.toPath()
+        synchronized(dialogLock) { activeChooser = chooser }
+        return try {
+            if (chooser.showSaveDialog(null) != JFileChooser.APPROVE_OPTION) null
+            else chooser.selectedFile.toPath()
+        } finally { synchronized(dialogLock) { if (activeChooser === chooser) activeChooser = null } }
     }
 
-    private suspend fun chooseImportFile(): Path? = onEdt {
+    private fun chooseImportFileBlocking(): Path? {
         val chooser = JFileChooser().apply {
             dialogTitle = "导入听歌统计备份"
             fileFilter = FileNameExtensionFilter("JSON 备份 (*.json)", "json")
         }
-        if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) null
-        else chooser.selectedFile.toPath()
+        synchronized(dialogLock) { activeChooser = chooser }
+        return try {
+            if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) null
+            else chooser.selectedFile.toPath()
+        } finally { synchronized(dialogLock) { if (activeChooser === chooser) activeChooser = null } }
     }
 
-    private suspend fun confirmOverwrite(file: Path): Boolean = onEdt {
-        !Files.exists(file) || JOptionPane.showConfirmDialog(
+    private fun confirmOverwriteBlocking(file: Path): Boolean {
+        val exists = Files.exists(file)
+        val accepted = !exists || JOptionPane.showConfirmDialog(
             null, "替换现有备份文件？", "导出备份", JOptionPane.YES_NO_OPTION
         ) == JOptionPane.YES_OPTION
+        PluginLog.info("backup overwrite decision accepted=$accepted exists=$exists path=${file.toAbsolutePath()}")
+        return accepted
     }
 
     suspend fun export(data: StatsData) {
-        val file = chooseExportFile() ?: return
-        if (!confirmOverwrite(file)) return
+        val operationId = operationSequence.incrementAndGet()
+        PluginLog.info("backup export requested operation=$operationId thread=${Thread.currentThread().name} events=${data.events.size}")
+        val file = onDialogThread("export-select#$operationId") { chooseExportFileBlocking() } ?: return
+        PluginLog.info("backup export selected operation=$operationId path=${file.toAbsolutePath()}")
+        if (!onDialogThread("export-overwrite#$operationId") { confirmOverwriteBlocking(file) }) return
         try {
             withContext(Dispatchers.IO) { exportFile(file, data) }
+            PluginLog.info("backup export completed operation=$operationId path=${file.toAbsolutePath()} bytes=${runCatching { Files.size(file) }.getOrDefault(-1L)}")
             WorkshopApi.ui.toast("已导出听歌统计备份", WorkshopApi.Ui.ToastType.Success)
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: Exception) { report("导出", failure) }
+        catch (failure: Throwable) { report("导出", failure) }
     }
 
     suspend fun importBackup(): Boolean {
-        val path = chooseImportFile() ?: return false
+        val operationId = operationSequence.incrementAndGet()
+        PluginLog.info("backup import requested operation=$operationId thread=${Thread.currentThread().name}")
+        val path = onDialogThread("import-select#$operationId") { chooseImportFileBlocking() } ?: return false
+        PluginLog.info("backup import selected operation=$operationId path=${path.toAbsolutePath()} bytes=${runCatching { Files.size(path) }.getOrDefault(-1L)}")
         return try {
             val incoming = withContext(Dispatchers.IO) { importFile(path) }
             if (incoming.legacy.hours.isNotEmpty() || incoming.legacy.tracks.isNotEmpty()) {
-                onEdt {
+                onDialogThread("legacy-import-warning#$operationId") {
                     JOptionPane.showMessageDialog(null,
                         "已合并备份。旧版汇总没有会话 ID，按小时和次数取较大值保留，可能少计重叠日期中的不同收听。",
                         "旧版备份已兼容导入", JOptionPane.INFORMATION_MESSAGE)
                 }
             }
+            PluginLog.info("backup import completed operation=$operationId path=${path.toAbsolutePath()} events=${incoming.events.size} legacyHours=${incoming.legacy.hours.size} legacyTracks=${incoming.legacy.tracks.size}")
             WorkshopApi.ui.toast("已合并备份，重复会话不会重复累计", WorkshopApi.Ui.ToastType.Success)
             true
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: Exception) { report("导入", failure); false }
+        catch (failure: Throwable) { report("导入", failure); false }
     }
 
     fun merge(host: StatsData): StatsData = try {
@@ -145,14 +180,15 @@ object BackupService {
         return BackupCodec.applyLegacy(LiveStore.merge(host, bundle.events), bundle.legacy)
     }
 
-    private suspend fun report(action: String, failure: Exception) {
+    private suspend fun report(action: String, failure: Throwable) {
         PluginLog.error("backup $action failed", failure)
         // Error reporting is best effort; the original failure remains in the log.
         runCatching {
-            onEdt {
-                JOptionPane.showMessageDialog(null, "$action 失败：${failure.message}", "$action 失败",
-                    JOptionPane.ERROR_MESSAGE)
+            onDialogThread("error-$action") {
+                    JOptionPane.showMessageDialog(null, "$action 失败：${failure.message}", "$action 失败",
+                        JOptionPane.ERROR_MESSAGE)
             }
         }.onFailure { PluginLog.error("showing backup $action error failed", it) }
     }
 }
+
