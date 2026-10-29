@@ -70,6 +70,7 @@ import com.moriafly.salt.ui.rememberScrollState
 import com.moriafly.salt.ui.saltConfigs
 import com.moriafly.salt.ui.verticalScroll
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.snapshotFlow
 import com.jethuit.spw.listenstats.data.StatsSnapshots
@@ -243,6 +244,11 @@ fun ListenStatsApp(
 ) {
     val scrollState = rememberScrollState(0)
     val scope = rememberCoroutineScope()
+    val backupExceptionHandler = remember {
+        CoroutineExceptionHandler { _, failure ->
+            PluginLog.error("backup coroutine uncaught failure", failure)
+        }
+    }
     val scrollTop: () -> Unit = {
         if (embedded) {
             scope.launch { scrollState.scrollTo(0) }
@@ -390,7 +396,7 @@ fun ListenStatsApp(
             if (snapshot != null) {
             BackupMenu(
                 onImport = {
-                    if (!backupBusy) scope.launch {
+                    if (!backupBusy) scope.launch(backupExceptionHandler) {
                         backupBusy = true
                         try {
                             if (BackupService.importBackup()) {
@@ -402,7 +408,7 @@ fun ListenStatsApp(
                     }
                 },
                 onExport = {
-                    if (!backupBusy) scope.launch {
+                    if (!backupBusy) scope.launch(backupExceptionHandler) {
                         backupBusy = true
                         try { BackupService.export(snapshot) }
                         finally { backupBusy = false }
@@ -731,3 +737,4 @@ private fun EmptyBanner() {
         )
     }
 }
+
