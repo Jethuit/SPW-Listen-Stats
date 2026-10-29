@@ -5,6 +5,8 @@ import java.time.Instant
 
 /** Small file logger because the packaged SPW launcher has no visible console. */
 object PluginLog {
+    private const val MAX_LOG_BYTES = 1L * 1024L * 1024L
+    private const val ROTATED_LOGS = 3
     private fun logFile(): File {
         val candidates = ArrayList<File>()
         runCatching { com.jethuit.spw.listenstats.data.DataFiles.directory().toFile() }
@@ -34,6 +36,7 @@ object PluginLog {
         var written: File? = null
         try {
             val file = logFile()
+            rotateIfNeeded(file)
             file.appendText("${Instant.now()} $level $message\n")
             if (failure != null) {
                 file.appendText(failure.stackTraceToString() + "\n")
@@ -46,4 +49,17 @@ object PluginLog {
         failure?.printStackTrace()
         return written
     }
+
+    private fun rotateIfNeeded(file: File) {
+        if (!file.isFile || file.length() < MAX_LOG_BYTES) return
+        for (index in ROTATED_LOGS downTo 1) {
+            val source = if (index == 1) file else File(file.parentFile, "${file.name}.${index - 1}")
+            val target = File(file.parentFile, "${file.name}.$index")
+            if (target.exists()) target.delete()
+            if (source.exists() && !source.renameTo(target)) {
+                println("[ListenStats] WARN log rotation failed source=${source.name} target=${target.name}")
+            }
+        }
+    }
 }
+
