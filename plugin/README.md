@@ -11,6 +11,8 @@ Kotlin / Compose / Salt UI 实现，当前正式源码版本为 v0.3.2，基于 
 - `docs/`：当前需求、第三方声明、正式发布说明和效果截图。
 - `build/`：忽略提交的工具链、安装包、合成测试状态和检查结果。
 
+备份菜单的文件选择和覆盖确认在独立的后台线程中调用，避免模态 Swing 对话框阻塞宿主 Compose/AWT 事件循环；实际备份读写仍在 IO 调度器执行。
+
 ## 构建
 
 在仓库根目录执行，按本机安装位置修改 `--spw-dir`：
@@ -20,7 +22,9 @@ py -3.12 tools/prepare_toolchain.py --spw-dir "E:\SteamLibrary\steamapps\common\
 py -3.12 tools/build_plugin.py --spw-dir "E:\SteamLibrary\steamapps\common\Salt Player for Windows"
 ```
 
-构建使用 JDK 25、缓存的 Kotlin 编译器、SaltUI 及对应宿主 jar。每次构建比较安装目录与缓存宿主文件的内容，更新后自动刷新缓存，避免相同文件大小的宿主更新被漏过。工具链缓存位于 `build/tools/`，不提交 Git。版本号以 `tools/build_plugin.py` 的 `PLUGIN_VERSION` 为准；当前正式包为 `0.3.2`，当前开发构建为 `0.3.3-dev.4`，安装包输出到 `build/libs/SPW-Stats-v<版本>.spmod`，解包目录为 `build/install/spw-listen-stats/`。
+构建使用 JDK 25、缓存的 Kotlin 编译器、SaltUI 及对应宿主 jar。每次构建比较安装目录与缓存宿主文件的内容，更新后自动刷新缓存，避免相同文件大小的宿主更新被漏过。工具链缓存位于 `build/tools/`，不提交 Git。版本号以 `tools/build_plugin.py` 的 `PLUGIN_VERSION` 为准；当前正式包为 `0.3.4`，下一开发版本应使用新的 `0.3.5-dev.1`，安装包输出到 `build/libs/SPW-Stats-v<版本>.spmod`，解包目录为 `build/install/spw-listen-stats/`。
+
+备份诊断会在 `status.log` 中记录导入、导出和覆盖确认的动作、线程、结果、文件路径与大小，以及后台对话框线程和未捕获协程异常；文件内容不会写入日志。日志达到 1 MB 后自动轮转，保留最近 3 个历史文件。
 
 宿主随附的 Kotlin 模块信息缺少部分 Compose 顶层函数索引。构建通过 `tools/RestoreComposeIndex.java` 从当前宿主类的 Kotlin 注解重建运行时包及明细所需的点击、焦点、惰性列表和滚动条编译索引，输出 `build/tools/spw-compose-compile-index.jar`；不需要旧宿主，也不修改安装文件。该文件只用于编译，不进入 `.spmod`，运行时仍使用宿主 Compose 类。
 
@@ -114,3 +118,4 @@ py -3.12 tests/check-page-isolation.py
 数据入口也支持 `integrity`、`astra`、`review`、`cover`、`ui`、`ranking`、`heatmap`、`format`、`navigation`。检查使用 `build/tests/` 下的合成状态和模拟宿主；离屏检查不能代替真实 SPW 验收。真实配置、数据库、听歌历史和私人备份不用于提交或合成回归。
 
 结构发现检查读取当前宿主缓存及本地保留的 1.19.0，覆盖符号重命名、缺失／歧义、重复调用点、可选入口降级及启停竞态。当前缓存与安装文件内容一致时从安装配置读取版本，否则明确标为版本未核实；`--list-hosts` 可只查看检查对象，不运行检查。2026-10-23 本机安装配置和文件比对确认当前缓存为 1.19.2，v0.2.4 已使用它构建并完成静态／离屏检查。单独运行 `tests/probe-titlebar-hook.py` 时可用 `--host-jar <对应版本的本地宿主文件> --host-version 1.19.0` 指定旧宿主；先构建插件。该检查使用宿主自身的解析器，检查内容容器、标题栏和导航签名及按钮顺序，不启动播放器或安装 Hook。
+
