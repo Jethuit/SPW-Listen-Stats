@@ -30,7 +30,8 @@ object ListeningEvents {
             artist = preferred.artist.ifBlank { fallback.artist },
             album = preferred.album.ifBlank { fallback.album },
             albumArtist = preferred.albumArtist.ifBlank { fallback.albumArtist },
-            durationMs = preferred.durationMs.takeIf { it > 0 } ?: fallback.durationMs
+            durationMs = preferred.durationMs.takeIf { it > 0 } ?: fallback.durationMs,
+            path = preferred.path.ifBlank { fallback.path }
         )
     }
 
@@ -79,11 +80,14 @@ object ListeningEvents {
     }
 
     /** Exact branches of one confirmed play form a union; approximate snapshots remain alternatives. */
-    fun union(events: List<ListeningEvent>): List<ListeningEvent> {
+    fun union(events: List<ListeningEvent>): List<ListeningEvent> =
+        PerformanceProbe.measure("ListeningEvents.union") { unionInternal(events) }
+
+    private fun unionInternal(events: List<ListeningEvent>): List<ListeningEvent> {
         val groups = LinkedHashMap<String, ListeningEvent>()
         val owners = HashMap<String, String>()
         val localLibrary = DataFiles.sourceId()
-        for (event in events) {
+        PerformanceProbe.measure("ListeningEvents.unionCore") { for (event in events) {
             val keys = event.aliases + event.id
             val matches = keys.mapNotNull { owners[it] }.distinct()
             val candidates = matches.mapNotNull { groups.remove(it) } + event
@@ -107,11 +111,14 @@ object ListeningEvents {
                 preciseSpans = if (usePrecise || precise.isEmpty()) null else precise)
             groups[merged.id] = merged
             allKeys.forEach { owners[it] = merged.id }
-        }
+        } }
         return groups.values.toList()
     }
 
-    fun aggregate(base: StatsData, input: List<ListeningEvent>, zone: ZoneId = ZoneId.systemDefault()): StatsData {
+    fun aggregate(base: StatsData, input: List<ListeningEvent>, zone: ZoneId = ZoneId.systemDefault()): StatsData =
+        PerformanceProbe.measure("ListeningEvents.aggregate") { aggregateInternal(base, input, zone) }
+
+    private fun aggregateInternal(base: StatsData, input: List<ListeningEvent>, zone: ZoneId): StatsData {
         val daily = linkedMapOf<LocalDate, Long>()
         val hourly = linkedMapOf<LocalDate, LongArray>()
         val tracks = linkedMapOf<String, TrackMeta>()
@@ -122,25 +129,25 @@ object ListeningEvents {
             if (event.libraryId == localLibrary) event.track.id else "${event.libraryId}:${event.track.id}"
         // Current library / already resolved local metadata wins. Incoming backups only fill gaps.
         // Resolve before the session union so choosing a longer old snapshot cannot choose its tags.
-        for (event in input) {
+        PerformanceProbe.measure("ListeningEvents.aggregateMetadata") { for (event in input) {
             val trackId = localTrackId(event)
             val meta = event.track.copy(id = trackId)
             metadata[trackId] = (metadata[trackId] ?: base.tracks[trackId])?.let { mergeTrack(it, meta) } ?: meta
-        }
-        val events = union(input).map { event ->
+        } }
+        val events = PerformanceProbe.measure("ListeningEvents.aggregateResolve") { union(input).map { event ->
             val trackId = localTrackId(event)
             val meta = event.track.copy(id = trackId)
             val resolved = metadata[trackId]?.let { mergeTrack(it, meta) } ?: meta
             tracks[trackId] = resolved
             event.copy(track = resolved.copy(id = event.track.id))
-        }
-        for (event in events) {
+        } }
+        PerformanceProbe.measure("ListeningEvents.aggregateTimeSplit") { for (event in events) {
             val trackId = if (event.libraryId == localLibrary) event.track.id else "${event.libraryId}:${event.track.id}"
             event.spans.forEach { TimeSplitter.split(it.startMs, it.durationMs, zone, daily, hourly) }
             if (event.track.durationMs > 0 && event.durationMs >= event.track.durationMs / 2.0) {
                 counts[trackId] = (counts[trackId] ?: 0) + 1
             }
-        }
+        } }
         return base.copy(events = events, dailyMillis = daily, hourlyMillis = hourly,
             tracks = tracks, playCounts = counts, loadedAt = System.currentTimeMillis())
     }

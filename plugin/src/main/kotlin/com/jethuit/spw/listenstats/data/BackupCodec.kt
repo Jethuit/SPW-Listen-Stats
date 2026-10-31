@@ -181,13 +181,16 @@ object BackupCodec {
     private fun trackJson(track: TrackMeta) = buildJsonObject {
         put("id", track.id); put("title", track.title); put("artist", track.artist)
         put("album", track.album); put("albumArtist", track.albumArtist); put("durationMs", track.durationMs)
+        if (track.path.isNotBlank()) put("path", track.path)
     }
     private fun parseTrack(obj: JsonObject): TrackMeta {
         val id = obj.string("id")
         val duration = obj["durationMs"]!!.jsonPrimitive.long
+        val path = obj["path"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        require(path.length <= 16_384) { "文件路径过长" }
         require(id.isNotBlank() && duration in 0..604_800_000L) { "歌曲信息不合法" }
         return TrackMeta(id, obj.string("title"), obj.string("artist"), obj.string("album"),
-            obj["albumArtist"]?.jsonPrimitive?.contentOrNull.orEmpty(), duration)
+            obj["albumArtist"]?.jsonPrimitive?.contentOrNull.orEmpty(), duration, path)
     }
     private fun JsonObject.string(key: String) = this[key]!!.jsonPrimitive.content.also {
         require(it.length <= 16_384) { "文本字段过长" }

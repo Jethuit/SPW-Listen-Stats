@@ -15,6 +15,7 @@ import com.jethuit.spw.listenstats.ui.HostUiRuntime
 import com.jethuit.spw.listenstats.ui.HostUiIntegration
 import com.jethuit.spw.listenstats.ui.HostBytecodeIndex
 import com.jethuit.spw.listenstats.ui.StatsHostTransitionHooks
+import com.jethuit.spw.listenstats.ui.UiPerformanceProbe
 
 class MainPlugin(
     pluginContext: PluginContext
@@ -22,6 +23,7 @@ class MainPlugin(
     private var integration: HostUiIntegration? = null
 
     override fun start() {
+        UiPerformanceProbe.mark("plugin_start")
         PluginState.pluginPath = pluginContext.pluginPath
         PluginState.pluginId = pluginContext.pluginId
         PluginState.spwVersion = pluginContext.spwVersion
@@ -31,6 +33,7 @@ class MainPlugin(
         com.jethuit.spw.listenstats.data.PlaybackTracker.initialize()
         closeHooks()
         com.jethuit.spw.listenstats.data.StatsSnapshots.start()
+        UiPerformanceProbe.mark("plugin_preload_started")
         val host = WorkshopApi.instance.javaClass
         integration = HostUiIntegration(
             source = {

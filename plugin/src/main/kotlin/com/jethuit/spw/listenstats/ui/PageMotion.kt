@@ -97,6 +97,7 @@ fun StatsPageEnter(
     val finished by rememberUpdatedState(onExited)
     val entered by rememberUpdatedState(onEntered)
     LaunchedEffect(enabled, exiting, exitMotion, hostFade) {
+        UiPerformanceProbe.mark("page_transition_start", "exiting=$exiting motion=$exitMotion animations=$enabled")
         val navigating = exiting && exitMotion == StatsExitMotion.Navigate
         val targetOffset = if (navigating) offset.value else IntOffset(0, if (exiting) StatsPageOffsetPixels else 0)
         val targetOpacity = if (exiting) 0f else 1f
@@ -129,7 +130,13 @@ fun StatsPageEnter(
             }
         }
         // A canceled/reversed exit cannot acknowledge completion or replay navigation.
-        if (exiting) finished() else entered()
+        if (exiting) {
+            UiPerformanceProbe.mark("page_transition_end", "exiting=true")
+            finished()
+        } else {
+            UiPerformanceProbe.mark("page_transition_end", "exiting=false")
+            entered()
+        }
     }
     Box(Modifier.fillMaxSize().clipToBounds().onPreviewKeyEvent { exiting }
         .onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) { event ->

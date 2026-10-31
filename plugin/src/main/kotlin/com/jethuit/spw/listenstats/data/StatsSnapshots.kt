@@ -5,6 +5,7 @@ import com.jethuit.spw.listenstats.Prefs
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import javax.swing.SwingUtilities
+import com.jethuit.spw.listenstats.ui.UiPerformanceProbe
 
 data class PreparedStatistics(val data: StatsData, val preferences: DisplayPreferences)
 
@@ -44,10 +45,16 @@ object StatsSnapshots {
 
     fun start(session: StatsSnapshotSession = StatsSnapshotSession(), initialize: () -> Unit = Prefs::initialize) {
         stop()
+        UiPerformanceProbe.mark("preload_start")
         val owner = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         current = session
         scope = owner
-        preload = owner.async { initialize(); session.load(reuse = true) }
+        preload = owner.async {
+            initialize()
+            val prepared = session.load(reuse = true)
+            UiPerformanceProbe.mark("preload_ready")
+            prepared
+        }
     }
 
     fun stop() {
@@ -59,6 +66,7 @@ object StatsSnapshots {
     }
 
     fun prepareOpen(ready: () -> Unit) {
+        UiPerformanceProbe.mark("open_prepare_requested")
         val session = current
         // Standalone synthetic navigation checks do not start the plugin lifecycle.
         if (session == null) { ready(); return }
@@ -67,7 +75,12 @@ object StatsSnapshots {
             preparation.await()
             session.load(reuse = true)
             ensureActive()
-            SwingUtilities.invokeLater { if (current === session) ready() }
+            SwingUtilities.invokeLater {
+                if (current === session) {
+                    UiPerformanceProbe.mark("open_ready")
+                    ready()
+                }
+            }
         }
     }
 }

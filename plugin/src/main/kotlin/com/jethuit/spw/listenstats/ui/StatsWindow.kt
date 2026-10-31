@@ -302,6 +302,7 @@ fun ListenStatsApp(
         val presenter = if (embedded) StatsHostState.attachPresenter() else null
         onDispose { presenter?.close() }
     }
+    LaunchedEffect(Unit) { UiPerformanceProbe.mark("window_composed") }
     SideEffect { if (embedded) StatsHostState.setAnimationsEnabled(displayPreferences.pageAnimations) }
     LaunchedEffect(exiting) {
         if (exiting) { entering = true; dateDialogOpen = false; focus.clearFocus(force = true) }
@@ -311,6 +312,7 @@ fun ListenStatsApp(
         // The embedded entry is prepared before navigation. Standalone previews may load here.
         if (initial == null) withContext(Dispatchers.IO) { Prefs.initialize() }
         while (true) {
+            UiPerformanceProbe.mark("refresh_start", "tick=$reloadTick")
             val loaded = withContext(Dispatchers.IO) { snapshots.load() }
             if (data == null) {
                 data = loaded.data
@@ -322,6 +324,7 @@ fun ListenStatsApp(
                 displayPreferences = loaded.preferences
             }
             today = LocalDate.now()
+            UiPerformanceProbe.mark("refresh_applied", "tick=$reloadTick error=${loaded.data.error != null}")
             delay(displayPreferences.refreshIntervalSeconds * 1_000L)
         }
     }
@@ -352,6 +355,7 @@ fun ListenStatsApp(
         val rankingBaseKey = "${snapshot?.loadedAt ?: 0L}|${rankingMode.storage}|${rankingMetric.storage}"
         val rankingKey = "$rankingBaseKey|$query"
         LaunchedEffect(rankingBaseKey) {
+            UiPerformanceProbe.mark("ranking_index_start")
             rankingIndex = null
             rankingIndexKey = null
             rankingReadyKey = null
@@ -367,15 +371,18 @@ fun ListenStatsApp(
             }
             rankingIndex = computed
             rankingIndexKey = rankingBaseKey
+            UiPerformanceProbe.mark("ranking_index_ready")
         }
         LaunchedEffect(rankingBaseKey, rankingIndexKey, query) {
             if (rankingIndexKey != rankingBaseKey) return@LaunchedEffect
             val index = rankingIndex ?: return@LaunchedEffect
             rankingReadyKey = null
             if (query.isNotBlank()) delay(150)
+            UiPerformanceProbe.mark("ranking_filter_start", "queryLength=${query.length}")
             val computed = withContext(Dispatchers.Default) { index.filter(query) }
             rankingEntries = computed
             rankingReadyKey = rankingKey
+            UiPerformanceProbe.mark("ranking_filter_ready", "entries=${computed.size}")
         }
         val rankingReady = rankingReadyKey == rankingKey
         // Keep the last completed result visible while a refresh/search builds the
@@ -388,7 +395,7 @@ fun ListenStatsApp(
             if (rankPage > totalPages) rankPage = totalPages
         }
         StatsPageEnter(exiting, exitMotion = if (embedded) StatsHostState.exitMotion else StatsExitMotion.Return,
-            onEntered = { entering = false }, onExited = {
+            onEntered = { entering = false; UiPerformanceProbe.mark("window_entered") }, onExited = {
             if (embedded) StatsHostState.finishClose(closeTicket) else onClose()
         }) {
         Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {
@@ -445,7 +452,8 @@ fun ListenStatsApp(
                         ) {
                             Box(Modifier.height(12.dp))
                             PageNav(page) { newPage ->
-                                if (page != newPage) {
+                                    if (page != newPage) {
+                                        UiPerformanceProbe.mark("page_switch", "from=$page to=$newPage")
                                     page = newPage
                                     scrollTop()
                                 }
@@ -737,4 +745,3 @@ private fun EmptyBanner() {
         )
     }
 }
-

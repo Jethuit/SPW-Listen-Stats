@@ -28,6 +28,18 @@ private fun event(id: String, offset: Long, duration: Long = 6_000) = ListeningE
 fun main(args: Array<String>) {
     val root = Path.of(args.single())
     isolate(root, "core")
+    test("deleted source files are hidden while legacy unknown paths remain visible") {
+        Files.createDirectories(root)
+        val file = Files.createTempFile(root, "track", ".m4a")
+        val located = track.copy(path = file.toString())
+        check(TrackVisibility.isVisible(located))
+        Files.delete(file)
+        check(!TrackVisibility.isVisible(located))
+        check(TrackVisibility.isVisible(track))
+        val roundtrip = BackupCodec.decode(BackupCodec.encode(BackupBundle(listOf(event("path", 0).copy(
+            track = located)))))
+        check(roundtrip.events.single().track.path == located.path)
+    }
     test("pause + cross-day + backward seek: actual intervals, one count") {
         val sessions = linkedMapOf<String, LiveSession>()
         val engine = PlaybackAccumulator { sessions[it.id] = it.copyForStore() }

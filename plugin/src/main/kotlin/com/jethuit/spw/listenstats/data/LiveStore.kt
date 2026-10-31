@@ -24,25 +24,30 @@ data class LiveSession(
     var lastPositionMs: Long? = null,
     val lifecycleId: String? = null,
     var rejectedHostIds: Set<String> = emptySet(),
-    val observedOriginMs: Long? = null
+    val observedOriginMs: Long? = null,
+    var path: String = ""
 ) {
     fun copyForStore(): LiveSession = copy(spans = spans.toMutableList(), hostAliases = hostAliases.toSet())
     fun copyForDisplay(): LiveSession = copyForStore()
     fun recordedSpans(): List<ListeningSpan> =
         if (spans.isEmpty() && durationMs > 0) listOf(ListeningSpan(startTimeMs, durationMs)) else spans.toList()
-    fun event() = ListeningEvent("live:$id",
-        TrackMeta(trackId, title, artist, album, albumArtist, trackDurationMs),
+    fun event(libraryId: String = DataFiles.sourceId()) = ListeningEvent("live:$id",
+        TrackMeta(trackId, title, artist, album, albumArtist, trackDurationMs, path),
         recordedSpans(),
-        aliases = hostAliases + setOfNotNull(hostId), approximate = approximate)
+        aliases = hostAliases + setOfNotNull(hostId), approximate = approximate, libraryId = libraryId)
 }
 
 object LiveStore {
     private val sessions = LinkedHashMap<String, LiveSession>()
     private var writable = true
     private var error: String? = null
+    /** Changes whenever the live input or its durable storage status changes. */
+    private var mutationRevision = 0L
     @Synchronized fun storageError(): String? = error
+    @Synchronized fun revision(): Long = mutationRevision
 
     @Synchronized fun load() {
+        mutationRevision++
         sessions.clear()
         writable = true
         error = null
@@ -86,7 +91,8 @@ object LiveStore {
                     item["lastPosition"]?.jsonPrimitive?.longOrNull,
                     item["lifecycleId"]?.jsonPrimitive?.contentOrNull,
                     item["rejectedHostIds"]?.jsonArray?.map { it.jsonPrimitive.content }?.toSet() ?: emptySet(),
-                    item["observedOrigin"]?.jsonPrimitive?.longOrNull)
+                    item["observedOrigin"]?.jsonPrimitive?.longOrNull,
+                    item["path"]?.jsonPrimitive?.contentOrNull.orEmpty())
             }
             sessions.putAll(loaded)
         } catch (failure: Exception) {
@@ -99,10 +105,12 @@ object LiveStore {
 
     @Synchronized fun save() {
         if (!writable) return
+        val previousError = error
         try {
+            val source = DataFiles.sourceId()
             val root = buildJsonObject {
                 put("version", 2)
-                put("sourceId", DataFiles.sourceId())
+                put("sourceId", source)
                 put("sessions", buildJsonArray {
                     sessions.values.forEach { session -> add(buildJsonObject {
                         put("id", session.id); put("trackId", session.trackId)
@@ -115,10 +123,11 @@ object LiveStore {
                         session.lastPositionMs?.let { put("lastPosition", it) }
                         session.lifecycleId?.let { put("lifecycleId", it) }
                         session.observedOriginMs?.let { put("observedOrigin", it) }
+                        if (session.path.isNotBlank()) put("path", session.path)
                         put("rejectedHostIds", buildJsonArray { session.rejectedHostIds.sorted().forEach { add(JsonPrimitive(it)) } })
                         session.hostId?.let { put("hostId", it) }
                         put("hostAliases", buildJsonArray { session.hostAliases.sorted().forEach { add(JsonPrimitive(it)) } })
-                        put("spans", buildJsonArray { session.event().spans.forEach { span ->
+                        put("spans", buildJsonArray { session.event(source).spans.forEach { span ->
                             add(buildJsonArray { add(JsonPrimitive(span.startMs)); add(JsonPrimitive(span.durationMs)) })
                         } })
                     }) }
@@ -126,13 +135,16 @@ object LiveStore {
             }
             DataFiles.writeAtomic(DataFiles.directory().resolve("live-sessions.json"), root.toString())
             error = null
+            if (error != previousError) mutationRevision++
         } catch (failure: Exception) {
             error = "实时记录保存失败：${failure.message}"
+            if (error != previousError) mutationRevision++
             PluginLog.error("saving live sessions failed", failure)
         }
     }
 
     @Synchronized fun upsert(session: LiveSession) {
+        val previous = sessions[session.id]?.copyForStore()
         val oldHostId = sessions[session.id]?.hostId
         val oldAliases = sessions[session.id]?.hostAliases.orEmpty()
         val rejected = sessions[session.id]?.rejectedHostIds.orEmpty() + session.rejectedHostIds
@@ -147,6 +159,7 @@ object LiveStore {
             it.hostAliases = it.hostAliases.filterNot { alias -> rejectedHostAlias(alias, rejected) }.toSet()
             if (it.hostId?.let { alias -> rejectedHostAlias(alias, rejected) } == true) it.hostId = null
         }
+        if (previous != sessions[session.id]) mutationRevision++
     }
 
     private fun hostRowId(alias: String): String? =
@@ -195,7 +208,10 @@ object LiveStore {
             it.finalized = true
             changed = true
         }
-        if (changed) save()
+        if (changed) {
+            mutationRevision++
+            save()
+        }
     }
 
     @Synchronized fun snapshot() = sessions.values.map { it.copyForDisplay() }
@@ -215,23 +231,50 @@ object LiveStore {
         }
     }
 
-    @Synchronized fun merge(host: StatsData, importedEvents: List<ListeningEvent> = emptyList()): StatsData {
+    @Synchronized fun merge(
+        host: StatsData,
+        importedEvents: List<ListeningEvent> = emptyList(),
+        trackVisible: (TrackMeta) -> Boolean = TrackVisibility::isVisible
+    ): StatsData = PerformanceProbe.measure("LiveStore.merge") {
+        mergeInternal(host, importedEvents, trackVisible)
+    }
+
+    private fun mergeInternal(
+        host: StatsData,
+        importedEvents: List<ListeningEvent>,
+        trackVisible: (TrackMeta) -> Boolean
+    ): StatsData {
         val source = DataFiles.sourceId()
-        val hostEvents = host.listens.map { listen ->
-            ListeningEvent("host:$source:${listen.id}", host.tracks[listen.trackId] ?: TrackMeta(
-                listen.trackId, "未知歌曲", "", "", "", 0),
-                listOf(ListeningSpan(listen.startTimeMs, listen.durationMs)), approximate = true)
-        }
+        val visibleIds = host.tracks.filterValues(trackVisible).keys
+        val visibleHost = host.copy(
+            listens = host.listens.filter { it.trackId !in host.tracks || it.trackId in visibleIds },
+            tracks = host.tracks.filterKeys { it in visibleIds }
+        )
         val prefix = "host:$source:"
-        val hostRows = host.listens.associateBy { it.id }
-        val byTrack = host.listens.groupBy { it.trackId }.mapValues { (_, rows) -> rows.sortedBy { it.startTimeMs } }
-        val nextHostStart = byTrack.values.flatMap { rows ->
-            rows.zipWithNext().map { (a, b) -> a.id to b.startTimeMs }
-        }.toMap()
+        val ordered = sessions.values.filter { it.durationMs > 0 && trackVisible(it.event(source).track) }
+            .sortedBy { firstObserved(it) }
+        val hostEvents = PerformanceProbe.measure("LiveStore.buildHostEvents") {
+            visibleHost.listens.map { listen ->
+                ListeningEvent("host:$source:${listen.id}", visibleHost.tracks[listen.trackId] ?: TrackMeta(
+                    listen.trackId, "未知歌曲", "", "", "", 0),
+                    listOf(ListeningSpan(listen.startTimeMs, listen.durationMs)),
+                    approximate = true, libraryId = source)
+            }
+        }
+        val hostRows = PerformanceProbe.measure("LiveStore.indexHostRows") {
+            visibleHost.listens.associateBy { it.id }
+        }
+        val byTrack = PerformanceProbe.measure("LiveStore.groupHostByTrack") {
+            visibleHost.listens.groupBy { it.trackId }.mapValues { (_, rows) -> rows.sortedBy { it.startTimeMs } }
+        }
+        val nextHostStart = PerformanceProbe.measure("LiveStore.buildNextHostStart") {
+            byTrack.values.flatMap { rows ->
+                rows.zipWithNext().map { (a, b) -> a.id to b.startTimeMs }
+            }.toMap()
+        }
         val assigned = mutableMapOf<String, MutableList<LiveSession>>()
-        val ordered = sessions.values.filter { it.durationMs > 0 }.sortedBy { firstObserved(it) }
         var changed = false
-        ordered.forEachIndexed { index, session ->
+        PerformanceProbe.measure("LiveStore.matchCandidates") { ordered.forEachIndexed { index, session ->
             val observed = session.recordedSpans()
             val first = firstObserved(session)
             val previous = ordered.getOrNull(index - 1)
@@ -279,19 +322,25 @@ object LiveStore {
             session.hostId?.takeIf { it.startsWith(prefix) }?.let {
                 assigned.getOrPut(it) { mutableListOf() }.add(session)
             }
+        } }
+        if (changed) {
+            mutationRevision++
+            save()
         }
-        if (changed) save()
-        val liveEvents = ordered.groupBy { it.hostId?.takeIf { id -> id.startsWith(prefix) } ?: "live:${it.id}" }
-            .values.map { pieces ->
-                val events = pieces.map { it.event() }
-                val first = events.first()
-                first.copy(
-                    track = events.fold(first.track) { known, piece -> ListeningEvents.mergeTrack(known, piece.track) },
-                    spans = ListeningEvents.unionSpans(events.flatMap { it.spans }),
-                    aliases = events.flatMap { it.aliases + it.id }.toSet() - first.id,
-                    approximate = events.any { it.approximate }
-                )
-            }
-        return ListeningEvents.aggregate(host, hostEvents + liveEvents + correctImportedEvents(importedEvents))
+        val liveEvents = PerformanceProbe.measure("LiveStore.buildLiveEvents") {
+            ordered.groupBy { it.hostId?.takeIf { id -> id.startsWith(prefix) } ?: "live:${it.id}" }
+                .values.map { pieces ->
+                    val events = pieces.map { it.event(source) }
+                    val first = events.first()
+                    first.copy(
+                        track = events.fold(first.track) { known, piece -> ListeningEvents.mergeTrack(known, piece.track) },
+                        spans = ListeningEvents.unionSpans(events.flatMap { it.spans }),
+                        aliases = events.flatMap { it.aliases + it.id }.toSet() - first.id,
+                        approximate = events.any { it.approximate }
+                    )
+                }
+        }
+        return ListeningEvents.aggregate(visibleHost, hostEvents + liveEvents +
+            correctImportedEvents(importedEvents).filter { trackVisible(it.track) })
     }
 }

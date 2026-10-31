@@ -75,6 +75,7 @@ class PlaybackAccumulator(
             if (resumed != null) {
                 current = resumed
                 if (track.durationMs > 0) resumed.trackDurationMs = track.durationMs
+                if (track.path.isNotBlank()) resumed.path = track.path
                 position = nextPosition
                 nano = nowNano
                 wall = nowWall
@@ -87,11 +88,13 @@ class PlaybackAccumulator(
                 nowWall - nextPosition.coerceAtLeast(0), 0,
                 track.title, track.artist, track.album, track.albumArtist, track.durationMs, false,
                 spans = mutableListOf(), firstPositionMs = nextPosition,
-                lastPositionMs = nextPosition, lifecycleId = lifecycleId, observedOriginMs = hint)
+                lastPositionMs = nextPosition, lifecycleId = lifecycleId, observedOriginMs = hint,
+                path = track.path)
             current = session
         }
         session!!
         if (track.durationMs > 0) session.trackDurationMs = track.durationMs
+        if (track.path.isNotBlank()) session.path = track.path
         session.lastPositionMs = nextPosition
         val elapsed = (nowNano - nano) / 1_000_000
         val delta = nextPosition - position
@@ -239,7 +242,7 @@ object PlaybackTracker {
                     // Host IO stays outside the lifecycle lock, so shutdown can invalidate this result.
                     val track = try {
                         WorkshopApi.playback.getCurrentMediaItem()?.let {
-                            TrackMeta(it.id, it.title, it.artist, it.album, it.albumArtist, it.duration)
+                            TrackMeta(it.id, it.title, it.artist, it.album, it.albumArtist, it.duration, it.path)
                         }
                     } catch (_: Exception) { null }
                     synchronized(lock) {

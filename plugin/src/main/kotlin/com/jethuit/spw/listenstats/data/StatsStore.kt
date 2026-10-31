@@ -10,31 +10,68 @@ import java.nio.file.Path
 object StatsStore {
     @Volatile
     private var databasePath: Path? = null
+    private data class MergeCache(
+        val host: StatsData,
+        val backupRevision: Long,
+        val liveRevision: Long,
+        val visibilityFingerprint: Long,
+        val data: StatsData
+    )
+    private val cacheLock = Any()
+    private var mergeCache: MergeCache? = null
 
     fun initialize(pluginPath: String?) {
         databasePath = resolveDatabasePath(pluginPath)
+        synchronized(cacheLock) { mergeCache = null }
         PluginLog.info("listening database path: $databasePath")
     }
 
-    fun load(): StatsData {
+    fun load(): StatsData = PerformanceProbe.measure("StatsStore.load") { loadInternal() }
+
+    private fun loadInternal(): StatsData {
         val allowed = runCatching {
             WorkshopApi.manager.isPermissionGranted(PluginPermission.LIBRARY_READ)
         }.getOrDefault(false)
-        if (!allowed) return StatsData.empty(error = "请先授权曲库读取权限")
+        if (!allowed) {
+            synchronized(cacheLock) { mergeCache = null }
+            return StatsData.empty(error = "请先授权曲库读取权限")
+        }
         val path = databasePath?.takeIf { Files.isRegularFile(it) }
             ?: resolveDatabasePath(PluginState.pluginPath)
         if (path == null) {
+            synchronized(cacheLock) { mergeCache = null }
             return StatsData.empty(error = "无法定位播放器数据目录")
         }
         databasePath = path
         val host = HostDatabase.load(path, aggregate = false)
+        val backupRevision = BackupService.revision()
+        val liveRevision = LiveStore.revision()
+        val visibilityFingerprint = visibilityFingerprint(host)
+        synchronized(cacheLock) {
+            mergeCache?.takeIf {
+                it.host === host && it.backupRevision == backupRevision && it.liveRevision == liveRevision &&
+                    it.visibilityFingerprint == visibilityFingerprint
+            }?.let { return it.data }
+        }
         return try {
             val merged = BackupService.mergeWithLive(host)
-            LiveStore.storageError()?.let { merged.copy(error = it) } ?: merged
+            val result = LiveStore.storageError()?.let { merged.copy(error = it) } ?: merged
+            synchronized(cacheLock) {
+                mergeCache = MergeCache(host, BackupService.revision(), LiveStore.revision(),
+                    visibilityFingerprint(host), result)
+            }
+            result
         } catch (failure: Exception) {
             PluginLog.error("loading statistics failed", failure)
             host.copy(error = "统计数据读取失败：${failure.message}")
         }
+    }
+
+    private fun visibilityFingerprint(host: StatsData): Long {
+        val source = DataFiles.sourceId()
+        val live = LiveStore.snapshot().map { it.event(source).track }
+        return TrackVisibility.fingerprint(host.tracks.values + live) * 31 +
+            BackupService.visibilityFingerprint()
     }
 
     fun diagnosticPath(): String = databasePath?.toString() ?: "unresolved"

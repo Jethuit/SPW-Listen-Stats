@@ -60,12 +60,24 @@ object HostDatabase {
         val durationMs: Long
     )
 
+    data class CacheMetrics(
+        val validRows: Int,
+        val rawRows: Int,
+        val trackRows: Int,
+        val builtData: Boolean
+    )
+
+    /** Read-only diagnostics for synthetic memory analysis; does not expose cache contents. */
+    fun cacheMetrics(): CacheMetrics? = synchronized(cacheLock) {
+        cache?.let { CacheMetrics(it.rows.size, it.rawRows.size, it.tracks.size, it.builtData != null) }
+    }
+
     /**
      * Reads one snapshot. The first read scans the history; later reads use SQLite's
      * connection-local data version and append cursor when the table is append-only.
      */
     fun load(databasePath: Path, zone: ZoneId = ZoneId.systemDefault(), aggregate: Boolean = true): StatsData =
-        synchronized(cacheLock) {
+        PerformanceProbe.measure("HostDatabase.load") { synchronized(cacheLock) {
             if (!Files.isRegularFile(databasePath)) {
                 closeLocked()
                 return@synchronized StatsData.empty(
@@ -80,7 +92,9 @@ object HostDatabase {
                 val currentVersion = dataVersion(state.connection)
                 val changed = currentVersion != state.dataVersion
                 if (changed) {
-                    refreshChanged(state, currentVersion)
+                    PerformanceProbe.measure("HostDatabase.refreshChanged") {
+                        refreshChanged(state, currentVersion)
+                    }
                 }
                 if (!changed && state.builtZone == zone && state.builtAggregate == aggregate) {
                     state.builtData ?: buildData(state, zone, aggregate)
@@ -94,7 +108,7 @@ object HostDatabase {
                     databaseFound = true
                 )
             }
-        }
+        } }
 
     /** Closes the session-owned read connection when the plugin is disabled. */
     fun close() = synchronized(cacheLock) {
@@ -245,7 +259,12 @@ object HostDatabase {
         invalidateBuiltData(state)
     }
 
-    private fun buildData(state: Cache, zone: ZoneId, aggregate: Boolean): StatsData {
+    private fun buildData(state: Cache, zone: ZoneId, aggregate: Boolean): StatsData =
+        PerformanceProbe.measure("HostDatabase.buildData") {
+            buildDataInternal(state, zone, aggregate)
+        }
+
+    private fun buildDataInternal(state: Cache, zone: ZoneId, aggregate: Boolean): StatsData {
         val listens = state.rows.values
             .sortedBy { it.startTimeMs }
         val trackIds = listens.asSequence().map { it.trackId }.toSet()
@@ -297,6 +316,16 @@ object HostDatabase {
     }
 
     private fun readRows(
+        connection: Connection,
+        rowIdSupported: Boolean,
+        afterRowId: Long?,
+        minRowIdExclusive: Long? = null,
+        maxRowIdInclusive: Long? = null
+    ): RowBatch = PerformanceProbe.measure("HostDatabase.readRows") {
+        readRowsInternal(connection, rowIdSupported, afterRowId, minRowIdExclusive, maxRowIdInclusive)
+    }
+
+    private fun readRowsInternal(
         connection: Connection,
         rowIdSupported: Boolean,
         afterRowId: Long?,
@@ -378,13 +407,18 @@ object HostDatabase {
     }
 
     /** Only history-referenced tracks can affect the statistics snapshot. */
-    private fun readTracks(connection: Connection, ids: Set<String>): LinkedHashMap<String, TrackMeta> {
+    private fun readTracks(connection: Connection, ids: Set<String>): LinkedHashMap<String, TrackMeta> =
+        PerformanceProbe.measure("HostDatabase.readTracks") { readTracksInternal(connection, ids) }
+
+    private fun readTracksInternal(connection: Connection, ids: Set<String>): LinkedHashMap<String, TrackMeta> {
         val result = LinkedHashMap<String, TrackMeta>()
         if (ids.isEmpty()) return result
+        val pathColumn = trackPathColumn(connection)
+        val pathSelect = pathColumn?.let { ", $it" }.orEmpty()
         ids.chunked(TRACK_QUERY_CHUNK).forEach { chunk ->
             val placeholders = chunk.joinToString(",") { "?" }
             connection.prepareStatement(
-                "SELECT id, title, artist, album, albumArtist, duration FROM Track WHERE id IN ($placeholders)"
+                "SELECT id, title, artist, album, albumArtist, duration$pathSelect FROM Track WHERE id IN ($placeholders)"
             ).use { statement ->
                 chunk.forEachIndexed { index, id -> statement.setString(index + 1, id) }
                 statement.executeQuery().use { rows ->
@@ -397,13 +431,32 @@ object HostDatabase {
                             artist = rows.getString("artist").orEmpty(),
                             album = rows.getString("album").orEmpty(),
                             albumArtist = rows.getString("albumArtist").orEmpty(),
-                            durationMs = rows.getLong("duration")
+                            durationMs = rows.getLong("duration"),
+                            path = pathColumn?.let { rows.getString(it) }.orEmpty()
                         )
                     }
                 }
             }
         }
         return result
+    }
+
+    /** Older host schemas do not expose the source path, so an empty path means unknown. */
+    private fun trackPathColumn(connection: Connection): String? {
+        connection.createStatement().use { statement ->
+            statement.executeQuery("PRAGMA table_info(Track)").use { rows ->
+                while (rows.next()) {
+                    val name = rows.getString("name") ?: continue
+                    if (name.equals("path", ignoreCase = true) ||
+                        name.equals("filePath", ignoreCase = true) ||
+                        name.equals("file", ignoreCase = true) ||
+                        name.equals("uri", ignoreCase = true) ||
+                        name.equals("url", ignoreCase = true) ||
+                        name.equals("location", ignoreCase = true)) return name
+                }
+            }
+        }
+        return null
     }
 
     private data class ListenSummary(

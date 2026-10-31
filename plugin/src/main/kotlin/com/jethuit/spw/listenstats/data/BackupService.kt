@@ -22,9 +22,41 @@ object BackupService {
     private val operationSequence = AtomicLong(0)
     private val dialogLock = Any()
     @Volatile private var activeChooser: JFileChooser? = null
+    private data class ImportSignature(
+        val path: Path,
+        val modified: java.nio.file.attribute.FileTime,
+        val size: Long,
+        val fileKey: Any?
+    )
     private data class CachedImport(val path: Path, val modified: java.nio.file.attribute.FileTime,
         val size: Long, val fileKey: Any?, val bundle: BackupBundle)
     private var cache: CachedImport? = null
+    private var observedSignature: ImportSignature? = null
+    private var inputRevision = 0L
+
+    /** Cheap change token for the imported backup; parsing remains lazy in imported(). */
+    @Synchronized fun revision(): Long {
+        val current = importSignature()
+        if (current != observedSignature) {
+            observedSignature = current
+            inputRevision++
+        }
+        return inputRevision
+    }
+
+    /** Tracks external deletion/replacement of files referenced by imported events. */
+    @Synchronized fun visibilityFingerprint(): Long = runCatching {
+        val bundle = imported()
+        TrackVisibility.fingerprint(bundle.events.map { it.track } + bundle.legacy.tracks.values)
+    }.getOrDefault(0L)
+
+    private fun importSignature(): ImportSignature? {
+        val path = importedFile().toAbsolutePath().normalize()
+        if (!Files.isRegularFile(path)) return null
+        val attributes = Files.readAttributes(path, BasicFileAttributes::class.java)
+        return ImportSignature(path, attributes.lastModifiedTime(), attributes.size(), attributes.fileKey())
+    }
+
     private fun importedFile() = DataFiles.directory().resolve("imported.json")
     @Synchronized private fun imported(): BackupBundle {
         val path = importedFile().toAbsolutePath().normalize()
@@ -52,6 +84,8 @@ object BackupService {
         }
         DataFiles.writeAtomic(importedFile(), text)
         cache = null
+        observedSignature = null
+        inputRevision++
         return incoming
     }
 
@@ -165,7 +199,16 @@ object BackupService {
     }
 
     fun merge(host: StatsData): StatsData = try {
-        BackupCodec.apply(host, imported())
+        val bundle = imported()
+        val visibleTracks = bundle.legacy.tracks.filterValues(TrackVisibility::isVisible)
+        val visible = bundle.copy(
+            events = bundle.events.filter { TrackVisibility.isVisible(it.track) },
+            legacy = bundle.legacy.copy(
+                tracks = visibleTracks,
+                counts = bundle.legacy.counts.filterKeys { it in visibleTracks }
+            )
+        )
+        BackupCodec.apply(host, visible)
     } catch (failure: Exception) {
         PluginLog.error("merging imported backup failed", failure)
         host.copy(error = listOfNotNull(host.error, "备份读取失败，原文件已保留：${failure.message}").joinToString("；"))
@@ -177,7 +220,13 @@ object BackupService {
             return LiveStore.merge(host).copy(error = listOfNotNull(host.error,
                 "备份读取失败，原文件已保留：${failure.message}").joinToString("；"))
         }
-        return BackupCodec.applyLegacy(LiveStore.merge(host, bundle.events), bundle.legacy)
+        val visibleLegacyTracks = bundle.legacy.tracks.filterValues(TrackVisibility::isVisible)
+        val visibleLegacy = bundle.legacy.copy(
+            tracks = visibleLegacyTracks,
+            counts = bundle.legacy.counts.filterKeys { it in visibleLegacyTracks }
+        )
+        return BackupCodec.applyLegacy(
+            LiveStore.merge(host, bundle.events, TrackVisibility::isVisible), visibleLegacy)
     }
 
     private suspend fun report(action: String, failure: Throwable) {
@@ -191,4 +240,3 @@ object BackupService {
         }.onFailure { PluginLog.error("showing backup $action error failed", it) }
     }
 }
-

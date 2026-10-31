@@ -24,6 +24,7 @@ class HostUiIntegration(
 
     fun start() {
         report("scanning")
+        UiPerformanceProbe.mark("host_discovery_start")
         worker.execute {
             val started = System.nanoTime()
             val result = runCatching {
@@ -36,6 +37,7 @@ class HostUiIntegration(
                     runCatching { install(bridge) }.onSuccess {
                         hooks = it
                         report("ready (${(System.nanoTime() - started) / 1_000_000}ms); warnings=${bridge.warnings}")
+                        UiPerformanceProbe.mark("host_discovery_ready")
                     }.onFailure { error -> report("failed: ${error.message}"); failed(error) }
                 }.onFailure { error -> report("failed: ${error.message}"); failed(error) }
             }

@@ -10,7 +10,9 @@ data class TrackMeta(
     val artist: String,
     val album: String,
     val albumArtist: String,
-    val durationMs: Long
+    val durationMs: Long,
+    /** Host file path, when the host exposes it. Empty means availability is unknown. */
+    val path: String = ""
 )
 
 data class ListenEntry(

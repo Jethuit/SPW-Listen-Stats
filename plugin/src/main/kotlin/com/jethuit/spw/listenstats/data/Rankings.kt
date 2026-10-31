@@ -102,6 +102,11 @@ object Rankings {
     /** Build the expensive sorted/grouped list once; searches only filter this index. */
     fun index(data: StatsData, mode: RankingMode,
               metric: RankingMetric = RankingMetric.Count): RankingIndex {
+        return PerformanceProbe.measure("Rankings.index") { indexInternal(data, mode, metric) }
+    }
+
+    private fun indexInternal(data: StatsData, mode: RankingMode,
+                              metric: RankingMetric): RankingIndex {
         val tracks = data.sortedTracks(metric)
         val entries = if (mode == RankingMode.Song) {
             tracks.map {

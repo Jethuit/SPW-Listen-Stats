@@ -70,8 +70,10 @@ fun YearHeatmap(
     val exiting = LocalStatsPageExiting.current
     val reveal = remember(grid.firstDay, grid.lastDay, weekly) { Animatable(if (animations) 0f else 1f) }
     LaunchedEffect(reveal, animations) {
+        UiPerformanceProbe.mark("heatmap_animation_start", "animated=$animations weekly=$weekly")
         if (!animations) reveal.snapTo(1f)
         else reveal.animateTo(1f, tween(HeatmapRevealDurationMillis, easing = LinearEasing))
+        UiPerformanceProbe.mark("heatmap_animation_end", "animated=$animations weekly=$weekly")
     }
     fun inRange(date: LocalDate): Boolean =
         !date.isBefore(grid.firstDay) && !date.isAfter(grid.lastDay)
