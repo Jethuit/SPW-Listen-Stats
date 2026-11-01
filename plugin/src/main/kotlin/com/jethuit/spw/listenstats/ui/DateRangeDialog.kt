@@ -3,6 +3,7 @@
 package com.jethuit.spw.listenstats.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -39,6 +40,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -94,11 +96,11 @@ fun DateRangeDialog(
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val dialogWidth = minOf(600.dp, maxWidth - 32.dp).coerceAtLeast(280.dp)
         val dialogMaxHeight = (maxHeight - 32.dp).coerceAtLeast(0.dp)
-        Surface(
-            onClick = onCancel,
-            modifier = Modifier.fillMaxSize().focusProperties { canFocus = false },
-            color = Color.Black.copy(alpha = 0.28f)
-        ) {}
+        // Match the About dialog: dimming must not change with hover or press state.
+        Surface(modifier = Modifier.fillMaxSize()
+            .focusProperties { canFocus = false }
+            .pointerInput(onCancel) { detectTapGestures { onCancel() } },
+            color = Color.Black.copy(alpha = 0.28f)) {}
         Box(
             Modifier
                 .fillMaxSize()

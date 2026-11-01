@@ -13,6 +13,7 @@ import java.time.LocalDate
 private class CachedConfig(private val saved: MutableMap<String, Any>, private val path: Path) : ConfigHelper {
     private val snapshot = mutableMapOf<String, Any>()
     var reloadSucceeds = true
+    var saveSucceeds = true
     @Suppress("UNCHECKED_CAST")
     override fun <T> get(key: String, defaultValue: T): T =
         (snapshot[key].takeIf { (it is String && defaultValue is String) ||
@@ -23,7 +24,10 @@ private class CachedConfig(private val saved: MutableMap<String, Any>, private v
         snapshot.clear(); snapshot.putAll(saved)
         return true
     }
-    override fun save(): Boolean { saved.clear(); saved.putAll(snapshot); return true }
+    override fun save(): Boolean {
+        if (!saveSucceeds) return false
+        saved.clear(); saved.putAll(snapshot); return true
+    }
     override fun getConfigPath(): Path = path
 }
 
@@ -163,5 +167,22 @@ fun main(args: Array<String>) {
         check(ChartType.fromStorage(Prefs.getString("chartType", "line")) == type)
     }
     println("PASS bar, line and curve choices survive preference reinitialization")
-    println("8 heatmap/display preference regression groups passed using a simulated host API")
+    check(Prefs.microsoftStoreEdition() == false)
+    saved["rankingPageSize"] = "72" // A host control saved a different preference since our last read.
+    check(Prefs.setMicrosoftStoreEdition(true))
+    check(saved["microsoftStoreEdition"] == true && saved["rankingPageSize"] == "72")
+    Prefs.initialize()
+    check(Prefs.microsoftStoreEdition() == true)
+    saved["microsoftStoreEdition"] = false // Simulate changing the same switch in the host configuration.
+    check(Prefs.microsoftStoreEdition() == false)
+    helper.reloadSucceeds = false
+    check(Prefs.microsoftStoreEdition() == null && !Prefs.setMicrosoftStoreEdition(true))
+    check(saved["microsoftStoreEdition"] == false)
+    helper.reloadSucceeds = true
+    helper.saveSucceeds = false
+    check(!Prefs.setMicrosoftStoreEdition(true) && saved["microsoftStoreEdition"] == false)
+    helper.saveSucceeds = true
+    check(Prefs.microsoftStoreEdition() == false)
+    println("PASS Store choice persists, reads host edits, preserves unrelated settings and reports IO failures")
+    println("9 heatmap/display preference regression groups passed using a simulated host API")
 }

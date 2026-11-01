@@ -33,6 +33,7 @@ class MainPlugin(
         com.jethuit.spw.listenstats.data.PlaybackTracker.initialize()
         closeHooks()
         com.jethuit.spw.listenstats.data.StatsSnapshots.start()
+        com.jethuit.spw.listenstats.updates.Updates.start()
         UiPerformanceProbe.mark("plugin_preload_started")
         val host = WorkshopApi.instance.javaClass
         integration = HostUiIntegration(
@@ -120,6 +121,7 @@ class MainPlugin(
     }
 
     private fun closeHooks() {
+        com.jethuit.spw.listenstats.updates.Updates.stop()
         com.jethuit.spw.listenstats.data.StatsSnapshots.stop()
         integration?.close()
         integration = null

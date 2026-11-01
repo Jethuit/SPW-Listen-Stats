@@ -291,12 +291,16 @@ fun ListenStatsApp(
     var bottomScrollRequest by remember { mutableStateOf(0) }
     var reloadTick by remember { mutableStateOf(0) }
     var dateDialogOpen by remember { mutableStateOf(false) }
+    var aboutDialogOpen by remember { mutableStateOf(false) }
     var backupBusy by remember { mutableStateOf(false) }
     var localExiting by remember { mutableStateOf(false) }
     val exiting = if (embedded) StatsHostState.closing else localExiting
     val latestExiting by rememberUpdatedState(exiting)
     val closeTicket = StatsHostState.closeTicket
-    val requestExit: () -> Unit = { if (embedded) onClose() else localExiting = true }
+    val requestExit: () -> Unit = {
+        if (aboutDialogOpen) aboutDialogOpen = false
+        else if (embedded) onClose() else localExiting = true
+    }
     val focus = LocalFocusManager.current
     DisposableEffect(embedded) {
         val presenter = if (embedded) StatsHostState.attachPresenter() else null
@@ -305,7 +309,12 @@ fun ListenStatsApp(
     LaunchedEffect(Unit) { UiPerformanceProbe.mark("window_composed") }
     SideEffect { if (embedded) StatsHostState.setAnimationsEnabled(displayPreferences.pageAnimations) }
     LaunchedEffect(exiting) {
-        if (exiting) { entering = true; dateDialogOpen = false; focus.clearFocus(force = true) }
+        if (exiting) {
+            entering = true
+            dateDialogOpen = false
+            aboutDialogOpen = false
+            focus.clearFocus(force = true)
+        }
     }
 
     LaunchedEffect(reloadTick) {
@@ -400,6 +409,8 @@ fun ListenStatsApp(
         }) {
         Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {
         StatsPageFrame(requestExit, actions = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+            AboutButton(onClick = { dateDialogOpen = false; aboutDialogOpen = true })
             if (snapshot != null) {
             BackupMenu(
                 onImport = {
@@ -422,6 +433,7 @@ fun ListenStatsApp(
                     }
                 }
             )
+            }
             }
         }) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -595,6 +607,9 @@ fun ListenStatsApp(
                     }
         }
                 }
+                }
+                if (aboutDialogOpen && !exiting) {
+                    AboutDialog(onClose = { aboutDialogOpen = false })
                 }
                 if (dateDialogOpen && snapshot != null && !exiting) {
                     val dateRange = StatsCalculations.range(

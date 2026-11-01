@@ -54,6 +54,13 @@
           "default_value": true
         },
         {
+          "key": "microsoftStoreEdition",
+          "type": "switch",
+          "title": "为微软商店版启用更新提醒",
+          "summary": "每天检查一次 GitHub 正式版本，自动检查失败不打扰；也可在统计页右上角“关于”中手动检查。",
+          "default_value": false
+        },
+        {
           "type": "button",
           "title": "写入诊断日志",
           "summary": "在插件数据目录记录当前状态，便于排查宿主兼容问题",

@@ -44,6 +44,31 @@ object Prefs {
         }
     }
 
+    /** Update reminders; retain the dev.2 configuration key so an existing choice is preserved. */
+    @Synchronized
+    fun microsoftStoreEdition(): Boolean? = try {
+        val config = helper
+        if (config == null || !config.reload()) null else config.get("microsoftStoreEdition", false)
+    } catch (failure: Exception) {
+        PluginLog.error("reading Microsoft Store preference failed", failure)
+        null
+    }
+
+    @Synchronized
+    fun setMicrosoftStoreEdition(enabled: Boolean): Boolean {
+        val config = helper ?: return false
+        return try {
+            if (!config.reload()) return false
+            config.set("microsoftStoreEdition", enabled)
+            config.save().also { saved ->
+                if (!saved) PluginLog.error("saving Microsoft Store preference failed")
+            }
+        } catch (failure: Exception) {
+            PluginLog.error("saving Microsoft Store preference failed", failure)
+            false
+        }
+    }
+
     /** Host preference controls may save through another cached ConfigHelper. */
     @Synchronized
     fun displayPreferences(): DisplayPreferences {

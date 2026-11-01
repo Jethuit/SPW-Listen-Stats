@@ -51,6 +51,7 @@ flowchart TD
 2. 初始化 `StatsStore` 和 `PlaybackTracker`。
 3. 关闭旧 Hook，避免重复注册。
 4. 启动 `StatsSnapshots` 预读当前统计快照和偏好。
+   同时启动 `Updates` 的后台调度；自动联网须等待约 30 秒，并满足提醒开关与 24 小时间隔。
 5. 创建 `HostUiIntegration`，在后台发现宿主结构。
 6. 发现成功后切换到 UI 事件队列，注册页面、导航、转场、隔离层和可选标题栏 Hook。
 
@@ -62,6 +63,7 @@ flowchart TD
 
 - 释放宿主 Hook；
 - 关闭 `StatsSnapshots` 和宿主数据库连接；
+- 取消 `Updates` 后台任务，过期检查结果和提醒回调不得作用于新一次启用；
 - 停止 `PlaybackTracker`；
 - 关闭统计页状态；
 - 清理封面缓存。
@@ -261,6 +263,12 @@ P0 的备份版本指纹使用路径、修改时间、大小和文件身份；�
 
 刷新时页面应保留滚动位置、筛选、分页和已展开明细。普通刷新不能重播整页或热力图入场动画。进入、返回和直接切页的转场方向必须遵循 `docs/REQUIREMENTS.md`，不能仅凭截图猜测。
 
+### 关于与更新提醒
+
+`AboutDialog.kt` 提供插件信息、可保存的“为微软商店版启用更新提醒”开关、更新结果、手动检查与发布页入口；`Prefs` 沿用 `microsoftStoreEdition` 配置键保留上一开发版的选择，该值现用于控制提醒，不用于检测安装渠道。宿主配置和关于弹窗共用此值。
+
+`updates/GitHubRelease.kt` 负责公开 GitHub 最新正式 Release 的请求、响应校验与 SemVer 比较；宿主裁剪运行时没有 `java.net.http` 模块，因此使用 `java.base` 的连接 API。`UpdateChecker.kt` 串行检查并保存 `update-check.json` 中的尝试时间、成功结果和已提醒版本；`Updates.kt` 管理启停、后台调度与宿主轻提示。自动失败静默，手动失败显示在弹窗内；不读取听歌记录，不查询渠道内部接口，不自动下载安装。合成检查入口为 `tests/run-data-tests.py updates`。
+
 ## Bug 分流
 
 | 症状 | 首先检查 | 常见边界 |
@@ -277,6 +285,7 @@ P0 的备份版本指纹使用路径、修改时间、大小和文件身份；�
 | 页面动画或材质错误 | `PageMotion`、`StatsHostTransitionHooks`、`HostMaterialLayer` | 真实 DWM 和多插件仍需实机验证 |
 | 排行搜索或分页错误 | `Rankings`、`RankingPage` | 索引排名必须先于分页，搜索不能重建完整历史 |
 | 封面异常 | `CoverStore`、来源身份 | LRU、并发请求合并、失败冷却、异库 ID |
+| 更新提示或版本比较异常 | `AboutDialog`、`updates/`、`Prefs` | 自动/手动失败区别、开发版与正式版、24 小时节流、停用取消及同版本提醒去重 |
 
 处理新 Bug 时先确定它属于哪条链路，再收集最小证据：日志、数据快照、宿主版本、权限状态、是否发生导入／播放／导航变化。不要直接在多个层同时重写逻辑。
 
