@@ -410,7 +410,6 @@ fun ListenStatsApp(
         Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {
         StatsPageFrame(requestExit, actions = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-            AboutButton(onClick = { dateDialogOpen = false; aboutDialogOpen = true })
             if (snapshot != null) {
             BackupMenu(
                 onImport = {
@@ -434,6 +433,7 @@ fun ListenStatsApp(
                 }
             )
             }
+            AboutButton(onClick = { dateDialogOpen = false; aboutDialogOpen = true })
             }
         }) {
         BoxWithConstraints(Modifier.fillMaxSize()) {

@@ -1,6 +1,6 @@
 package com.jethuit.spw.listenstats.ui
 
-/** Fresh structural matches from the current host, never a version lookup or cached mapping. */
+/** Structural method/field/call-site descriptions; safe to persist after a complete successful install. */
 data class HostUiSite(val target: HostMethod, val caller: String) {
     val callerClass: String get() = caller.replace('/', '.')
 }

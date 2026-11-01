@@ -33,3 +33,6 @@ Icon paths are represented as Kotlin strings for local rendering.
 Salt Player for Windows, its Workshop API, Kotlin, Compose and PF4J are provided
 by the host or used as build dependencies. The host payload, player installation,
 JDK and compiler are not included in this plugin package.
+
+Host hook target cache flow also references SPW-Lyrics commit
+55b93abcf348ba2258060a7ba1c450c55c55577e (MIT, Copyright (c) 2026 GaBoron).

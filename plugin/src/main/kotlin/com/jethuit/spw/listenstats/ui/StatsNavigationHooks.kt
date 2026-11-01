@@ -103,7 +103,7 @@ object StatsNavigationHooks {
         targets: HostNavigationTargets = HostUiRuntime.require().targets.navigation,
         addHook: (String, List<String>, MethodHook) -> AutoCloseable
     ): AutoCloseable {
-        val handles = mutableListOf<AutoCloseable>()
+        val handles = HookHandles()
         registered = false
         cancelPendingOpen()
         try {
@@ -164,19 +164,17 @@ object StatsNavigationHooks {
             })
             registered = true
         } catch (failure: Throwable) {
-            closeAll(handles)
-            throw failure
+            throw handles.registrationFailed(failure)
         }
-        return AutoCloseable { registered = false; StatsHostState.close(); closeAll(handles) }
+        return AutoCloseable {
+            registered = false
+            val stateFailure = runCatching { StatsHostState.close() }.exceptionOrNull()
+            try { handles.close() } catch (cleanup: Throwable) {
+                if (stateFailure == null) throw cleanup
+                if (stateFailure !== cleanup) stateFailure.addSuppressed(cleanup)
+            }
+            stateFailure?.let { throw it }
+        }
     }
 
-    private fun closeAll(handles: MutableList<AutoCloseable>) {
-        val pending = handles.toList().asReversed()
-        handles.clear()
-        for (handle in pending) {
-            runCatching { handle.close() }.onFailure {
-                PluginLog.error("removing navigation hook failed", it)
-            }
-        }
-    }
 }

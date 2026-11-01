@@ -13,7 +13,7 @@ object StatsHostTransitionHooks {
     val TARGET_CLASS: String get() = HostUiRuntime.require().targets.page.target.className
 
     fun register(addHook: (String, List<String>, MethodHook) -> AutoCloseable): AutoCloseable {
-        val handles = mutableListOf<AutoCloseable>()
+        val handles = HookHandles()
         try {
             for (target in HostUiRuntime.require().targets.transitions) {
                 handles += addHook(target.name, target.parameters, object : MethodHook(50) {
@@ -26,9 +26,8 @@ object StatsHostTransitionHooks {
                 })
             }
         } catch (failure: Throwable) {
-            handles.asReversed().forEach { runCatching { it.close() } }
-            throw failure
+            throw handles.registrationFailed(failure)
         }
-        return AutoCloseable { handles.asReversed().forEach { runCatching { it.close() } } }
+        return handles
     }
 }

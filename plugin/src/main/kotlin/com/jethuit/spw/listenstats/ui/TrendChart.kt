@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
@@ -26,10 +28,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Canvas as BitmapCanvas
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
@@ -43,6 +49,7 @@ import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
+import kotlin.math.roundToInt
 
 @Composable
 fun TrendChart(
@@ -59,12 +66,14 @@ fun TrendChart(
     val measurer = rememberTextMeasurer()
     val hostFont = LocalTextStyle.current.fontFamily
     val axisStyle = AppType.tiny.copy(fontFamily = hostFont)
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
     var tooltip by remember(buckets, chartType, viewportRevision) { mutableStateOf<TooltipData?>(null) }
     var hoverIndex by remember(buckets, chartType, viewportRevision) { mutableStateOf<Int?>(null) }
     var keyboardIndex by remember(buckets.map { Triple(it.start, it.end, it.hour) }) { mutableStateOf(0) }
     val focusRequester = remember { FocusRequester() }
     val exiting = LocalStatsPageExiting.current
-    val widestLabel = remember(buckets, hostFont) {
+    val widestLabel = remember(buckets, hostFont, measurer, density.density, density.fontScale) {
         buckets.maxOfOrNull { measurer.measure(it.label, axisStyle).size.width.toFloat() } ?: 0f
     }
 
@@ -81,7 +90,6 @@ fun TrendChart(
             .fillMaxWidth()
             .height(258.dp)
     ) {
-        val density = LocalDensity.current
         val AXIS_LEFT = max(
             with(density) { 52.dp.toPx() },
             widestLabel / 2f + with(density) { 6.dp.toPx() }
@@ -129,6 +137,224 @@ fun TrendChart(
         fun activateBucket(index: Int) {
             if (selectedIndex == index && onBucketDeselected != null) onBucketDeselected()
             else onBucketSelected?.invoke(index)
+        }
+
+        // Geometry depends only on the dataset and resolved plot coordinates, never pointer state.
+        val geometry = remember(buckets, chartType, AXIS_LEFT, AXIS_TOP, plotWidth, plotHeight,
+            unitMillis, yMax, density.density, density.fontScale) {
+            if (banded || empty) null else buildTrendGeometry(
+                buckets.mapIndexed { index, bucket -> Offset(xAt(index), yAt(bucket.millis)) },
+                chartType, AXIS_TOP + plotHeight)
+        }
+
+        fun DrawScope.drawBase(barHoverIndex: Int?, barSelectedIndex: Int?) {
+            if (buckets.isEmpty()) return
+            val tickValues = (0..tickCount).map { yMax * it / tickCount }
+            val averageY = if (showAverage && !empty) {
+                AXIS_TOP + plotHeight - ((average / yMax).coerceIn(0.0, 1.0) * plotHeight).toFloat()
+            } else {
+                null
+            }
+
+            // Grid and y-axis labels
+            tickValues.forEachIndexed { index, tick ->
+                val y = AXIS_TOP + plotHeight - (index.toFloat() / tickCount) * plotHeight
+                drawLine(
+                    color = colors.line,
+                    start = Offset(AXIS_LEFT, y),
+                    end = Offset(widthPx - AXIS_RIGHT, y),
+                    strokeWidth = 1f
+                )
+                val label = UiGeometry.tick(tick, yMax / tickCount)
+                val nearAverage = averageY != null && abs(y - averageY) < with(density) { 14.dp.toPx() }
+                if (!nearAverage) {
+                    val layout = measurer.measure(
+                        label,
+                        axisStyle.copy(color = colors.muted)
+                    )
+                    drawText(
+                        layout,
+                        topLeft = Offset(
+                            AXIS_LEFT - with(density) { 12.dp.toPx() } - layout.size.width,
+                            y - layout.size.height / 2f
+                        )
+                    )
+                }
+            }
+
+            // X-axis labels
+            val maxLabels = max(2, (plotWidth / with(density) { 64.dp.toPx() }).toInt())
+            val step = if (hourly && buckets.size == 24) 4
+                else max(1, ceil(buckets.size.toDouble() / maxLabels).toInt())
+            val lastBucket = buckets.last()
+            val lastLayout = measurer.measure(
+                lastBucket.label,
+                axisStyle.copy(color = colors.muted)
+            )
+            val lastCenter = xAt(buckets.lastIndex)
+            val lastLeft = lastCenter - lastLayout.size.width / 2f
+            buckets.forEachIndexed { index, bucket ->
+                val isFirst = index == 0
+                val isLast = index == buckets.lastIndex
+                if (isLast) return@forEachIndexed
+                val shouldDraw = isFirst || index % step == 0
+                if (!shouldDraw) return@forEachIndexed
+                val label = bucket.label
+                val layout = measurer.measure(label, axisStyle.copy(color = colors.muted))
+                val center = xAt(index)
+                if (center - layout.size.width / 2f < 0f) return@forEachIndexed
+                if (center + layout.size.width / 2f > lastLeft - 6f) return@forEachIndexed
+                drawLine(
+                    color = colors.line,
+                    start = Offset(center, AXIS_TOP + plotHeight),
+                    end = Offset(center, AXIS_TOP + plotHeight + 4f),
+                    strokeWidth = 1f
+                )
+                drawText(
+                    layout,
+                    topLeft = Offset(
+                        center - layout.size.width / 2f,
+                        AXIS_TOP + plotHeight + 9f
+                    )
+                )
+            }
+            drawLine(
+                color = colors.line,
+                start = Offset(lastCenter, AXIS_TOP + plotHeight),
+                end = Offset(lastCenter, AXIS_TOP + plotHeight + 4f),
+                strokeWidth = 1f
+            )
+            drawText(
+                lastLayout,
+                topLeft = Offset(lastLeft, AXIS_TOP + plotHeight + 9f)
+            )
+
+            // Bars or line
+            if (!empty) when (chartType) {
+                ChartType.Bar -> {
+                    val barWidth = min(with(density) { 32.dp.toPx() }, slot * 0.65f).coerceAtLeast(2f)
+                    buckets.forEachIndexed { index, bucket ->
+                        if (bucket.millis <= 0) return@forEachIndexed
+                        val top = yAt(bucket.millis)
+                        val left = xAt(index) - barWidth / 2f
+                        drawRoundRect(
+                            color = colors.accent.copy(alpha = if (barHoverIndex == index || barSelectedIndex == index) 1f else 0.72f),
+                            topLeft = Offset(left, top),
+                            size = Size(barWidth, AXIS_TOP + plotHeight - top),
+                            cornerRadius = CornerRadius(min(3f, barWidth / 2f))
+                        )
+                    }
+                }
+                ChartType.Line, ChartType.Curve -> {
+                    val cached = requireNotNull(geometry)
+                    drawPath(
+                        cached.area,
+                        color = colors.accentSoft
+                    )
+                    drawPath(cached.path, color = colors.accent, style = Stroke(width = 2f))
+                    if (buckets.size == 1) {
+                        val point = cached.points.single()
+                        drawCircle(
+                            color = colors.accent,
+                            radius = 2f,
+                            center = point
+                        )
+                    }
+                }
+            }
+
+            // Average line and label
+            if (showAverage && averageY != null) {
+                drawLine(
+                    color = colors.muted,
+                    start = Offset(AXIS_LEFT - with(density) { 6.dp.toPx() }, averageY),
+                    end = Offset(widthPx - AXIS_RIGHT, averageY),
+                    strokeWidth = 1.2f,
+                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                        floatArrayOf(6f, 5f)
+                    )
+                )
+                val label = UiGeometry.tick(average, yMax / tickCount)
+                val layout = measurer.measure(
+                    label,
+                    axisStyle.copy(
+                        color = colors.accent,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                    )
+                )
+                drawText(
+                    layout,
+                    topLeft = Offset(
+                        AXIS_LEFT - with(density) { 12.dp.toPx() } - layout.size.width,
+                        averageY - layout.size.height / 2f
+                    )
+                )
+            }
+
+        }
+
+        fun DrawScope.drawMarker(hovered: Int?) {
+            if (buckets.isEmpty()) return
+            // Crosshair and hovered point
+            // Only an actual hover or active selection draws the
+            // marker. Focus alone must not keep an old line visible
+            // after details are closed or the chart is switched.
+            if (hovered != null && hovered in buckets.indices) {
+                val x = xAt(hovered)
+                drawLine(
+                    color = colors.muted.copy(alpha = 0.5f),
+                    start = Offset(x, AXIS_TOP),
+                    end = Offset(x, AXIS_TOP + plotHeight),
+                    strokeWidth = 1f,
+                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                        floatArrayOf(3f, 4f)
+                    )
+                )
+                val point = Offset(x, yAt(buckets[hovered].millis))
+                drawCircle(
+                    color = colors.accent,
+                    radius = 4f,
+                    center = point
+                )
+            }
+
+            if (empty) {
+                val layout = measurer.measure(
+                    "这段时间还没有听歌记录",
+                    AppType.bodySmall.copy(color = colors.muted, fontFamily = hostFont)
+                )
+                drawText(
+                    layout,
+                    topLeft = Offset(
+                        AXIS_LEFT + (plotWidth - layout.size.width) / 2f,
+                        AXIS_TOP + plotHeight / 2f - layout.size.height / 2f
+                    )
+                )
+            }
+        }
+
+        // Keep the recorded static layer and its painter stable while only tooltip/marker state changes.
+        // Theme and style inputs invalidate the painter without rebuilding unchanged geometry.
+        val staticLayer = remember(buckets, chartType, showAverage, colors, axisStyle, measurer,
+            density.density, density.fontScale, layoutDirection, widthPx, heightPx, geometry, yMax, unitMillis, average, empty) {
+            if (banded) Modifier else {
+                // Draw every original sample at the current device-pixel resolution. Keeping this
+                // transparent viewport image also avoids replaying a many-segment path on hover.
+                var image: ImageBitmap? = null
+                Modifier.graphicsLayer { }.drawWith {
+                    val cached = image ?: ImageBitmap(widthPx.roundToInt().coerceAtLeast(1),
+                        heightPx.roundToInt().coerceAtLeast(1)).also { bitmap ->
+                        // Rasterize only the final laid-out version, on the draw thread. A density
+                        // update may otherwise prepare intermediate constraints that are never shown.
+                        CanvasDrawScope().draw(density, layoutDirection, BitmapCanvas(bitmap), Size(widthPx, heightPx)) {
+                            drawRect(Color.Transparent, blendMode = androidx.compose.ui.graphics.BlendMode.Clear)
+                            drawBase(null, null)
+                        }
+                        image = bitmap
+                    }
+                    drawImage(cached)
+                }
+            }
         }
 
         Box(
@@ -198,207 +424,37 @@ fun TrendChart(
                     hoverIndex = null
                     tooltip = null
                 }
-                .drawWith {
-                    if (buckets.isEmpty()) return@drawWith
-                    val tickValues = (0..tickCount).map { yMax * it / tickCount }
-                    val averageY = if (showAverage && !empty) {
-                        AXIS_TOP + plotHeight - ((average / yMax).coerceIn(0.0, 1.0) * plotHeight).toFloat()
-                    } else {
-                        null
-                    }
 
-                    // Grid and y-axis labels
-                    tickValues.forEachIndexed { index, tick ->
-                        val y = AXIS_TOP + plotHeight - (index.toFloat() / tickCount) * plotHeight
-                        drawLine(
-                            color = colors.line,
-                            start = Offset(AXIS_LEFT, y),
-                            end = Offset(widthPx - AXIS_RIGHT, y),
-                            strokeWidth = 1f
-                        )
-                        val label = UiGeometry.tick(tick, yMax / tickCount)
-                        val nearAverage = averageY != null && abs(y - averageY) < with(density) { 14.dp.toPx() }
-                        if (!nearAverage) {
-                            val layout = measurer.measure(
-                                label,
-                                axisStyle.copy(color = colors.muted)
-                            )
-                            drawText(
-                                layout,
-                                topLeft = Offset(
-                                    AXIS_LEFT - with(density) { 12.dp.toPx() } - layout.size.width,
-                                    y - layout.size.height / 2f
-                                )
-                            )
-                        }
-                    }
-
-                    // X-axis labels
-                    val maxLabels = max(2, (plotWidth / with(density) { 64.dp.toPx() }).toInt())
-                    val step = if (hourly && buckets.size == 24) 4
-                        else max(1, ceil(buckets.size.toDouble() / maxLabels).toInt())
-                    val lastBucket = buckets.last()
-                    val lastLayout = measurer.measure(
-                        lastBucket.label,
-                        axisStyle.copy(color = colors.muted)
-                    )
-                    val lastCenter = xAt(buckets.lastIndex)
-                    val lastLeft = lastCenter - lastLayout.size.width / 2f
-                    buckets.forEachIndexed { index, bucket ->
-                        val isFirst = index == 0
-                        val isLast = index == buckets.lastIndex
-                        if (isLast) return@forEachIndexed
-                        val shouldDraw = isFirst || index % step == 0
-                        if (!shouldDraw) return@forEachIndexed
-                        val label = bucket.label
-                        val layout = measurer.measure(label, axisStyle.copy(color = colors.muted))
-                        val center = xAt(index)
-                        if (center - layout.size.width / 2f < 0f) return@forEachIndexed
-                        if (center + layout.size.width / 2f > lastLeft - 6f) return@forEachIndexed
-                        drawLine(
-                            color = colors.line,
-                            start = Offset(center, AXIS_TOP + plotHeight),
-                            end = Offset(center, AXIS_TOP + plotHeight + 4f),
-                            strokeWidth = 1f
-                        )
-                        drawText(
-                            layout,
-                            topLeft = Offset(
-                                center - layout.size.width / 2f,
-                                AXIS_TOP + plotHeight + 9f
-                            )
-                        )
-                    }
-                    drawLine(
-                        color = colors.line,
-                        start = Offset(lastCenter, AXIS_TOP + plotHeight),
-                        end = Offset(lastCenter, AXIS_TOP + plotHeight + 4f),
-                        strokeWidth = 1f
-                    )
-                    drawText(
-                        lastLayout,
-                        topLeft = Offset(lastLeft, AXIS_TOP + plotHeight + 9f)
-                    )
-
-                    // Bars or line
-                    if (!empty) when (chartType) {
-                        ChartType.Bar -> {
-                            val barWidth = min(with(density) { 32.dp.toPx() }, slot * 0.65f).coerceAtLeast(2f)
-                            buckets.forEachIndexed { index, bucket ->
-                                if (bucket.millis <= 0) return@forEachIndexed
-                                val top = yAt(bucket.millis)
-                                val left = xAt(index) - barWidth / 2f
-                                drawRoundRect(
-                                    color = colors.accent.copy(alpha = if (hoverIndex == index || selectedIndex == index) 1f else 0.72f),
-                                    topLeft = Offset(left, top),
-                                    size = Size(barWidth, AXIS_TOP + plotHeight - top),
-                                    cornerRadius = CornerRadius(min(3f, barWidth / 2f))
-                                )
-                            }
-                        }
-                        ChartType.Line, ChartType.Curve -> {
-                            val points = buckets.mapIndexed { index, bucket ->
-                                Offset(xAt(index), yAt(bucket.millis))
-                            }
-                            // End at the actual samples; keep the outer half-slots empty.
-                            val pathLeft = points.first().x
-                            val pathRight = points.last().x
-                            val path = if (chartType == ChartType.Line) {
-                                linePath(points, pathLeft, pathRight)
-                            } else {
-                                monotonePath(points, pathLeft, pathRight)
-                            }
-                            val area = Path().apply {
-                                addPath(path)
-                                lineTo(pathRight, AXIS_TOP + plotHeight)
-                                lineTo(pathLeft, AXIS_TOP + plotHeight)
-                                close()
-                            }
-                            drawPath(
-                                area,
-                                color = colors.accentSoft
-                            )
-                            drawPath(path, color = colors.accent, style = Stroke(width = 2f))
-                            if (buckets.size == 1) {
-                                val point = points.single()
-                                drawCircle(
-                                    color = colors.accent,
-                                    radius = 2f,
-                                    center = point
-                                )
-                            }
-                        }
-                    }
-
-                    // Average line and label
-                    if (showAverage && averageY != null) {
-                        drawLine(
-                            color = colors.muted,
-                            start = Offset(AXIS_LEFT - with(density) { 6.dp.toPx() }, averageY),
-                            end = Offset(widthPx - AXIS_RIGHT, averageY),
-                            strokeWidth = 1.2f,
-                            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
-                                floatArrayOf(6f, 5f)
-                            )
-                        )
-                        val label = UiGeometry.tick(average, yMax / tickCount)
-                        val layout = measurer.measure(
-                            label,
-                            axisStyle.copy(
-                                color = colors.accent,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                            )
-                        )
-                        drawText(
-                            layout,
-                            topLeft = Offset(
-                                AXIS_LEFT - with(density) { 12.dp.toPx() } - layout.size.width,
-                                averageY - layout.size.height / 2f
-                            )
-                        )
-                    }
-
-                    // Crosshair and hovered point
-                    // Only an actual hover or active selection draws the
-                    // marker. Focus alone must not keep an old line visible
-                    // after details are closed or the chart is switched.
-                    val hovered = hoverIndex ?: selectedIndex
-                    if (hovered != null && hovered in buckets.indices) {
-                        val x = xAt(hovered)
-                        drawLine(
-                            color = colors.muted.copy(alpha = 0.5f),
-                            start = Offset(x, AXIS_TOP),
-                            end = Offset(x, AXIS_TOP + plotHeight),
-                            strokeWidth = 1f,
-                            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
-                                floatArrayOf(3f, 4f)
-                            )
-                        )
-                        val point = Offset(x, yAt(buckets[hovered].millis))
-                        drawCircle(
-                            color = colors.accent,
-                            radius = 4f,
-                            center = point
-                        )
-                    }
-
-                    if (empty) {
-                        val layout = measurer.measure(
-                            "这段时间还没有听歌记录",
-                            AppType.bodySmall.copy(color = colors.muted, fontFamily = hostFont)
-                        )
-                        drawText(
-                            layout,
-                            topLeft = Offset(
-                                AXIS_LEFT + (plotWidth - layout.size.width) / 2f,
-                                AXIS_TOP + plotHeight / 2f - layout.size.height / 2f
-                            )
-                        )
-                    }
-                }
-        )
+        ) {
+            if (banded) {
+                // Preserve the original bar paint order and alpha at rounded edges.
+                Box(Modifier.matchParentSize().drawWith {
+                    drawBase(hoverIndex, selectedIndex)
+                    drawMarker(hoverIndex ?: selectedIndex)
+                })
+            } else {
+                Box(Modifier.matchParentSize().then(staticLayer))
+                Box(Modifier.matchParentSize().drawWith { drawMarker(hoverIndex ?: selectedIndex) })
+            }
+        }
         StatsTooltip(tooltip)
     }
+}
+
+/** Paths are built once per geometry key and are never mutated after publication. */
+private class TrendGeometry(val points: List<Offset>, val path: Path, val area: Path)
+
+private fun buildTrendGeometry(points: List<Offset>, chartType: ChartType, baseline: Float): TrendGeometry {
+    val left = points.first().x
+    val right = points.last().x
+    val path = if (chartType == ChartType.Line) linePath(points, left, right) else monotonePath(points, left, right)
+    val area = Path().apply {
+        addPath(path)
+        lineTo(right, baseline)
+        lineTo(left, baseline)
+        close()
+    }
+    return TrendGeometry(points, path, area)
 }
 
 private fun linePath(points: List<Offset>, left: Float, right: Float): Path {

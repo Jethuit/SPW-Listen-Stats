@@ -27,7 +27,7 @@ TOOLS = BUILD / 'tools'
 PLUGIN_SRC = ROOT / 'plugin' / 'src' / 'main' / 'kotlin'
 RESOURCES = ROOT / 'plugin' / 'src' / 'main' / 'resources'
 PLUGIN_ID = 'com.jethuit.spw.listenstats'
-PLUGIN_VERSION = '0.3.5-dev.10'
+PLUGIN_VERSION = '0.4.0'
 PLUGIN_NAME = '听歌统计'
 PACKAGE_FILENAME = f'SPW-Stats-v{PLUGIN_VERSION}.spmod'
 PLUGIN_CLASS = 'com.jethuit.spw.listenstats.MainPlugin'
@@ -155,15 +155,15 @@ def manifest_text() -> str:
 
 
 def package(classes: Path) -> Path:
+    output_dir = BUILD / 'libs'
+    target = output_dir / PACKAGE_FILENAME
+    if target.exists():
+        raise SystemExit(f'Package already exists; use a new version instead of overwriting: {target}')
     manifest = classes / 'META-INF' / 'MANIFEST.MF'
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(manifest_text(), encoding='utf-8', newline='')
-    output_dir = BUILD / 'libs'
     output_dir.mkdir(parents=True, exist_ok=True)
-    target = output_dir / PACKAGE_FILENAME
-    if target.exists():
-        target.unlink()
-    with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as archive:
+    with zipfile.ZipFile(target, 'x', zipfile.ZIP_DEFLATED) as archive:
         archive.writestr('META-INF/MANIFEST.MF', 'Manifest-Version: 1.0\r\n\r\n')
         for path in sorted(classes.rglob('*')):
             if path.is_file():

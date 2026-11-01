@@ -15,6 +15,9 @@ import com.jethuit.spw.listenstats.ui.HostUiRuntime
 import com.jethuit.spw.listenstats.ui.HostUiIntegration
 import com.jethuit.spw.listenstats.ui.HostBytecodeIndex
 import com.jethuit.spw.listenstats.ui.StatsHostTransitionHooks
+import com.jethuit.spw.listenstats.ui.HookFailurePolicy
+import com.jethuit.spw.listenstats.ui.HookHandles
+import com.jethuit.spw.listenstats.ui.HostHookInstallation
 import com.jethuit.spw.listenstats.ui.UiPerformanceProbe
 
 class MainPlugin(
@@ -43,6 +46,13 @@ class MainPlugin(
             },
             loader = host.classLoader,
             install = ::installHostUi,
+            checkInstallAllowed = ::checkUiPermission,
+            ready = {
+                if ("titlebar" !in PluginState.registeredHooks) {
+                    WorkshopApi.ui.toast("顶部统计按钮加载失败，仍可从插件配置打开", WorkshopApi.Ui.ToastType.Warning)
+                }
+                WorkshopApi.ui.toast("听歌统计已启用", WorkshopApi.Ui.ToastType.Success)
+            },
             failed = { failure ->
                 PluginLog.error("Structural host UI discovery/installation failed", failure)
                 WorkshopApi.ui.toast("听歌记录已启用，但统计页面接入失败，请在插件配置中写入诊断日志",
@@ -59,15 +69,8 @@ class MainPlugin(
     }
 
     private fun installHostUi(bridge: HostUiBridge): AutoCloseable {
-        checkUiPermission()
-        val handles = mutableListOf<AutoCloseable>()
-        fun release() {
-            PluginState.registeredHooks = emptySet()
-            handles.asReversed().forEach { handle ->
-                runCatching { handle.close() }.onFailure { PluginLog.error("Removing host UI hook failed", it) }
-            }
-            handles.clear()
-        }
+        val handles = HookHandles()
+        var complete = bridge.cacheable
         try {
             handles += HostUiRuntime.activate(bridge)
             handles += StatsHostTransitionHooks.register { method, parameters, callback ->
@@ -87,15 +90,18 @@ class MainPlugin(
                 }
                 PluginState.registeredHooks += "titlebar"
             } catch (failure: Throwable) {
+                if (HookFailurePolicy.noRetry(failure)) throw failure
+                complete = false
                 PluginLog.error("Optional titlebar entry unavailable", failure)
-                WorkshopApi.ui.toast("顶部统计按钮加载失败，仍可从插件配置打开", WorkshopApi.Ui.ToastType.Warning)
             }
-            WorkshopApi.ui.toast("听歌统计已启用", WorkshopApi.Ui.ToastType.Success)
         } catch (failure: Throwable) {
-            release()
-            throw failure
+            PluginState.registeredHooks = emptySet()
+            throw handles.registrationFailed(failure)
         }
-        return AutoCloseable { release() }
+        val registered = PluginState.registeredHooks
+        return HostHookInstallation(handles, complete, onClosed = {
+            if (PluginState.registeredHooks === registered) PluginState.registeredHooks = emptySet()
+        })
     }
 
     override fun stop() {
@@ -124,6 +130,7 @@ class MainPlugin(
         com.jethuit.spw.listenstats.updates.Updates.stop()
         com.jethuit.spw.listenstats.data.StatsSnapshots.stop()
         integration?.close()
+        PluginState.registeredHooks = emptySet()
         integration = null
         PluginState.discoveryStatus = "stopped"
     }

@@ -61,7 +61,7 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
     SaltCard(modifier = Modifier.fillMaxWidth(), shape = AppShape(12.dp), color = colors.cardBackground,
         border = BorderStroke(1.dp, SolidColor(colors.line))) {
         Column(Modifier.fillMaxWidth().padding(20.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(label, style = AppType.sectionTitle.copy(color = colors.text))
                 }

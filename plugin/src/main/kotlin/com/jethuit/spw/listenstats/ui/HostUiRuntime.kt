@@ -16,8 +16,9 @@ class HostUiBridge(val targets: HostUiTargets, private val loader: ClassLoader,
     val initialAppearance = readAppearance()
     private val preparationWarnings = mutableListOf<String>()
     val warnings: List<String> get() = targets.warnings + preparationWarnings
+    val cacheable: Boolean get() = targets.caption != null && targets.theme != null && warnings.isEmpty()
     private fun <T> optional(role: String, prepare: () -> T): T? = runCatching(prepare)
-        .onFailure { preparationWarnings += "$role reflection: ${it.message}" }.getOrNull()
+        .onFailure { if (HookFailurePolicy.noRetry(it)) throw it; preparationWarnings += "$role reflection: ${it.message}" }.getOrNull()
     fun method(key: HostMethod): Method {
         val signature = MethodType.fromMethodDescriptorString(key.descriptor, loader)
         return Class.forName(key.className, false, loader).getDeclaredMethod(key.name, *signature.parameterArray()).also {
@@ -38,12 +39,17 @@ class HostUiBridge(val targets: HostUiTargets, private val loader: ClassLoader,
     private val expanded = method(targets.navigation.expanded)
     private val dialog = method(targets.navigation.dialog).also { check(Modifier.isStatic(it.modifiers)) }
     init {
+        method(targets.page.target)
+        Class.forName(targets.page.callerClass, false, loader)
+        Class.forName(targets.layer.callerClass, false, loader)
         listOf(targets.navigation.back, targets.navigation.forward, targets.navigation.replace).forEach { method(it) }
         targets.transitions.forEach { check(Modifier.isStatic(method(it).modifiers)) }
     }
 
     // Optional groups are prepared independently, before installing their hooks.
     val caption = targets.caption?.let { key -> optional("caption") {
+        method(key.entry.target)
+        Class.forName(key.entry.callerClass, false, loader)
         method(key.control).also { check(Modifier.isStatic(it.modifiers)) }
     } }
     private val theme = targets.theme?.let { key -> optional("theme") {
