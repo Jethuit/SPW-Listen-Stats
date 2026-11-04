@@ -8,8 +8,14 @@ class TestNavigationHost {
     val pages = mutableListOf("songs", "settings", "plugin-config")
     var originalCalls = 0
     var overlayOpen = false
+    val forwardHistory = mutableListOf<Any?>()
     var currentRoute: Any = Class.forName("com.xuncorp.voxzen.ui.navigation.ScreenRoute\$Track").getField("INSTANCE").get(null)
     fun original() { originalCalls++ }
+    fun advanceRoute() {
+        val track = Class.forName("com.xuncorp.voxzen.ui.navigation.ScreenRoute\$Track").getField("INSTANCE").get(null)
+        val album = Class.forName("com.xuncorp.voxzen.ui.navigation.ScreenRoute\$Album").getField("INSTANCE").get(null)
+        currentRoute = if (currentRoute === track) album else track
+    }
     var replay: ((String, Array<Any?>) -> Unit)? = null
     var lastReplay: Pair<String, List<Any?>>? = null
     private fun replay(method: String, args: Array<Any?>) {
@@ -54,6 +60,7 @@ class TestNavigationRegistration(val host: TestNavigationHost = TestNavigationHo
         AutoCloseable { closed += "$method@${callback.priority}"; hooks.remove(entry) }
     }
     private val binding = if (!bind) null else StatsNavigationHooks.bindNavigator(host, { host.currentRoute },
+        forwardHistory = { host.forwardHistory.toList() },
         hostHandlesBack = { host.overlayOpen }) { route ->
         lastRequest = route
         dispatch("navigate", arrayOf(route)) {

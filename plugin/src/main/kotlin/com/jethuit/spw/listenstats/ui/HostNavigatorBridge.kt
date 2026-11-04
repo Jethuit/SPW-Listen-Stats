@@ -19,6 +19,7 @@ fun CaptureHostNavigator() {
             StatsNavigationHooks.bindNavigator(host,
                 currentRoute = { access.currentRoute(host) },
                 navigate = { route -> access.navigate.invoke(host, route) },
+                forwardHistory = { access.forwardHistory(host) },
                 hostHandlesBack = { access.hasOverlay(host) })
         }
         onDispose { handle?.close() }

@@ -48,6 +48,7 @@ object StatsHostState {
     fun setAnimationsEnabled(enabled: Boolean) { animationsEnabled = enabled }
 
     fun open() {
+        StatsNavigationHooks.clearForwardReturn()
         closeTicket++
         closing = false
         exitMotion = StatsExitMotion.Return
@@ -59,6 +60,7 @@ object StatsHostState {
         // A later back press consumes the statistics layer without changing an
         // already accepted destination into a downward return animation.
         if (navigating) return
+        if (visible && !closing) StatsNavigationHooks.rememberForwardReturn()
         beginClose(StatsExitMotion.Return)
     }
 
@@ -71,7 +73,7 @@ object StatsHostState {
     private fun beginClose(motion: StatsExitMotion) {
         StatsNavigationHooks.cancelPendingOpen()
         if (!canAnimateClose) {
-            close()
+            resetVisibility()
             return
         }
         if (!closing || exitMotion != motion) closeTicket++
@@ -88,6 +90,7 @@ object StatsHostState {
 
     /** Forced teardown removes the page; no navigation is queued for later replay. */
     fun close() {
+        StatsNavigationHooks.clearForwardReturn()
         StatsNavigationHooks.cancelPendingOpen()
         resetVisibility()
     }

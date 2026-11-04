@@ -20,7 +20,11 @@
 
 SPW-Listen-Stats 是 Salt Player for Windows 的 Kotlin / Compose 模组，统计真实观察到的收听片段，并通过宿主 Hook 将统计页嵌入播放器内容层。
 
-版本判断以 `tools/build_plugin.py` 的 `PLUGIN_VERSION` 和实际构建产物为准，不以文档标题中的旧版本文字为准。远端最近已发布正式版为 `0.3.4`；当前按用户要求准备 `0.4.0` 正式包，是否发布以实际 GitHub Release 为准。后续开发构建使用未发布的独立版本，例如 `0.4.1-dev.1`。禁止用相同版本号覆盖正式安装包、发布附件或 Git 标签。
+版本判断以 `tools/build_plugin.py` 的 `PLUGIN_VERSION` 和实际构建产物为准，不以文档标题中的旧版本文字为准。2026-11-04 通过 GitHub 插件确认远端最新正式版为 `0.4.0`，`v0.4.1` Release 和标签尚未使用；当前按用户要求将最终 `0.4.1-dev.12` 的功能准备为 `0.4.1` 正式包，是否发布以实际 GitHub Release 为准。后续开发构建使用未发布的独立版本，例如 `0.4.2-dev.1`。禁止用相同版本号覆盖正式安装包、发布附件或 Git 标签。
+
+本次发布说明为 `docs/releases/v0.4.1.md`，本地材料已整理到 `build/releases/v0.4.1/`，包含原始安装包、`SHA256SUMS.txt`、`RELEASE_NOTES.md` 和 `PREPARATION.json`。集中一轮源码编译、14 项歌曲播放／8 组排行合成回归、时长格式和导航回归、包结构及材料校验均通过；未重复性能压测。正式包 17,812,372 字节，SHA-256 为 `494e1d371eb9e68701bde45f66a705d5ea5221afe4ec8ae52e473612bb22a152`，与最终 `0.4.1-dev.12` 相比仅插件 Manifest 版本变化，其余 349 个条目一致，包含 336 个运行类；旧安装包摘要保持不变。双击后的真实音频与队列、前进侧键恢复及关于页排版仍交由用户实机确认，不能把合成检查写成已完成实机验收。
+
+2026-11-05 用户授权使用 GitHub Actions bot 发布，并选择沿用本次原始正式包。`.github/workflows/publish-release.yml` 使用工作流 `GITHUB_TOKEN`，发布者为 `github-actions[bot]`；安装包通过 GitHub 插件传送为不加入源码文件树的 blob，更新 `.github/release-request.json` 后触发发布。`tools/publish_release.py` 校验版本、大小、SHA-256 和 Manifest，附件验证完成后才将 bot 草稿发布；不重建、不替换附件、不移动标签、不修改已发布版本。操作流程见 `docs/ACTIONS_RELEASE.md`；实际是否发布成功以 Actions 和 Release 结果为准。源码与工作流的远端写入仅使用 GitHub 插件，保留远端 README 与历史。SPW 安装文件、工具链缓存、真实听歌记录、私人备份和机器配置均不提交。根目录与插件 README 继续由用户维护。
 
 当前工作区可能包含用户未提交的功能修改、测试素材和调查产物。开始工作时先运行 `git status --short --branch`，保留这些修改，不要 reset、checkout、清理或覆盖不属于本次任务的文件。
 

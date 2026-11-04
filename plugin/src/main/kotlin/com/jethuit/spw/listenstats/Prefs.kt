@@ -10,7 +10,9 @@ data class DisplayPreferences(
     val refreshIntervalSeconds: Int = 5,
     val detailVisibleRows: Int = 6,
     val showDetailHint: Boolean = true,
-    val heatmapAnimations: Boolean = true
+    val heatmapAnimations: Boolean = true,
+    val overviewLatinDurationUnits: Boolean = false,
+    val detailLatinDurationUnits: Boolean = false
 )
 
 @OptIn(UnstableSpwWorkshopApi::class)
@@ -79,8 +81,8 @@ object Prefs {
         }
         val pageSize = getString("rankingPageSize", "25").trim().toIntOrNull()
             ?.takeIf { it > 0 } ?: 25
-        fun readBoolean(key: String): Boolean = try { helper?.get(key, true) ?: true }
-            catch (_: Exception) { true }
+        fun readBoolean(key: String, default: Boolean = true): Boolean = try { helper?.get(key, default) ?: default }
+            catch (_: Exception) { default }
         fun readBoundedInt(key: String, default: Int, range: IntRange): Int =
             getString(key, default.toString()).trim().toIntOrNull()?.takeIf { it in range } ?: default
         return DisplayPreferences(
@@ -89,7 +91,9 @@ object Prefs {
             refreshIntervalSeconds = readBoundedInt("refreshIntervalSeconds", 5, 2..60),
             detailVisibleRows = readBoundedInt("detailVisibleRows", 6, 3..12),
             showDetailHint = readBoolean("showDetailHint"),
-            heatmapAnimations = readBoolean("heatmapAnimations")
+            heatmapAnimations = readBoolean("heatmapAnimations"),
+            overviewLatinDurationUnits = readBoolean("overviewLatinDurationUnits", false),
+            detailLatinDurationUnits = readBoolean("detailLatinDurationUnits", false)
         )
     }
 

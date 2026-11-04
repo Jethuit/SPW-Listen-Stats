@@ -15,33 +15,61 @@ import java.util.IdentityHashMap
 object StatsNavigationHooks {
     val NAVIGATOR_CLASS: String get() = HostUiRuntime.require().targets.navigation.navigate.className
     private class Binding(val navigator: Any, val currentRoute: () -> Any?, val navigate: (Any) -> Unit,
-                          val hostHandlesBack: () -> Boolean)
+                          val hostHandlesBack: () -> Boolean, val forwardHistory: () -> List<Any?>?)
+    private class ForwardReturn(val host: Binding, val route: Any, val history: List<Any?>) {
+        fun matches(): Boolean {
+            val current = host.forwardHistory() ?: return false
+            return host.currentRoute() === route && sameHistory(current, history)
+        }
+    }
+    private fun sameHistory(left: List<Any?>?, right: List<Any?>?): Boolean =
+        if (left == null || right == null) left === right
+        else left.size == right.size && left.indices.all { left[it] === right[it] }
+    private class ForwardObservation(val host: Binding, val route: Any?, val overlay: Boolean, val history: List<Any?>?)
     private class RouteKey(route: Any, queue: ReferenceQueue<Any>? = null) : WeakReference<Any>(route, queue) {
         private val identity = System.identityHashCode(route)
         override fun hashCode(): Int = identity
         override fun equals(other: Any?): Boolean = this === other ||
             (other is RouteKey && get() != null && get() === other.get())
     }
-    private class OpenRequest(val host: Binding, val route: RouteKey)
+    private class OpenRequest(val host: Binding, val route: RouteKey, val restore: ForwardReturn?)
     private val expired = ReferenceQueue<Any>()
     private val requests = HashMap<RouteKey, OpenRequest>()
     private var binding: Binding? = null
     private var pending: OpenRequest? = null
+    private var forwardReturn: ForwardReturn? = null
     private var preparationTicket = 0L
     private var registered = false
     val navigatorReady: Boolean get() = registered && binding != null
 
     fun bindNavigator(navigator: Any, currentRoute: () -> Any?, hostHandlesBack: () -> Boolean = { false },
+                      forwardHistory: () -> List<Any?>? = { null },
                       navigate: (Any) -> Unit): AutoCloseable {
         cancelPendingOpen()
-        val current = Binding(navigator, currentRoute, navigate, hostHandlesBack)
+        clearForwardReturn()
+        val current = Binding(navigator, currentRoute, navigate, hostHandlesBack, forwardHistory)
         binding = current
         return AutoCloseable {
-            if (binding === current) { binding = null; cancelPendingOpen() }
+            if (binding === current) { binding = null; cancelPendingOpen(); clearForwardReturn() }
         }
     }
 
     fun cancelPendingOpen() { pending = null; preparationTicket++ }
+
+    fun clearForwardReturn() { forwardReturn = null }
+
+    /** One in-memory overlay step above the host's history, captured only by an explicit return. */
+    fun rememberForwardReturn() {
+        forwardReturn = null
+        val host = binding?.takeIf { registered } ?: return
+        val route = host.currentRoute() ?: return
+        val history = host.forwardHistory() ?: run {
+            PluginLog.info("Statistics forward return unavailable: host forward history cannot be read safely")
+            return
+        }
+        forwardReturn = ForwardReturn(host, route, history)
+        PluginLog.info("Statistics forward return recorded")
+    }
 
     /** Ask other tools to leave first; they may synchronously accept or defer for draft confirmation. */
     fun openStats() {
@@ -51,14 +79,19 @@ object StatsNavigationHooks {
             WorkshopApi.ui.toast("统计页面导航尚未准备好，请稍后重试", WorkshopApi.Ui.ToastType.Warning)
             return
         }
+        prepareOpen(host)
+    }
+
+    private fun prepareOpen(host: Binding, restore: ForwardReturn? = null) {
         cancelPendingOpen()
         val ticket = preparationTicket
         com.jethuit.spw.listenstats.data.StatsSnapshots.prepareOpen {
-            if (ticket == preparationTicket && registered && binding === host) requestPreparedOpen(host)
+            if (ticket == preparationTicket && registered && binding === host &&
+                (restore == null || (forwardReturn === restore && restore.matches()))) requestPreparedOpen(host, restore)
         }
     }
 
-    private fun requestPreparedOpen(host: Binding) {
+    private fun requestPreparedOpen(host: Binding, restore: ForwardReturn? = null) {
         // A destination may already be preparing under the isolation layer.
         // Reverse the exit only after its leave guard accepts.
         var request: OpenRequest? = null
@@ -67,7 +100,7 @@ object StatsNavigationHooks {
             val marker = copyHostRoute(current)
             cleanRequests()
             val key = RouteKey(marker, expired)
-            request = OpenRequest(host, key).also { requests[key] = it; pending = it }
+            request = OpenRequest(host, key, restore).also { requests[key] = it; pending = it }
             host.navigate(marker)
         }.onFailure {
             if (pending === request) pending = null
@@ -106,14 +139,33 @@ object StatsNavigationHooks {
         val handles = HookHandles()
         registered = false
         cancelPendingOpen()
+        clearForwardReturn()
         try {
             // Close before the host's same-route early return as well as actual transitions.
             for (target in listOf(targets.navigate, targets.replace, targets.forward)) {
                 val method = target.name
                 val parameters = target.parameters
                 val sameRouteCalls = Collections.newSetFromMap(IdentityHashMap<MethodHookParam, Boolean>())
+                val forwardCalls = IdentityHashMap<MethodHookParam, ForwardObservation>()
                 handles += addHook(method, parameters, object : MethodHook(100) {
                     override fun before(call: MethodHookParam) {
+                        if (binding != null && call.thisObject !== binding?.navigator) return
+                        if (target == targets.forward) {
+                            val host = binding
+                            if (host != null && call.thisObject === host.navigator) {
+                                val restore = forwardReturn
+                                if (restore != null && restore.host === host && restore.matches() &&
+                                    (!StatsHostState.visible || (StatsHostState.closing && StatsHostState.revealHostOnExit)) &&
+                                    !host.hostHandlesBack()) {
+                                    call.setResult(null)
+                                    PluginLog.info("Statistics forward restoration requested")
+                                    // Re-enter through the existing prepared-open and full leave-guard chain.
+                                    prepareOpen(host, restore)
+                                    return
+                                }
+                                forwardCalls[call] = ForwardObservation(host, host.currentRoute(), host.hostHandlesBack(), host.forwardHistory())
+                            }
+                        }
                         // Observe ordinary navigation before another tool can defer it.
                         if (target != targets.navigate || requestOf(call.args.firstOrNull()) == null) {
                             cancelPendingOpen()
@@ -132,8 +184,18 @@ object StatsNavigationHooks {
                         // can defer/cancel the call, or replay it after draft confirmation.
                         // The native incoming page covers statistics as it fades in place.
                         val sameRoute = sameRouteCalls.remove(call)
-                        if (!call.isOriginalSkipped && call.throwable == null && StatsHostState.visible) {
-                            StatsHostState.requestNavigation(nativeTransition = !sameRoute)
+                        val previous = forwardCalls.remove(call)
+                        if (!call.isOriginalSkipped && call.throwable == null &&
+                            (binding == null || call.thisObject === binding?.navigator)) {
+                            if (target != targets.forward) clearForwardReturn()
+                            // Native forward may legitimately do nothing. It must not close the overlay.
+                            val unchangedForward = target == targets.forward && (previous == null ||
+                                binding !== previous.host || (previous.host.currentRoute() === previous.route &&
+                                previous.host.hostHandlesBack() == previous.overlay &&
+                                sameHistory(previous.history, previous.host.forwardHistory())))
+                            if (StatsHostState.visible && !unchangedForward) {
+                                StatsHostState.requestNavigation(nativeTransition = !sameRoute)
+                            }
                         }
                     }
                 })
@@ -145,6 +207,7 @@ object StatsNavigationHooks {
                     val request = requestOf(call.args.firstOrNull()) ?: return
                     call.setResult(null)
                     if (registered && pending === request && binding === request.host &&
+                        (request.restore == null || (forwardReturn === request.restore && request.restore.matches())) &&
                         call.thisObject === request.host.navigator && request.host.currentRoute() == request.route.get()) {
                         pending = null
                         StatsHostState.open()
@@ -168,6 +231,7 @@ object StatsNavigationHooks {
         }
         return AutoCloseable {
             registered = false
+            clearForwardReturn()
             val stateFailure = runCatching { StatsHostState.close() }.exceptionOrNull()
             try { handles.close() } catch (cleanup: Throwable) {
                 if (stateFailure == null) throw cleanup

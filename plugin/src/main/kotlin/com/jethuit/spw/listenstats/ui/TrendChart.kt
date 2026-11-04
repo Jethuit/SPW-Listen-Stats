@@ -60,7 +60,8 @@ fun TrendChart(
     viewportRevision: Int = 0,
     selectedIndex: Int? = null,
     onBucketSelected: ((Int) -> Unit)? = null,
-    onBucketDeselected: (() -> Unit)? = null
+    onBucketDeselected: (() -> Unit)? = null,
+    latinDurationUnits: Boolean = false
 ) {
     val colors = LocalStatsColors.current
     val measurer = rememberTextMeasurer()
@@ -68,7 +69,7 @@ fun TrendChart(
     val axisStyle = AppType.tiny.copy(fontFamily = hostFont)
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
-    var tooltip by remember(buckets, chartType, viewportRevision) { mutableStateOf<TooltipData?>(null) }
+    var tooltip by remember(buckets, chartType, viewportRevision, latinDurationUnits) { mutableStateOf<TooltipData?>(null) }
     var hoverIndex by remember(buckets, chartType, viewportRevision) { mutableStateOf<Int?>(null) }
     var keyboardIndex by remember(buckets.map { Triple(it.start, it.end, it.hour) }) { mutableStateOf(0) }
     val focusRequester = remember { FocusRequester() }
@@ -415,7 +416,7 @@ fun TrendChart(
                     tooltip = TooltipData(
                         title = bucket.longLabel,
                         label = "听歌时长",
-                        value = formatDuration(bucket.millis),
+                        value = formatDuration(bucket.millis, latinDurationUnits),
                         x = position.x,
                         y = position.y
                     )

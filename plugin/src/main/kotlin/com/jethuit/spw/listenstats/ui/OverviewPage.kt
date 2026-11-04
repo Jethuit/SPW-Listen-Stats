@@ -113,7 +113,7 @@ fun OverviewPage(
         } else false
     }) {
         SummaryStrip(4) { itemWidth ->
-            SummaryStat(itemWidth, "累计听歌时长", summary.totalMillis, colors)
+            SummaryStat(itemWidth, "累计听歌时长", summary.totalMillis, colors, displayPreferences.overviewLatinDurationUnits)
             PlainStat(itemWidth, "${summary.activeDays}", "天", "听歌天数", colors)
             PlainStat(itemWidth, "${summary.longestStreak}", "天", "最长连续", colors)
             PlainStat(itemWidth, "${summary.currentStreak}", "天", "当前连续", colors)
@@ -124,7 +124,7 @@ fun OverviewPage(
         SectionHeading(
             icon = IconPaths.CalendarMonth,
             title = "听歌热力图",
-            caption = "$yearActiveDays 个听歌日 · ${formatDuration(yearTotal)}"
+            caption = "$yearActiveDays 个听歌日 · ${formatDuration(yearTotal, displayPreferences.overviewLatinDurationUnits)}"
         ) {
             SegmentedControl(
                 options = listOf(
@@ -161,7 +161,8 @@ fun OverviewPage(
                 onWeekSelected = onWeekSelected,
                 viewportRevision = viewportRevision,
                 rolling = heatmapRolling,
-                revealAnimations = displayPreferences.heatmapAnimations
+                revealAnimations = displayPreferences.heatmapAnimations,
+                latinDurationUnits = displayPreferences.overviewLatinDurationUnits
             )
         }
 
@@ -170,7 +171,7 @@ fun OverviewPage(
         SectionHeading(
             icon = IconPaths.ShowChart,
             title = "时长分布",
-            caption = "这段时间听了 ${formatDuration(rangeTotal)}",
+            caption = "这段时间听了 ${formatDuration(rangeTotal, displayPreferences.overviewLatinDurationUnits)}",
             controlsGap = 9.dp
         ) {
             SegmentedControl(
@@ -213,7 +214,7 @@ fun OverviewPage(
         }
         Box(Modifier.height(23.dp))
         Text(
-            trendAxis.caption,
+            if (displayPreferences.overviewLatinDurationUnits && !trendAxis.useHours) "时长/m" else trendAxis.caption,
             style = AppType.tiny.copy(color = colors.muted)
         )
         Box(Modifier.height(7.dp))
@@ -232,7 +233,8 @@ fun OverviewPage(
                         detailRequested = true
                     }
                 },
-                onBucketDeselected = closeDetails
+                onBucketDeselected = closeDetails,
+                latinDurationUnits = displayPreferences.overviewLatinDurationUnits
             )
         }
         if (displayPreferences.showDetailHint) {
@@ -242,7 +244,8 @@ fun OverviewPage(
                 style = AppType.tiny.copy(color = colors.muted)
             )
         }
-        ListeningDetailsExpansion(detailOpen, details, displayPreferences.detailVisibleRows, closeDetails)
+        ListeningDetailsExpansion(detailOpen, details, displayPreferences.detailVisibleRows,
+            latinDurationUnits = displayPreferences.detailLatinDurationUnits, onClose = closeDetails)
 
         Box(Modifier.height(61.dp))
         Row(
@@ -259,14 +262,16 @@ fun OverviewPage(
                 value = summary.peakMillis,
                 fallback = "—",
                 label = "听得最多 · " + (summary.peakDay?.let { formatDay(it) } ?: "—"),
-                colors = colors
+                colors = colors,
+                latinDurationUnits = displayPreferences.overviewLatinDurationUnits
             )
             InsightStat(
                 width = itemWidth,
                 value = summary.dailyAverageMillis,
                 fallback = "—",
                 label = "每日平均收听",
-                colors = colors
+                colors = colors,
+                latinDurationUnits = displayPreferences.overviewLatinDurationUnits
             )
             FavoriteHourStat(
                 width = itemWidth,
@@ -283,13 +288,14 @@ private fun SummaryStat(
     width: Dp,
     label: String,
     millis: Long,
-    colors: StatsColors
+    colors: StatsColors,
+    latinDurationUnits: Boolean = false
 ) {
     Column(
         Modifier.width(width).padding(horizontal = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        DurationValue(millis, colors)
+        DurationValue(millis, colors, latinDurationUnits)
         Text(
             label,
             modifier = Modifier.padding(top = 5.dp),
@@ -327,9 +333,9 @@ private fun PlainStat(
 }
 
 @Composable
-private fun DurationValue(millis: Long, colors: StatsColors) {
+private fun DurationValue(millis: Long, colors: StatsColors, latinDurationUnits: Boolean = false) {
     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
-        durationParts(millis).forEachIndexed { index, part ->
+        durationParts(millis, latinDurationUnits).forEachIndexed { index, part ->
             if (index > 0) Box(Modifier.width(2.dp))
             Text(part.value, style = AppType.number.copy(color = colors.text))
             Text(
@@ -347,7 +353,8 @@ private fun InsightStat(
     value: Long,
     fallback: String,
     label: String,
-    colors: StatsColors
+    colors: StatsColors,
+    latinDurationUnits: Boolean = false
 ) {
     Column(
         Modifier.width(width).padding(horizontal = 10.dp),
@@ -356,7 +363,7 @@ private fun InsightStat(
         if (value <= 0) {
             Text(fallback, style = AppType.number.copy(color = colors.muted))
         } else {
-            DurationValue(value, colors)
+            DurationValue(value, colors, latinDurationUnits)
         }
         Text(
             label,

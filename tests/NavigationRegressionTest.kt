@@ -112,12 +112,14 @@ fun main() {
     val registration = TestNavigationRegistration()
     check(registration.hooks.size == 5)
     val host = registration.host
+    val initialRoute = host.currentRoute
     for (method in listOf("navigate", "replace", "forward")) {
         StatsHostState.open()
-        registration.dispatch(method) { check(StatsHostState.visible) }
+        registration.dispatch(method) { check(StatsHostState.visible); if (method == "forward") host.advanceRoute() }
         check(!StatsHostState.visible)
     }
     println("PASS ordinary navigation closes statistics only after the host accepts the request")
+    host.currentRoute = initialRoute
 
     StatsHostState.open()
     val before = host.pages.toList()
@@ -204,6 +206,7 @@ fun main() {
     checkRapidPluginSwitches()
     checkNativeForwardMotion()
     checkNavigationGuards()
+    checkStatisticsForwardRestore()
 
     val rolledBack = mutableListOf<String>()
     val failure = runCatching {
@@ -382,7 +385,7 @@ private fun checkExitNavigation() {
         check(!StatsHostState.visible && host.originalCalls == 3)
 
         StatsHostState.open()
-        registration.dispatch("forward")
+        registration.dispatch("forward") { host.advanceRoute() }
         val interrupted = StatsHostState.closeTicket
         StatsNavigationHooks.openStats()
         StatsHostState.finishClose(interrupted)
@@ -409,7 +412,7 @@ private fun checkExitNavigation() {
 
         StatsHostState.setAnimationsEnabled(false)
         StatsHostState.open()
-        registration.dispatch("forward") { check(StatsHostState.visible) }
+        registration.dispatch("forward") { check(StatsHostState.visible); host.advanceRoute() }
         check(!StatsHostState.visible)
         check(host.originalCalls == 6 && !StatsHostState.closing)
         StatsHostState.setAnimationsEnabled(true)
@@ -435,4 +438,132 @@ private fun checkNativeNoOp(marker: Any) {
     check(native.history.size == 1 && native.history[0] === native.initial)
     check(marker !== native.initial && marker == native.initial)
     println("PASS actual SPW navigate: deferred request is an equal current route and keeps same-route history unchanged")
+}
+
+private fun checkStatisticsForwardRestore() {
+    for (animated in listOf(false, true)) TestNavigationRegistration().use { registration ->
+        val presenter = StatsHostState.attachPresenter()
+        try {
+            StatsHostState.setAnimationsEnabled(animated)
+            repeat(3) {
+                StatsHostState.open()
+                val before = registration.host.pages.toList()
+                val calls = registration.host.originalCalls
+                registration.dispatch("back") { error("Statistics return changed host history") }
+                val oldExit = StatsHostState.closeTicket
+                registration.dispatch("forward") { error("Statistics restoration consumed native forward history") }
+                check(StatsHostState.visible && !StatsHostState.closing)
+                StatsHostState.finishClose(oldExit)
+                check(StatsHostState.visible && registration.host.pages == before && registration.host.originalCalls == calls)
+                registration.dispatch("forward") // An empty native forward stack must not close the restored page.
+                check(StatsHostState.visible && !StatsHostState.closing)
+            }
+        } finally { presenter.close(); StatsHostState.setAnimationsEnabled(true) }
+    }
+    println("PASS mouse back/forward restores statistics, reverses unfinished exits and ignores empty native forward, both animation modes")
+
+    TestNavigationRegistration().use { registration ->
+        val host = registration.host
+        StatsHostState.open()
+        registration.dispatch("back")
+        val anchor = host.currentRoute
+        val entry = Any()
+        registration.dispatch("back") { host.forwardHistory += entry; host.advanceRoute() }
+        registration.dispatch("forward") { host.currentRoute = anchor; host.forwardHistory.removeLast() }
+        check(!StatsHostState.visible)
+        registration.dispatch("forward") { error("Forward skipped statistics checkpoint") }
+        check(StatsHostState.visible)
+        StatsHostState.close()
+    }
+    println("PASS intervening native back/forward replays host history first, then restores the statistics step")
+
+    TestNavigationRegistration().use { registration ->
+        val host = registration.host
+        StatsHostState.open(); registration.dispatch("back")
+        host.overlayOpen = true
+        registration.dispatch("back") { host.overlayOpen = false; host.forwardHistory += Any() }
+        registration.dispatch("forward") { host.forwardHistory.removeLast(); host.overlayOpen = true }
+        check(host.overlayOpen && !StatsHostState.visible)
+        host.overlayOpen = false // Collapse the player directly, without adding another history entry.
+        registration.dispatch("forward") { error("Overlay step swallowed the saved statistics step") }
+        check(StatsHostState.visible)
+        StatsHostState.close()
+    }
+    println("PASS native overlay history retains priority and cannot be mistaken for the statistics forward step")
+
+    for (method in listOf("navigate", "replace")) TestNavigationRegistration().use { registration ->
+        StatsHostState.open(); registration.dispatch("back")
+        registration.dispatch(method, arrayOf(registration.host.currentRoute))
+        val calls = registration.host.originalCalls
+        registration.dispatch("forward")
+        check(!StatsHostState.visible && registration.host.originalCalls == calls + 1)
+    }
+    TestNavigationRegistration().use { registration ->
+        StatsHostState.open(); registration.dispatch("back")
+        val reject = TestNavigationRegistration.Entry("navigate", object : MethodHook(80) {
+            override fun before(call: MethodHookParam) { call.setResult(null) }
+        })
+        registration.extra += reject
+        registration.dispatch("navigate", arrayOf("rejected"))
+        registration.extra.remove(reject)
+        registration.dispatch("forward") { error("Rejected navigation discarded the statistics checkpoint") }
+        check(StatsHostState.visible)
+        StatsHostState.close()
+    }
+    println("PASS accepted new/same-route navigation clears the checkpoint; rejected navigation retains it")
+
+    TestNavigationRegistration().use { registration ->
+        StatsHostState.open(); registration.dispatch("back")
+        val guard = LyricsGuard(registration).apply { dirty = true }
+        registration.extra += TestNavigationRegistration.Entry("navigate", guard)
+        registration.dispatch("forward")
+        check(!StatsHostState.visible && guard.pending != null)
+        guard.cancel()
+        check(!StatsHostState.visible)
+        registration.dispatch("forward")
+        guard.confirm()
+        check(StatsHostState.visible && !guard.active)
+        StatsHostState.close()
+    }
+    TestNavigationRegistration().use { registration ->
+        StatsHostState.open(); registration.dispatch("back")
+        val guard = LyricsGuard(registration).apply { dirty = true }
+        registration.extra += TestNavigationRegistration.Entry("navigate", guard)
+        registration.dispatch("forward")
+        val stale = checkNotNull(guard.pending)
+        registration.dispatch("back")
+        stale()
+        check(!StatsHostState.visible)
+    }
+    TestNavigationRegistration().use { registration ->
+        StatsHostState.open(); registration.dispatch("back")
+        val guard = LyricsGuard(registration).apply { dirty = true }
+        registration.extra += TestNavigationRegistration.Entry("navigate", guard)
+        registration.dispatch("forward")
+        val stale = checkNotNull(guard.pending)
+        registration.close()
+        stale()
+        check(!StatsHostState.visible)
+    }
+    TestNavigationRegistration().use { registration ->
+        val calls = registration.host.originalCalls
+        registration.dispatch("forward")
+        check(!StatsHostState.visible && registration.host.originalCalls == calls + 1)
+    }
+    println("PASS forward restoration honors Lyrics confirmation/cancel and cannot reopen after a later back or disable/re-enable")
+
+    val native = TestNativeNavigator()
+    val bridge = com.jethuit.spw.listenstats.ui.HostUiRuntime.require()
+    check(bridge.forwardHistory(native.navigator)?.isEmpty() == true)
+    val dialogs = Class.forName("com.xuncorp.voxzen.ui.navigation.ScreenRouteKt")
+        .getDeclaredMethod("getDialogScreenRoutes").invoke(null) as Set<*>
+    val dialog = dialogs.first()!!
+    native.history += dialog
+    native.navigator.javaClass.getDeclaredMethod("back").invoke(native.navigator)
+    val snapshot = checkNotNull(bridge.forwardHistory(native.navigator))
+    check(snapshot.size == 1)
+    native.navigator.javaClass.getDeclaredMethod("forward").invoke(native.navigator)
+    check(native.history.last() === dialog && bridge.forwardHistory(native.navigator)?.isEmpty() == true)
+    check(snapshot.size == 1) // Reader returns a snapshot, not the mutable host list.
+    println("PASS installed SPW forward-history reader observes real native dialog back/forward without modifying either stack")
 }

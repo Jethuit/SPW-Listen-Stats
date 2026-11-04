@@ -36,26 +36,30 @@ import com.moriafly.salt.ui.ControlSize
 import com.jethuit.spw.listenstats.ui.StatsText as Text
 
 @Composable
-fun ListeningDetailsExpansion(visible: Boolean, details: ListeningDetails?, visibleRows: Int = 6, onClose: () -> Unit) {
+fun ListeningDetailsExpansion(visible: Boolean, details: ListeningDetails?, visibleRows: Int = 6,
+                              latinDurationUnits: Boolean = false, onClose: () -> Unit) {
     val duration = statsMotionDurationMillis()
     AnimatedVisibility(visible && details != null,
         enter = expandVertically(tween(duration, easing = PageEasing), expandFrom = Alignment.Top) + fadeIn(tween(duration)),
         exit = shrinkVertically(tween(duration, easing = PageEasing), shrinkTowards = Alignment.Top) + fadeOut(tween(duration))) {
         details?.let { shown ->
             Box(Modifier.animateContentSize(tween(duration, easing = PageEasing)).padding(top = 20.dp)) {
-                ListeningDetailsPanel(shown.bucket, shown, visibleRows, onClose)
+                ListeningDetailsPanel(shown.bucket, shown, visibleRows, latinDurationUnits, onClose)
             }
         }
     }
 }
 
 @Composable
-fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visibleRows: Int = 6, onClose: () -> Unit) {
+fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visibleRows: Int = 6,
+                          latinDurationUnits: Boolean = false, onClose: () -> Unit) {
     val colors = LocalStatsColors.current
     val current = details?.takeIf {
         it.bucket.start == bucket.start && it.bucket.end == bucket.end && it.bucket.hour == bucket.hour
     }
     val shown = current?.bucket ?: bucket
+    val durationColumns = rememberDurationColumnWidths(
+        maxOf(shown.millis, current?.rows?.maxOfOrNull { it.millis } ?: 0L), AppType.bodySmall, latinDurationUnits)
     val label = if (shown.hour != null || shown.start == shown.end) shown.longLabel
         else "${formatDay(shown.start)} – ${formatDay(shown.end)}"
     SaltCard(modifier = Modifier.fillMaxWidth(), shape = AppShape(12.dp), color = colors.cardBackground,
@@ -79,7 +83,7 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
                     style = AppType.bodySmall.copy(color = colors.muted))
                 current.rows.isNotEmpty() -> {
                     BoxWithConstraints(Modifier.fillMaxWidth().padding(bottom = 8.dp, end = 12.dp)) {
-                        val widths = tableWidths(maxWidth)
+                        val widths = tableWidths(maxWidth, durationColumns.total)
                         Row(Modifier.fillMaxWidth()) {
                             Text("排名", Modifier.width(widths.rank), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                 style = AppType.tableHead.copy(color = colors.muted))
@@ -98,7 +102,7 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
                             LazyColumn(Modifier.fillMaxSize().padding(end = 12.dp), state = scroll) {
                                 itemsIndexed(current.rows, key = { _, row -> row.track.id }) { index, row ->
                                     BoxWithConstraints(Modifier.fillMaxWidth().height(64.dp)) {
-                                        val widths = tableWidths(maxWidth)
+                                        val widths = tableWidths(maxWidth, durationColumns.total)
                                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                             Text("${index + 1}", Modifier.width(widths.rank),
                                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -118,7 +122,8 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
                                                 Modifier.width(widths.album).padding(end = 16.dp), maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis, style = AppType.tiny.copy(color = colors.muted))
                                             Row(Modifier.width(widths.count), horizontalArrangement = Arrangement.End) {
-                                                Text(formatDurationSeconds(row.millis), style = AppType.bodySmall.copy(color = colors.text))
+                                                DurationColumns(row.millis, durationColumns,
+                                                    AppType.bodySmall.copy(color = colors.text), omitZeroMinutes = true)
                                             }
                                         }
                                     }
@@ -131,11 +136,10 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
             }
             if (current != null) {
                 BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 16.dp, end = 12.dp)) {
-                    val widths = tableWidths(maxWidth)
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                         Column(Modifier.weight(1f)) {
                             if (current.unknownMillis > 0L) {
-                                Text("无法关联歌曲 · ${formatDurationSeconds(current.unknownMillis)}",
+                                Text("无法关联歌曲 · ${formatDurationSeconds(current.unknownMillis, latinDurationUnits, omitZeroMinutes = true)}",
                                     style = AppType.bodySmall.copy(color = colors.text))
                                 Text("这部分历史仅保留汇总时长，无法恢复对应歌曲。",
                                     Modifier.padding(top = 6.dp), style = AppType.tiny.copy(color = colors.muted))
@@ -146,12 +150,12 @@ fun ListeningDetailsPanel(bucket: ChartBucket, details: ListeningDetails?, visib
                                     style = AppType.tiny.copy(color = colors.muted))
                             }
                         }
-                        Text(
-                            "${current.rows.size}首 · ${formatDurationSeconds(shown.millis)}",
-                            modifier = Modifier.weight(1f),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                            style = AppType.bodySmall.copy(color = colors.muted)
-                        )
+                        Row(horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                            Text("${current.rows.size}首 · ", maxLines = 1,
+                                style = AppType.bodySmall.copy(color = colors.muted))
+                            DurationColumns(shown.millis, durationColumns,
+                                AppType.bodySmall.copy(color = colors.muted), omitZeroMinutes = true)
+                        }
                     }
                 }
             }

@@ -32,6 +32,16 @@ class HostUiBridge(val targets: HostUiTargets, private val loader: ClassLoader,
 
     val layer = method(targets.layer.target).also { check(Modifier.isStatic(it.modifiers)) }
     val navigatorType = Class.forName(targets.navigation.navigate.className, false, loader)
+    // Current SPW exposes exactly one non-static java.util.List field on Navigator: its forward entries.
+    // Read only, and reject ambiguity rather than guessing another field or editing either host stack.
+    private val forwardEntries = runCatching {
+        navigatorType.declaredFields.singleOrNull {
+            it.type == java.util.List::class.java && !Modifier.isStatic(it.modifiers)
+        }?.takeIf { it.trySetAccessible() }
+    }.getOrNull()
+    fun forwardHistory(navigator: Any): List<Any?>? = runCatching {
+        (forwardEntries?.get(navigator) as? List<*>)?.toList()
+    }.getOrNull()
     val navigate = method(targets.navigation.navigate)
     val stack = field(targets.navigation.stack)
     private val navigatorLocal = field(targets.navigation.local).also { check(Modifier.isStatic(it.modifiers)) }

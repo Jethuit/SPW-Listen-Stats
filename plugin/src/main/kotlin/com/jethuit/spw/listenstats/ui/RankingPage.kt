@@ -3,6 +3,7 @@
 package com.jethuit.spw.listenstats.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -25,11 +26,14 @@ import androidx.compose.material3.Surface
 import com.jethuit.spw.listenstats.ui.StatsText as Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +42,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -68,6 +73,12 @@ import com.jethuit.spw.listenstats.data.RankingMode
 import com.jethuit.spw.listenstats.util.formatDurationSeconds
 import com.jethuit.spw.listenstats.util.formatNumber
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.launch
+import com.jethuit.spw.listenstats.PluginLog
+import com.xuncorp.spw.workshop.api.WorkshopApi
 
 const val RANKING_PAGE_SIZE = 25
 private val RankingCoverSize = 48.dp
@@ -104,9 +115,38 @@ fun RankingPage(
     pageSize: Int = RANKING_PAGE_SIZE,
     metric: RankingMetric = RankingMetric.Count,
     onMetricChange: (RankingMetric) -> Unit = {},
-    loading: Boolean = false
+    loading: Boolean = false,
+    latinDurationUnits: Boolean = false
 ) {
     val colors = LocalStatsColors.current
+    val scope = rememberCoroutineScope()
+    var playbackJob by remember { mutableStateOf<Job?>(null) }
+    DisposableEffect(Unit) { onDispose { playbackJob?.cancel() } }
+    val pageExiting = LocalStatsPageExiting.current
+    LaunchedEffect(mode, metric, page, query, pageExiting) { playbackJob?.cancel() }
+    val playSong: (String, () -> Boolean) -> Unit = { id, rowCurrent ->
+        playbackJob?.cancel()
+        val session = HostUiRuntime.current
+        val ticket = StatsHostState.closeTicket
+        if (session != null) {
+            playbackJob = scope.launch {
+                val stillCurrent = { HostUiRuntime.current === session && StatsHostState.visible &&
+                    !StatsHostState.closing && StatsHostState.closeTicket == ticket && rowCurrent() }
+                try {
+                    HostSongPlayback.play(id, stillCurrent)
+                } catch (_: TimeoutCancellationException) {
+                    if (stillCurrent()) WorkshopApi.ui.toast("歌曲查询超时，请稍后重试", WorkshopApi.Ui.ToastType.Warning)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    PluginLog.error("Ranking single-song playback failed", failure)
+                    if (stillCurrent()) WorkshopApi.ui.toast(
+                        if (failure is SongPlaybackUnavailable) failure.message ?: "播放歌曲失败"
+                        else "播放歌曲失败，请确认歌曲可用后重试", WorkshopApi.Ui.ToastType.Warning)
+                }
+            }
+        }
+    }
     var searchState by remember { mutableStateOf(TextFieldState(query)) }
     var searchExpanded by remember { mutableStateOf(query.isNotBlank()) }
     val focusManager = LocalFocusManager.current
@@ -194,11 +234,14 @@ fun RankingPage(
             },
             label = "ranking-panel"
         ) { shown ->
+            val durationColumns = if (shown.metric == RankingMetric.Duration) {
+                rememberDurationColumnWidths(shown.rows.maxOfOrNull { it.value.durationMs } ?: 0L, RankingRowText, latinDurationUnits)
+            } else null
             Column(Modifier.fillMaxWidth()) {
-                SongTableHeader(shown.mode, shown.metric)
+                SongTableHeader(shown.mode, shown.metric, durationColumns?.total)
                 shown.rows.forEach { rank ->
                     key(rank.value.key) {
-                        SongRow(rank.value, rank.position, shown.metric)
+                        SongRow(rank.value, rank.position, shown.metric, latinDurationUnits, durationColumns, playSong)
                     }
                 }
                 if (shown.rows.isEmpty()) {
@@ -368,10 +411,10 @@ fun RankingFooter(count: Int, currentPage: Int, totalPages: Int, onPageChange: (
 }
 
 @Composable
-private fun SongTableHeader(mode: RankingMode, metric: RankingMetric) {
+private fun SongTableHeader(mode: RankingMode, metric: RankingMetric, durationWidth: Dp? = null) {
     val colors = LocalStatsColors.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val widths = tableWidths(maxWidth)
+        val widths = tableWidths(maxWidth, durationWidth)
         Row(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
             Text(
                 "排名",
@@ -393,7 +436,7 @@ private fun SongTableHeader(mode: RankingMode, metric: RankingMetric) {
                 metric.header,
                 modifier = Modifier.width(widths.count),
                 style = AppType.tableHead.copy(color = colors.muted),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = if (metric == RankingMetric.Duration) TextAlign.End else TextAlign.Center
             )
         }
         Box(Modifier.height(1.dp))
@@ -401,16 +444,33 @@ private fun SongTableHeader(mode: RankingMode, metric: RankingMetric) {
 }
 
 @Composable
-private fun SongRow(rank: RankingEntry, position: Int, metric: RankingMetric) {
+internal fun SongRow(rank: RankingEntry, position: Int, metric: RankingMetric,
+                    latinDurationUnits: Boolean = false,
+                    durationColumns: DurationColumnWidths? = null,
+                    playSong: (String, () -> Boolean) -> Unit) {
     val colors = LocalStatsColors.current
+    val columns = if (metric == RankingMetric.Duration) durationColumns
+        ?: rememberDurationColumnWidths(rank.durationMs, RankingRowText, latinDurationUnits) else null
+    val exiting = LocalStatsPageExiting.current
+    val currentExiting = rememberUpdatedState(exiting)
+    var attached by remember { mutableStateOf(true) }
+    DisposableEffect(Unit) { onDispose { attached = false } }
+    val playbackModifier = if (rank.key.mode == RankingMode.Song && !exiting) {
+        Modifier.pointerInput(rank.key.name) {
+            detectTapGestures(onDoubleTap = {
+                playSong(rank.key.name) { attached && !currentExiting.value }
+            })
+        }
+    } else Modifier
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val widths = tableWidths(maxWidth)
+        val widths = tableWidths(maxWidth, columns?.total)
         HoverColor(colors.pageBackground, colors.rankingRowHover) { background ->
             Column {
                 Row(
                     Modifier
                         .fillMaxWidth()
                         .height(RankingRowHeight)
+                        .then(playbackModifier)
                         .drawWith { drawRect(color = background) },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -454,12 +514,13 @@ private fun SongRow(rank: RankingEntry, position: Int, metric: RankingMetric) {
                     )
                     Row(
                         Modifier.width(widths.count),
-                        horizontalArrangement = Arrangement.Center,
+                        horizontalArrangement = if (metric == RankingMetric.Duration) Arrangement.End else Arrangement.Center,
                         verticalAlignment = Alignment.Bottom
                     ) {
                         if (metric == RankingMetric.Duration) {
-                            Text(
-                                formatDurationSeconds(rank.durationMs),
+                            if (columns != null) DurationColumns(rank.durationMs, columns, RankingRowText.copy(color = colors.text))
+                            else Text(
+                                formatDurationSeconds(rank.durationMs, latinDurationUnits),
                                 style = RankingRowText.copy(color = colors.text)
                             )
                         } else {
@@ -543,14 +604,14 @@ internal data class TableWidths(
     val count: Dp
 )
 
-internal fun tableWidths(maxWidth: Dp): TableWidths {
+internal fun tableWidths(maxWidth: Dp, durationWidth: Dp? = null): TableWidths {
     if (maxWidth < 440.dp) {
         val rank = 36.dp
-        val count = 72.dp
+        val count = maxOf(72.dp, durationWidth ?: 0.dp)
         return TableWidths(rank, (maxWidth - rank - count).coerceAtLeast(0.dp), 0.dp, count)
     }
     val rank = 48.dp
-    val count = 96.dp
+    val count = maxOf(96.dp, durationWidth ?: 0.dp)
     val remaining = (maxWidth - rank - count).coerceAtLeast(0.dp)
     val song = remaining * 0.56f
     val album = remaining - song

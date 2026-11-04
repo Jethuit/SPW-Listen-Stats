@@ -228,6 +228,8 @@ Issue #7 已授权引入 `HostTargetCache`：仅保存方法、字段及调用�
 - `StatsHostTransitionHooks`：适配宿主进入、返回和覆盖转场。
 - `HostMaterialLayer`：组合宿主材质和 `subBackground` 背景。
 - `HostBackButton` / `HostNavigatorBridge`：处理返回优先级、播放器展开和上层弹窗。
+
+`StatsNavigationHooks` 另保留本次启用的一条前进恢复记录：明确返回关闭统计时记录当前 Binding、宿主页对象身份和宿主前进项快照；`HostUiBridge.forwardHistory()` 仅在 Navigator 声明的非静态 java.util.List 字段唯一且可访问时读取副本，不写栈，不缓存这个运行期列表。前进到原位置并且宿主前进项身份／顺序均匹配时，消费插件这一层虚拟前进步骤，仍经 `StatsSnapshots.prepareOpen` 和 priority-80 等离开保护后由 priority-50 请求确认打开；进入时清除恢复记录。宿主进一步回退／前进、播放器前进项保持原顺序，新接受的 navigate／replace、强制关闭、停用和重新绑定清除记录。动画关闭时仅重置可见性，不能把一次正常返回误当强制清理而丢掉恢复记录；旧退出 ticket 不影响恢复。前进无操作通过路由、上层覆盖和前进快照共同判断，不能仅凭 forward 方法返回就关闭统计。范围限制与实机状态见 REQUIREMENTS；回归入口 NavigationRegressionTest 的 checkStatisticsForwardRestore。
 - `StatsHostState`：维护统计页可见性、关闭票据、转场状态和宿主内容隔离。
 
 统计页不是宿主原生 NavDisplay 路由，而是在现有内容层中组合。因此不能宣称它拥有完整原生路由生命周期或预测返回能力。直接切到真实宿主页面时，必须让宿主导航链先被接受，再开始统计页覆盖退出。
@@ -257,7 +259,15 @@ Issue #7 已授权引入 `HostTargetCache`：仅保存方法、字段及调用�
 - `Rankings.index()`：后台生成排序和分组索引；
 - `CoverStore`：按需加载封面。
 
+歌曲行通过 `detectTapGestures(onDoubleTap)` 触发单曲播放，单击和艺术家／专辑行不播放。`HostSongPlayback` 用公开 `library.getTrackById` 重新查询当前歌曲，后台检查文件与反射结构，再在主线程依次调用内部 `PlaybackController.addToPlay(PiscesMediaItem)`、`prepare()`、`play()`，与 SPW 1.19.3 原生歌曲动作一致；这组命令由宿主管理单曲与队列，不传整个排行榜，不自行写统计。内部六字符串构造器按 Kotlin 元数据校验字段顺序，未知结构拒绝播放；不将反射目标写入 Hook 缓存。重复请求取消前一协程，提交时复核启用会话和行是否仍有效，停用／退出后的异步结果不能播放。公开 API 的 `play()` 只能继续当前歌曲，不能代替此接口。当前仅对本地 SPW 1.19.3 做静态核对，开发包实机验收需覆盖双击、切页／停用、失效文件和队列行为。
+
+相关验证入口为 `tests/check-song-playback.py`：编译后执行 14 项播放／手势回归及既有 8 组排行回归，使用合成元数据和离屏鼠标事件；生产异步查询／主线程提交链使用拒绝权限的替身阻断真实播放；另用只隔离两类的子优先 ClassLoader 让真实反射适配器执行至合成播放控制器，校验歌曲六字段、`addToPlay → prepare → play` 顺序及准备失败不继续／不重试。dev.1 的测试只验证到权限拦截，遗漏最终命令，实机出现歌曲已切换但音频未启动；不得把这类替身测试写成真实音频已验收。构建不会覆盖既有包，检查既有安装包摘要保持不变。该验证不能代替真实播放与队列验收。
+
+`DurationColumns.kt` 为中文与英文排行和歌曲明细提供共享的时／分／秒列宽：父表按可见数据最长小时位数、当前继承字体与字号测量一次，分秒固定两位，子行共用该布局，各段零额外间距，时长文本也不插入单位间空格；表头通过同一指标宽度右对齐。`durationTableParts` 只负责表格文案，不改变普通时长格式函数；零值与不足一秒单独保留，数据精度不变。语言选择进入列宽缓存键，按“小时／分／秒”或“h/m/s”分别测量单位宽度，两个语言分支必须同时接入；不足一秒的完整提示占用整组宽度，不放大普通秒字段。明细独立启用 `omitZeroMinutes`，表内与合计使用同一 `DurationColumns`，列宽上限同时考虑合计；零分钟隐藏，父容器靠右，空字段不保留内部空隙，其他分钟／秒字段使用共用宽度。排行榜不启用省略零分钟。表格宽度按需扩展以容纳长小时数；保留自定义字体，优先使用等宽数字特性，同时按最宽数字预留回退宽度。
+
 公共 UI 和主题：
+
+`DisplayPreferences` 的 `overviewLatinDurationUnits` 与 `detailLatinDurationUnits` 是独立的布尔配置，缺失／类型错误均回退 false。由既有后台偏好读取、快照交接与刷新路径更新，OverviewPage 将前者传给累计／小结、YearHeatmap、TrendChart；后者传给 ListeningDetailsExpansion，StatsWindow 同时将后者传给 RankingPage。`util/Format.kt` 的纯格式函数接收显式单位参数，默认保留中文；只替换 h/m/s 单位，不改变分钟舍入或完整秒截断。图表和热力图 tooltip 的 remember 键包含单位选择，避免显示旧格式；该设置不进入曲线几何／静态像素缓存的键，不重建排行索引。相关轻量检查见时长格式与配置读取回归。
 
 - `Theme.kt` / `Components.kt` / `Shapes.kt` / `StatsText.kt`：颜色、字体、卡片和控件；
 - `PageMotion.kt`：内部页面和主体切换动画；
@@ -271,7 +281,7 @@ Issue #7 已授权引入 `HostTargetCache`：仅保存方法、字段及调用�
 
 ### 关于与更新提醒
 
-`AboutDialog.kt` 提供插件信息、可保存的“为微软商店版启用更新提醒”开关、更新结果、手动检查与发布页入口；`Prefs` 沿用 `microsoftStoreEdition` 配置键保留上一开发版的选择，该值现用于控制提醒，不用于检测安装渠道。宿主配置和关于弹窗共用此值。
+`AboutDialog.kt` 在“关于听歌统计”标题与版本号下使用两行紧凑信息布局：第一行“作者  Jethuit”，第二行并排展示项目主页／问题反馈／开源许可文字链接，使用透明背景和主题强调色，不绘制灰色卡片或边框，不加入插件简介。随后展示可保存的“为微软商店版启用更新提醒”开关、更新结果、手动检查与发布页入口。弹窗沿用 480dp 最大宽度，高度随内容调整，小窗口继续滚动。三个链接分别打开项目仓库、Issues 和根目录 LICENSE，与发布页共用后台浏览器打开及错误提示。`Prefs` 沿用 `microsoftStoreEdition` 配置键保留上一开发版的选择，该值现用于控制提醒，不用于检测安装渠道。宿主配置和关于弹窗共用此值。
 
 `updates/GitHubRelease.kt` 负责公开 GitHub 最新正式 Release 的请求、响应校验与 SemVer 比较；宿主裁剪运行时没有 `java.net.http` 模块，因此使用 `java.base` 的连接 API。`UpdateChecker.kt` 串行检查并保存 `update-check.json` 中的尝试时间、成功结果和已提醒版本；`Updates.kt` 管理启停、后台调度与宿主轻提示。自动失败静默，手动失败显示在弹窗内；不读取听歌记录，不查询渠道内部接口，不自动下载安装。合成检查入口为 `tests/run-data-tests.py updates`。
 

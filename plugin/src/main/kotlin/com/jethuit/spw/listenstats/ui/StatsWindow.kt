@@ -592,6 +592,7 @@ fun ListenStatsApp(
                                     page = safePage,
                                     pageSize = displayPreferences.rankingPageSize,
                                     loading = !rankingReady && rankingEntries.isEmpty(),
+                                    latinDurationUnits = displayPreferences.detailLatinDurationUnits,
                                     onPageChange = {
                                         val wasAtBottom = scrollState.maxValue > 0 &&
                                             scrollState.value >= scrollState.maxValue - 2

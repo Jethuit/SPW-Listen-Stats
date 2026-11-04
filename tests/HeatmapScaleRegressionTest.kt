@@ -102,6 +102,28 @@ fun main(args: Array<String>) {
     } as WorkshopApi
     Prefs.initialize()
     val initial = Prefs.displayPreferences()
+    check(!initial.overviewLatinDurationUnits && !initial.detailLatinDurationUnits)
+    for (overview in listOf(false, true)) for (detail in listOf(false, true)) {
+        saved["overviewLatinDurationUnits"] = overview
+        saved["detailLatinDurationUnits"] = detail
+        check(Prefs.displayPreferences().let {
+            it.overviewLatinDurationUnits == overview && it.detailLatinDurationUnits == detail
+        })
+        Prefs.putString("range", "today")
+        Prefs.initialize()
+        check(Prefs.displayPreferences().let {
+            it.overviewLatinDurationUnits == overview && it.detailLatinDurationUnits == detail
+        })
+    }
+    for (invalid in listOf<Any>("true", "false", 1, "")) {
+        saved["overviewLatinDurationUnits"] = invalid
+        saved["detailLatinDurationUnits"] = invalid
+        check(Prefs.displayPreferences().let { !it.overviewLatinDurationUnits && !it.detailLatinDurationUnits })
+    }
+    saved.remove("overviewLatinDurationUnits")
+    saved.remove("detailLatinDurationUnits")
+    saved.remove("range")
+    println("PASS two independent duration-unit switches default off, reload, survive unrelated writes and reject wrong types")
     check(initial.refreshIntervalSeconds == 5 && initial.detailVisibleRows == 6)
     check(initial.showDetailHint && initial.heatmapAnimations)
     saved["dailyHighHours"] = "24"

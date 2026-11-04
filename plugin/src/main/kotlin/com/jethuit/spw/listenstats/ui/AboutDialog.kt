@@ -68,6 +68,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private const val ProjectHomeUrl = "https://github.com/Jethuit/SPW-Listen-Stats"
+private val ProjectLinks = listOf(
+    "项目主页 ↗" to ProjectHomeUrl,
+    "问题反馈 ↗" to "$ProjectHomeUrl/issues",
+    "开源许可" to "$ProjectHomeUrl/blob/main/LICENSE"
+)
+
 @Composable
 fun AboutButton(onClick: () -> Unit) {
     val colors = LocalStatsColors.current
@@ -101,6 +108,21 @@ fun AboutDialog(onClose: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     val update by Updates.notice.collectAsState()
 
+    fun openLink(url: String) {
+        if (openingLink) return
+        openingLink = true
+        scope.launch {
+            val failure = withContext(Dispatchers.IO) {
+                runCatching { Desktop.getDesktop().browse(URI(url)) }.exceptionOrNull()
+            }
+            if (failure != null) {
+                PluginLog.error("opening project page failed", failure)
+                error = "无法打开浏览器：$url"
+            }
+            openingLink = false
+        }
+    }
+
     LaunchedEffect(Unit) {
         runCatching { closeFocus.requestFocus() }
         storeEdition = withContext(Dispatchers.IO) { Prefs.microsoftStoreEdition() }
@@ -131,10 +153,30 @@ fun AboutDialog(onClose: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically) {
-                        StatsText("关于", Modifier.weight(1f),
+                        StatsText("关于听歌统计", Modifier.weight(1f),
                             style = AppType.sectionTitle.copy(color = colors.text))
                         StatsText("v${PluginState.pluginVersion.removePrefix("v")}",
                             style = AppType.body.copy(color = colors.muted))
+                    }
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            StatsText("作者", style = AppType.bodySmall.copy(color = colors.muted))
+                            StatsText("Jethuit", style = AppType.bodySmall.copy(color = colors.text))
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            ProjectLinks.forEach { (label, url) ->
+                                BasicButton(onClick = { openLink(url) }, enabled = !openingLink,
+                                    size = ControlSize.Small,
+                                    colors = ButtonColors(Color.Transparent, colors.accent,
+                                        Color.Transparent, colors.muted),
+                                    contentPadding = PaddingValues(horizontal = 8.dp)) {
+                                    StatsText(label, style = AppType.bodySmall.copy(
+                                        color = if (openingLink) colors.muted else colors.accent))
+                                }
+                            }
+                        }
                     }
                     Surface(modifier = Modifier.fillMaxWidth(), color = colors.controlBackground,
                         shape = AppShape(8.dp), border = BorderStroke(1.dp, SolidColor(colors.line))) {
@@ -212,19 +254,8 @@ fun AboutDialog(onClose: () -> Unit) {
                                 colors.controlBackground, colors.muted)) {
                             StatsText("检查更新", style = AppType.action.copy(color = colors.text))
                         }
-                        BasicButton(onClick = {
-                            if (!openingLink) scope.launch {
-                                openingLink = true
-                                val failure = withContext(Dispatchers.IO) {
-                                    runCatching { Desktop.getDesktop().browse(URI(update.releaseUrl)) }.exceptionOrNull()
-                                }
-                                if (failure != null) {
-                                    PluginLog.error("opening project page failed", failure)
-                                    error = "无法打开浏览器：${update.releaseUrl}"
-                                }
-                                openingLink = false
-                            }
-                        }, enabled = !openingLink, size = ControlSize.Regular,
+                        BasicButton(onClick = { openLink(update.releaseUrl) },
+                            enabled = !openingLink, size = ControlSize.Regular,
                             colors = ButtonColors(colors.controlBackground, colors.text,
                                 colors.controlBackground, colors.muted)) {
                             StatsText("查看发布页", style = AppType.action.copy(color = colors.text))

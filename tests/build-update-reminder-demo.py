@@ -73,7 +73,7 @@ def main() -> None:
     replace_once(package_root / 'updates/UpdateChecker.kt',
         'const val IntervalMillis = 24 * 60 * 60 * 1_000L', 'const val IntervalMillis = 5_000L')
     replace_once(package_root / 'ui/AboutDialog.kt',
-        'StatsText("关于", Modifier.weight(1f),', 'StatsText("关于（更新演示）", Modifier.weight(1f),')
+        'StatsText("关于听歌统计", Modifier.weight(1f),', 'StatsText("关于听歌统计（更新演示）", Modifier.weight(1f),')
 
     jdk, kotlin = builder.find_jdk(), builder.find_kotlinc()
     host = builder.ensure_host_jar(args.spw_dir)

@@ -59,7 +59,8 @@ fun YearHeatmap(
     onWeekSelected: (LocalDate, LocalDate) -> Unit,
     viewportRevision: Int = 0,
     rolling: Boolean = false,
-    revealAnimations: Boolean = true
+    revealAnimations: Boolean = true,
+    latinDurationUnits: Boolean = false
 ) {
     val colors = LocalStatsColors.current
     val measurer = rememberTextMeasurer()
@@ -80,7 +81,7 @@ fun YearHeatmap(
     val weeks = remember(data, grid, today, weekly) {
         if (weekly) StatsCalculations.weeklyCells(data, grid, today) else emptyList()
     }
-    var tooltip by remember(grid.firstDay, grid.lastDay, weekly, viewportRevision, data) { mutableStateOf<TooltipData?>(null) }
+    var tooltip by remember(grid.firstDay, grid.lastDay, weekly, viewportRevision, data, latinDurationUnits) { mutableStateOf<TooltipData?>(null) }
     var hoverWeek by remember(grid.firstDay, grid.lastDay, weekly, viewportRevision) { mutableStateOf<Int?>(null) }
     var hoverRow by remember(grid.firstDay, grid.lastDay, weekly, viewportRevision) { mutableStateOf<Int?>(null) }
     LaunchedEffect(exiting) {
@@ -129,7 +130,7 @@ fun YearHeatmap(
             tooltip = TooltipData(
                 title = formatDay(date),
                 label = "听歌时长",
-                value = formatDuration(data.millisOn(date)),
+                value = formatDuration(data.millisOn(date), latinDurationUnits),
                 x = hoverX,
                 y = hoverY
             )
@@ -140,7 +141,7 @@ fun YearHeatmap(
             tooltip = TooltipData(
                 title = "${formatDay(cell.start)}起的一周",
                 label = "听歌时长",
-                value = formatDuration(cell.millis),
+                value = formatDuration(cell.millis, latinDurationUnits),
                 x = hoverX,
                 y = hoverY
             )

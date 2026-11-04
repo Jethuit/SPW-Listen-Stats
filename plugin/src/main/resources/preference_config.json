@@ -40,6 +40,20 @@
           "default_value": true
         },
         {
+          "key": "overviewLatinDurationUnits",
+          "type": "switch",
+          "title": "概览时长使用 h/m 单位",
+          "summary": "累计卡片、听歌小结、热力图及图表提示使用 h、m，如 1h23m。默认关闭；只改变单位，保留分钟显示精度。重新打开统计页或下次自动刷新时生效。",
+          "default_value": false
+        },
+        {
+          "key": "detailLatinDurationUnits",
+          "type": "switch",
+          "title": "排行和明细时长使用 h/m/s 单位",
+          "summary": "时长排行和歌曲明细使用 h、m、s，如 1h23m45s。默认关闭，与概览独立；不足一秒显示 <1s。重新打开统计页或下次自动刷新时生效。",
+          "default_value": false
+        },
+        {
           "key": "pageAnimations",
           "type": "switch",
           "title": "页面动画",
