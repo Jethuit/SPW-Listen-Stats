@@ -1,0 +1,30 @@
+name: Update release notes
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/release-notes-request.json]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-release-notes
+  cancel-in-progress: false
+
+jobs:
+  update-notes:
+    if: github.repository == 'Jethuit/SPW-Listen-Stats'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Update release description only
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/update_release_notes.py

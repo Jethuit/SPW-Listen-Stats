@@ -17,6 +17,10 @@ GitHub 的 blob 接口用于本次包的传送，正式下载始终使用 Releas
 
 源码与工作流的 GitHub 写入均通过 GitHub 插件完成；真正的 Release 与附件由 Actions bot 执行。工作流实际执行和 Release 结果应在发布后核对，静态配置不代表发布成功。
 
+## 修正发布说明
+
+用户明确要求修正文案时，编辑对应 `docs/releases/v<版本>.md`，并在 `.github/release-notes-request.json` 中指定版本、当前发布正文的 SHA-256 与原安装包摘要。`update-release-notes.yml` 由请求文件变更触发，仅更新 Release 的 `body`；它校验旧正文和原包身份，拒绝覆盖审核之后出现的其他文字修改，不调用构建、附件上传或标签接口。这与重新发布版本分开处理。
+
 ## 本地轻量检查
 
 ```powershell
