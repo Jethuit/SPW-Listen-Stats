@@ -100,7 +100,7 @@ import kotlin.math.min
  * navigation composables.
  */
 object StatsWindow {
-    private var dialog: JDialog? = null
+    @Volatile private var dialog: JDialog? = null
 
     fun open(): Boolean {
         if (!SwingUtilities.isEventDispatchThread()) {
@@ -223,10 +223,12 @@ object StatsWindow {
     fun bounds(): Rectangle? = dialog?.bounds
 
     fun close() {
-        val dispose = { dialog?.dispose(); dialog = null }
+        val target = dialog ?: return
+        val dispose = { target.dispose(); if (dialog === target) dialog = null }
         if (SwingUtilities.isEventDispatchThread()) dispose()
-        else runCatching { SwingUtilities.invokeAndWait(dispose) }
-            .onFailure { SwingUtilities.invokeLater(dispose) }
+        else SwingUtilities.invokeLater {
+            runCatching(dispose).onFailure { PluginLog.error("Closing legacy statistics window failed", it) }
+        }
     }
 }
 
@@ -433,6 +435,11 @@ fun ListenStatsApp(
                 }
             )
             }
+            SettingsButton(onClick = {
+                dateDialogOpen = false
+                aboutDialogOpen = false
+                StatsNavigationHooks.openConfiguration()
+            })
             AboutButton(onClick = { dateDialogOpen = false; aboutDialogOpen = true })
             }
         }) {

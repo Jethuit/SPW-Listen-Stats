@@ -73,6 +73,13 @@ object Prefs {
 
     /** Host preference controls may save through another cached ConfigHelper. */
     @Synchronized
+    fun sidebarEntry(): Boolean? = try {
+        val config = helper
+        if (config == null || !config.reload()) null else config.get("sidebarEntry", false)
+    } catch (_: Exception) { null }
+
+    /** Host preference controls may save through another cached ConfigHelper. */
+    @Synchronized
     fun displayPreferences(): DisplayPreferences {
         try {
             helper?.reload()

@@ -90,7 +90,45 @@ object HostUiDiscovery {
         }
         val caption = optional("titlebar") { caption(index) }
         val theme = caption?.let { optional("theme") { theme(index, it.control.owner) } }
-        return HostUiTargets(page, layer, navigation, transitions, caption, theme, warnings)
+        val sidebar = optional("sidebar") { sidebar(index) }
+        return HostUiTargets(page, layer, navigation, transitions, caption, theme, warnings, sidebar)
+    }
+
+    /** Follow the native route row, its public accessor and the lazy-item call site. */
+    private fun sidebar(index: HostBytecodeIndex): HostSidebarTargets {
+        fun row(method: HostMethod): Boolean = method.parameters.let { p ->
+            p.size == 11 && p.take(5) == listOf("java.lang.String", "boolean", "androidx.compose.ui.Modifier",
+                "boolean", "androidx.compose.ui.Modifier") &&
+                p.takeLast(4) == listOf("kotlin.jvm.functions.Function3", "androidx.compose.runtime.Composer", "int", "int") &&
+                method.returnType == "V" && index.body(method)?.isStatic == true
+        }
+        val routeRow = unique(index.methods.filter { body ->
+            body.isStatic && body.method.parameters.size == 3 &&
+                body.method.parameters.takeLast(2) == listOf("androidx.compose.runtime.Composer", "int") &&
+                body.calls.any(::row) && body.calls.any {
+                    it.owner == "org/jetbrains/compose/resources/StringResourcesKt" && it.name == "stringResource"
+                }
+        }, "sidebar route row")
+        val getter = unique(routeRow.calls.filter {
+            it.className == routeRow.method.parameters.first() && it.parameters.isEmpty() && it.returnType.startsWith("L")
+        }.distinct(), "sidebar route getter")
+        val accessor = unique(index.methods.filter {
+            it.isStatic && it.isPublic && it.method.owner == routeRow.method.owner &&
+                it.method.descriptor == routeRow.method.descriptor && routeRow.method in it.calls
+        }, "sidebar route accessor")
+        // Lazy item lambdas erase Composer to Object in Function4.invoke.
+        val caller = unique(index.methods.filter { body ->
+            body.method.owner != accessor.method.owner && accessor.method in body.calls &&
+                body.method.parameters == List(4) { "java.lang.Object" } && body.method.returnType == "Ljava/lang/Object;"
+        }.map { it.method.owner }.distinct(), "sidebar lazy-item caller")
+        val entry = HostUiSite(accessor.method, caller).also { checkSite(index, it) }
+        val provider = unique(index.methods.filter { it.method.owner == routeRow.method.owner }.flatMap { it.calls }
+            .filter { it.owner == "androidx/compose/runtime/CompositionLocalKt" && it.name == "CompositionLocalProvider" &&
+                it.parameters == listOf("androidx.compose.runtime.ProvidedValue", "kotlin.jvm.functions.Function2",
+                    "androidx.compose.runtime.Composer", "int") }.distinct(), "sidebar style provider")
+        val style = HostUiSite(provider, routeRow.method.owner).also { checkSite(index, it) }
+        return HostSidebarTargets(entry, unique(routeRow.calls.filter(::row).distinct(),
+            "sidebar row control"), getter, style)
     }
 
     private fun caption(index: HostBytecodeIndex): HostCaptionTargets {

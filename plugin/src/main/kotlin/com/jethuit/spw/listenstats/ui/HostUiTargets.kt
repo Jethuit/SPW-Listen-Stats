@@ -10,6 +10,9 @@ data class HostNavigationTargets(val stack: HostField, val local: HostField,
     val player: HostField, val expanded: HostMethod, val dialog: HostMethod)
 data class HostCaptionTargets(val entry: HostUiSite, val control: HostMethod)
 data class HostThemeTargets(val configs: HostMethod, val dark: HostMethod)
+
+data class HostSidebarTargets(val entry: HostUiSite, val control: HostMethod, val route: HostMethod, val style: HostUiSite)
 data class HostUiTargets(val page: HostUiSite, val layer: HostUiSite,
     val navigation: HostNavigationTargets, val transitions: List<HostMethod>,
-    val caption: HostCaptionTargets?, val theme: HostThemeTargets?, val warnings: List<String>)
+    val caption: HostCaptionTargets?, val theme: HostThemeTargets?, val warnings: List<String>,
+    val sidebar: HostSidebarTargets? = null)

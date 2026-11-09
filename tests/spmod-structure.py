@@ -72,9 +72,12 @@ def main() -> None:
         index = archive.read('classes/META-INF/extensions.idx').decode('utf-8')
         assert 'com.jethuit.spw.listenstats.PlaybackExtension' in index, index
         preferences = json.loads(archive.read('classes/preference_config.json'))
-        group = next(g for g in preferences['configs'] if g['config'] == 'config.json')
-        assert all(p.get('key') != 'dailyHighHours' for p in group['preferences']), 'removed heatmap setting still exposed'
-        settings = {p['key']: p for p in group['preferences'] if 'key' in p}
+        groups = [g for g in preferences['configs'] if g['config'] == 'config.json']
+        assert groups, 'missing shared configuration groups'
+        items = [p for group in groups for p in group['preferences']]
+        assert all(p.get('key') != 'dailyHighHours' for p in items), 'removed heatmap setting still exposed'
+        settings = {p['key']: p for p in items if 'key' in p}
+        assert len(settings) == sum('key' in p for p in items), 'duplicate shared configuration keys'
         for key, kind, default in [('refreshIntervalSeconds', 'edittext', '5'),
                                    ('detailVisibleRows', 'edittext', '6'),
                                    ('showDetailHint', 'switch', True),

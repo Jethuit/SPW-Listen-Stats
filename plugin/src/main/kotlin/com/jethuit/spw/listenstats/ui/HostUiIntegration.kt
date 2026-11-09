@@ -1,15 +1,17 @@
 package com.jethuit.spw.listenstats.ui
 
 import com.jethuit.spw.listenstats.PluginState
+import com.jethuit.spw.listenstats.PluginLog
 import com.jethuit.spw.listenstats.data.DataFiles
 import java.awt.EventQueue
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CancellationException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** Validate/discover/prepare on worker; register and release on EDT. */
+/** Validate/discover/prepare on worker; register/release on EDT without blocking the stop worker. */
 class HostUiIntegration(
     private val source: () -> Path,
     private val loader: ClassLoader,
@@ -19,7 +21,10 @@ class HostUiIntegration(
     private val discover: ((Path, ClassLoader) -> HostUiBridge)? = null,
     private val cache: HostTargetCache? = HostTargetCache(DataFiles.directory().resolve("host-targets-v1.json"), PluginState.pluginVersion),
     private val checkInstallAllowed: () -> Unit = {},
-    private val ready: (HostUiBridge) -> Unit = {}
+    private val ready: (HostUiBridge) -> Unit = {},
+    private val releaseFailed: (Throwable) -> Unit = {
+        PluginLog.error("Deferred host UI cleanup failed; restart SPW before enabling statistics again", it)
+    }
 ) : AutoCloseable {
     private val stopped = AtomicBoolean(false)
     private val session = synchronized(sessionLock) { ++generation }
@@ -27,6 +32,10 @@ class HostUiIntegration(
         Thread(task, "ListenStats-HostDiscovery").apply { isDaemon = true }
     }
     private var hooks: AutoCloseable? = null // EDT only; retained on release failure
+    @Volatile private var actionBridge: HostUiBridge? = null
+    private val releaseLock = Any() // Never held while running cleanup or waiting for the EDT.
+    private var releaseQueued = false
+    private var releasing = false
     private fun current(): Boolean = !stopped.get() && session == generation
     private fun emit(status: String) { if (current()) report(status) }
     private fun elapsed(start: Long) = (System.nanoTime() - start) / 1_000_000
@@ -82,9 +91,13 @@ class HostUiIntegration(
             synchronized(sessionLock) {
                 if (!current()) { worker.shutdown(); return@invokeLater }
                 try {
+                    // A replacement may already be queued before a stop worker posts its cleanup.
+                    pendingReleases.toList().forEach { it.releaseDeferred() }
+                    if (!current()) { worker.shutdown(); return@invokeLater }
                     check(blockedHandles.isEmpty()) { "Previous host hooks remain unreleased; registration stopped" }
                     checkInstallAllowed()
                     val installStarted = System.nanoTime()
+                    actionBridge = bridge
                     val installed = install(bridge)
                     hooks = installed
                     // install may synchronously stop this session or start a newer one.
@@ -162,26 +175,69 @@ class HostUiIntegration(
     }
 
     override fun close() {
-        synchronized(sessionLock) { stopped.set(true) }
+        stopped.set(true)
+        actionBridge?.stopActions()
         worker.shutdownNow()
-        val release = {
-            synchronized(sessionLock) {
-                val owned = hooks
-                if (owned != null) {
-                    try { owned.close(); hooks = null; blockedHandles.remove(owned) }
-                    catch (error: Throwable) { blockedHandles += owned; throw error }
+        if (EventQueue.isDispatchThread()) {
+            if (!claimRelease(queuedOnly = false)) return
+            try { releaseOwned() } finally { synchronized(releaseLock) { releasing = false } }
+        } else {
+            val enqueue = synchronized(releaseLock) {
+                if (releaseQueued || releasing) false else {
+                    releaseQueued = true
+                    pendingReleases += this
+                    true
                 }
             }
-            Unit
+            if (enqueue) EventQueue.invokeLater { releaseDeferred() }
         }
-        // Propagate failures and retain ownership. Never enqueue a second release on failure.
-        if (EventQueue.isDispatchThread()) release() else EventQueue.invokeAndWait(release)
+    }
+
+    private fun claimRelease(queuedOnly: Boolean): Boolean = synchronized(releaseLock) {
+        if (releasing || (queuedOnly && !releaseQueued)) false else {
+            releaseQueued = false
+            releasing = true
+            pendingReleases -= this
+            true
+        }
+    }
+
+    private fun releaseDeferred() {
+        check(EventQueue.isDispatchThread())
+        if (!claimRelease(queuedOnly = true)) return
+        try { releaseOwned() }
+        catch (error: Throwable) {
+            // The stop call has returned; report here without creating an uncaught EDT exception.
+            try { releaseFailed(error) }
+            catch (reportError: Throwable) { runCatching { PluginLog.error("Reporting UI cleanup failure failed", reportError) } }
+        } finally { synchronized(releaseLock) { releasing = false } }
+    }
+
+    private fun releaseOwned() {
+        synchronized(sessionLock) {
+            val owned = hooks
+            if (owned != null) {
+                try {
+                    owned.close()
+                    hooks = null
+                    actionBridge = null
+                    blockedHandles.remove(owned)
+                    failedReleases.remove(this)
+                } catch (error: Throwable) {
+                    blockedHandles += owned
+                    failedReleases += this
+                    throw error
+                }
+            }
+        }
     }
 
     companion object {
         private val sessionLock = Any()
         @Volatile private var generation = 0L
         private val blockedHandles = mutableSetOf<AutoCloseable>() // retain failed releases across sessions
+        private val failedReleases = mutableSetOf<HostUiIntegration>() // retain the owner for explicit cleanup retry
+        private val pendingReleases = ConcurrentHashMap.newKeySet<HostUiIntegration>()
         private fun interrupted(error: Throwable): Boolean = error is InterruptedException ||
             error is CancellationException || error.cause?.let(::interrupted) == true
         private fun cancelled(error: Throwable): Boolean = HookFailurePolicy.noRetry(error)

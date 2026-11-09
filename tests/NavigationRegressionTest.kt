@@ -207,6 +207,31 @@ fun main() {
     checkNativeForwardMotion()
     checkNavigationGuards()
     checkStatisticsForwardRestore()
+    checkConfigurationEntry()
+    val stoppedBridge = com.jethuit.spw.listenstats.ui.HostUiBridge(
+        com.jethuit.spw.listenstats.ui.HostUiRuntime.require().targets,
+        StatsNavigationHooks::class.java.classLoader)
+    // A fresh lifecycle can be retired while its EDT cleanup is still queued.
+    val previousRuntime = com.jethuit.spw.listenstats.ui.HostUiRuntime.current
+    val runtimeField = com.jethuit.spw.listenstats.ui.HostUiRuntime::class.java.getDeclaredField("current")
+        .also { check(it.trySetAccessible()) }
+    runtimeField.set(null, stoppedBridge)
+    try {
+        TestNavigationRegistration().use { registration ->
+            val guard = LyricsGuard(registration).apply { dirty = true }
+            registration.extra += TestNavigationRegistration.Entry("navigate", guard)
+            StatsNavigationHooks.openStats()
+            check(guard.pending != null && !StatsHostState.visible)
+            stoppedBridge.stopActions()
+            guard.confirm()
+            check(!StatsHostState.visible)
+            val lastRequest = registration.lastRequest
+            StatsNavigationHooks.openStats()
+            StatsNavigationHooks.openConfiguration()
+            check(!StatsHostState.visible && registration.lastRequest === lastRequest)
+        }
+    } finally { runtimeField.set(null, previousRuntime) }
+    println("PASS retired UI session rejects deferred replay and cannot open statistics/configuration while cleanup is queued")
 
     val rolledBack = mutableListOf<String>()
     val failure = runCatching {
@@ -217,6 +242,36 @@ fun main() {
     }.exceptionOrNull()
     check(failure != null && rolledBack == listOf("navigate@50", "forward@100", "replace@100", "navigate@100"))
     println("PASS failed registration rolls back every installed navigation hook")
+}
+
+private fun checkConfigurationEntry() {
+    TestNavigationRegistration(bind = false).use { registration ->
+        var destination: Any? = null
+        val binding = StatsNavigationHooks.bindNavigator(registration.host,
+            currentRoute = { registration.host.currentRoute }) { route ->
+            registration.dispatch("navigate", arrayOf(route)) {
+                destination = route
+                registration.host.currentRoute = route
+            }
+        }
+        try {
+            StatsHostState.setAnimationsEnabled(false)
+            StatsHostState.open()
+            val guard = TestNavigationRegistration.Entry("navigate", object : MethodHook(80) {
+                override fun before(call: MethodHookParam) { call.setResult(null) }
+            })
+            registration.extra += guard
+            StatsNavigationHooks.openConfiguration()
+            check(destination == null && StatsHostState.visible)
+            registration.extra.remove(guard)
+            StatsNavigationHooks.openConfiguration()
+            val route = checkNotNull(destination)
+            check(route.javaClass.name.endsWith("ScreenRoute\$ModConfigContent"))
+            check(route.javaClass.getMethod("getPluginId").invoke(route) == com.jethuit.spw.listenstats.PluginState.pluginId)
+            check(!StatsHostState.visible)
+        } finally { binding.close(); StatsHostState.close() }
+    }
+    println("PASS configuration gear navigates to this plugin's real host route and honors rejected navigation")
 }
 
 /** Exercise the installed host's real transition factories and the outgoing-scene adapter. */

@@ -1,7 +1,7 @@
 {
   "configs": [
     {
-      "title": "听歌统计",
+      "title": "常规",
       "config": "config.json",
       "preferences": [
         {
@@ -12,11 +12,11 @@
           "on_click": "com.jethuit.spw.listenstats.MainPlugin.openStats"
         },
         {
-          "key": "rankingPageSize",
-          "type": "edittext",
-          "title": "排行每页数量",
-          "summary": "歌曲、歌手和专辑排行每页显示的数量。默认25；请输入正整数，无效输入按25计算。更改后回到第一页，重新打开统计页或下次自动刷新时生效。",
-          "default_value": "25"
+          "key": "sidebarEntry",
+          "type": "switch",
+          "title": "在左侧栏显示统计入口",
+          "summary": "开启后在音乐库后的扩展区显示“统计”，关闭后显示顶部图标。默认关闭；保存后自动切换。",
+          "default_value": false
         },
         {
           "key": "refreshIntervalSeconds",
@@ -24,6 +24,19 @@
           "title": "页面刷新间隔（秒）",
           "summary": "请输入2～60的整数，默认5秒；无效输入按5秒计算。只影响页面更新频率，听歌记录持续进行。重新打开统计页或按原间隔完成下一次刷新后生效。",
           "default_value": "5"
+        }
+      ]
+    },
+    {
+      "title": "显示",
+      "config": "config.json",
+      "preferences": [
+        {
+          "key": "rankingPageSize",
+          "type": "edittext",
+          "title": "排行每页数量",
+          "summary": "歌曲、歌手和专辑排行每页显示的数量。默认25；请输入正整数，无效输入按25计算。更改后回到第一页，重新打开统计页或下次自动刷新时生效。",
+          "default_value": "25"
         },
         {
           "key": "detailVisibleRows",
@@ -52,7 +65,13 @@
           "title": "排行和明细时长使用 h/m/s 单位",
           "summary": "时长排行和歌曲明细使用 h、m、s，如 1h23m45s。默认关闭，与概览独立；不足一秒显示 <1s。重新打开统计页或下次自动刷新时生效。",
           "default_value": false
-        },
+        }
+      ]
+    },
+    {
+      "title": "动画",
+      "config": "config.json",
+      "preferences": [
         {
           "key": "pageAnimations",
           "type": "switch",
@@ -66,12 +85,18 @@
           "title": "热力图展开动画",
           "summary": "热力格从左往右逐列出现，默认开启。可以单独关闭；仅在“页面动画”也开启时播放。重新打开统计页或下次自动刷新时生效。",
           "default_value": true
-        },
+        }
+      ]
+    },
+    {
+      "title": "更新与诊断",
+      "config": "config.json",
+      "preferences": [
         {
           "key": "microsoftStoreEdition",
           "type": "switch",
-          "title": "为微软商店版启用更新提醒",
-          "summary": "每天检查一次 GitHub 正式版本，自动检查失败不打扰；也可在统计页右上角“关于”中手动检查。",
+          "title": "自动检查更新",
+          "summary": "每天检查一次 GitHub 正式版本，自动检查失败不打扰；Steam创意工坊渠道无需开启。也可在统计页右上角“关于”中手动检查。",
           "default_value": false
         },
         {

@@ -22,9 +22,14 @@ public final class TitlebarHookProbe {
             .filter(m -> Modifier.isPublic(m.getModifiers()) && Arrays.equals(m.getParameterTypes(),
                 new Class<?>[] {String.class, String.class, String.class, List.class}))
             .findFirst().orElseThrow();
-        for (var site : List.of(targets.getCaption().getEntry(), targets.getLayer(), targets.getPage())) {
+        for (var site : List.of(targets.getCaption().getEntry(), targets.getLayer(), targets.getPage(),
+                targets.getSidebar().getEntry(), targets.getSidebar().getStyle())) {
             var parameters = site == targets.getLayer()
-                ? List.of("androidx.compose.ui.Modifier", "boolean", "kotlin.jvm.functions.Function3") : List.of();
+                ? List.of("androidx.compose.ui.Modifier", "boolean", "kotlin.jvm.functions.Function3")
+                : site == targets.getSidebar().getEntry()
+                    ? site.getTarget().getParameters().subList(0, 1)
+                    : site == targets.getSidebar().getStyle()
+                        ? List.of("androidx.compose.runtime.ProvidedValue", "kotlin.jvm.functions.Function2") : List.of();
             try {
                 if (resolve.invoke(instance, site.getTarget().getClassName(), site.getTarget().getName(),
                         site.getCallerClass(), parameters) == null) throw new AssertionError("Missing hook site");
@@ -34,6 +39,8 @@ public final class TitlebarHookProbe {
         }
         System.out.println("PASS SPW " + args[0] + ": fresh discovery, caption before Quick, containing Layer and navigation resolve");
         System.out.println("PASS navigator/back overlay, three desktop transforms and reactive theme signatures");
+        System.out.println("PASS native sidebar route accessor resolves at one lazy-item call site");
+        System.out.println("PASS sidebar-only style provider resolves without a default-parameter mask");
         System.out.println("LIMIT: no live hook installation, AOT, DWM or real plugin coexistence exercised");
     }
 }

@@ -12,6 +12,9 @@ import java.lang.reflect.Modifier
 /** All reflected host members belong to one enable session. No process-lifetime lazy targets. */
 class HostUiBridge(val targets: HostUiTargets, private val loader: ClassLoader,
     val readAppearance: () -> HostAppearance = HostAppearanceReader::read) {
+    @Volatile var acceptingActions = true
+        private set
+    fun stopActions() { acceptingActions = false }
     // Prepared on the discovery worker before any statistics page can be presented.
     val initialAppearance = readAppearance()
     private val preparationWarnings = mutableListOf<String>()
@@ -48,6 +51,7 @@ class HostUiBridge(val targets: HostUiTargets, private val loader: ClassLoader,
     private val player = field(targets.navigation.player)
     private val expanded = method(targets.navigation.expanded)
     private val dialog = method(targets.navigation.dialog).also { check(Modifier.isStatic(it.modifiers)) }
+    internal val queueNotifications = optional("queue notification") { QueueNotificationHooks.prepare(loader) }
     init {
         method(targets.page.target)
         Class.forName(targets.page.callerClass, false, loader)
@@ -61,6 +65,15 @@ class HostUiBridge(val targets: HostUiTargets, private val loader: ClassLoader,
         method(key.entry.target)
         Class.forName(key.entry.callerClass, false, loader)
         method(key.control).also { check(Modifier.isStatic(it.modifiers)) }
+    } }
+    val sidebar = targets.sidebar?.let { key -> optional("sidebar") {
+        method(key.entry.target)
+        Class.forName(key.entry.callerClass, false, loader)
+        method(key.control).also { check(Modifier.isStatic(it.modifiers)) } to method(key.route)
+    } }
+    val sidebarSelection = sidebar?.let { row -> optional("sidebar selection") {
+        method(checkNotNull(targets.sidebar).style.target)
+        HostSidebarSelection(row.first)
     } }
     private val theme = targets.theme?.let { key -> optional("theme") {
         method(key.configs).also { check(Modifier.isStatic(it.modifiers)) } to

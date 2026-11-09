@@ -158,12 +158,8 @@ fun AboutDialog(onClose: () -> Unit) {
                         StatsText("v${PluginState.pluginVersion.removePrefix("v")}",
                             style = AppType.body.copy(color = colors.muted))
                     }
-                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            StatsText("作者", style = AppType.bodySmall.copy(color = colors.muted))
-                            StatsText("Jethuit", style = AppType.bodySmall.copy(color = colors.text))
-                        }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically) {
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp),
                             verticalAlignment = Alignment.CenterVertically) {
                             ProjectLinks.forEach { (label, url) ->
@@ -176,6 +172,11 @@ fun AboutDialog(onClose: () -> Unit) {
                                         color = if (openingLink) colors.muted else colors.accent))
                                 }
                             }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            StatsText("作者", style = AppType.bodySmall.copy(color = colors.muted))
+                            StatsText("Jethuit", style = AppType.bodySmall.copy(color = colors.text))
                         }
                     }
                     Surface(modifier = Modifier.fillMaxWidth(), color = colors.controlBackground,
@@ -212,8 +213,8 @@ fun AboutDialog(onClose: () -> Unit) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    StatsText("为微软商店版启用更新提醒", style = AppType.body.copy(color = colors.text))
-                                    StatsText("每天检查一次，检查失败时不打扰",
+                                    StatsText("自动检查更新", style = AppType.body.copy(color = colors.text))
+                                    StatsText("每天检查一次，检查失败时不打扰；Steam创意工坊渠道无需开启",
                                         style = AppType.tiny.copy(color = colors.muted))
                                 }
                                 Switcher(storeEdition == true)

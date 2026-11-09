@@ -37,12 +37,17 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -83,6 +88,7 @@ import com.xuncorp.spw.workshop.api.WorkshopApi
 const val RANKING_PAGE_SIZE = 25
 private val RankingCoverSize = 48.dp
 private val RankingCoverRadius = 4.dp
+private val RankingQueueActionWidth = 42.dp
 // 65dp content plus a 1dp gap preserves the host's approximately 66dp row pitch.
 private val RankingRowHeight = 65.dp
 private val RankingRowText = AppType.table.copy(fontSize = 14.sp, lineHeight = 20.sp)
@@ -124,13 +130,35 @@ fun RankingPage(
     DisposableEffect(Unit) { onDispose { playbackJob?.cancel() } }
     val pageExiting = LocalStatsPageExiting.current
     LaunchedEffect(mode, metric, page, query, pageExiting) { playbackJob?.cancel() }
+    val queueRequests = remember(scope, mode, metric, page, query, pageExiting) {
+        SongQueueRequests(scope, HostSongPlayback::enqueueNext) { failure ->
+            PluginLog.error("Ranking queue insertion failed", failure)
+            WorkshopApi.ui.toast(when (failure) {
+                is TimeoutCancellationException -> "歌曲查询超时，请稍后重试"
+                is SongPlaybackUnavailable -> failure.message ?: "添加到队列失败"
+                else -> "添加到队列失败，请确认歌曲可用后重试"
+            }, WorkshopApi.Ui.ToastType.Warning)
+        }
+    }
+    DisposableEffect(queueRequests) {
+        queueRequests.start()
+        onDispose { queueRequests.close() }
+    }
+    val queueSong: (String, () -> Boolean) -> Unit = { id, rowCurrent ->
+        val session = HostUiRuntime.current
+        val ticket = StatsHostState.closeTicket
+        if (session != null && session.acceptingActions && !pageExiting) {
+            queueRequests.add(id) { session.acceptingActions && HostUiRuntime.current === session && StatsHostState.visible &&
+                !StatsHostState.closing && StatsHostState.closeTicket == ticket && rowCurrent() }
+        }
+    }
     val playSong: (String, () -> Boolean) -> Unit = { id, rowCurrent ->
         playbackJob?.cancel()
         val session = HostUiRuntime.current
         val ticket = StatsHostState.closeTicket
-        if (session != null) {
+        if (session != null && session.acceptingActions) {
             playbackJob = scope.launch {
-                val stillCurrent = { HostUiRuntime.current === session && StatsHostState.visible &&
+                val stillCurrent = { session.acceptingActions && HostUiRuntime.current === session && StatsHostState.visible &&
                     !StatsHostState.closing && StatsHostState.closeTicket == ticket && rowCurrent() }
                 try {
                     HostSongPlayback.play(id, stillCurrent)
@@ -241,7 +269,8 @@ fun RankingPage(
                 SongTableHeader(shown.mode, shown.metric, durationColumns?.total)
                 shown.rows.forEach { rank ->
                     key(rank.value.key) {
-                        SongRow(rank.value, rank.position, shown.metric, latinDurationUnits, durationColumns, playSong)
+                        SongRow(rank.value, rank.position, shown.metric, latinDurationUnits, durationColumns,
+                            queueSong = queueSong, playSong = playSong)
                     }
                 }
                 if (shown.rows.isEmpty()) {
@@ -414,7 +443,7 @@ fun RankingFooter(count: Int, currentPage: Int, totalPages: Int, onPageChange: (
 private fun SongTableHeader(mode: RankingMode, metric: RankingMetric, durationWidth: Dp? = null) {
     val colors = LocalStatsColors.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val widths = tableWidths(maxWidth, durationWidth)
+        val widths = tableWidths(maxWidth, durationWidth, songActions = mode == RankingMode.Song)
         Row(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
             Text(
                 "排名",
@@ -432,6 +461,7 @@ private fun SongTableHeader(mode: RankingMode, metric: RankingMetric, durationWi
                 modifier = Modifier.width(widths.album),
                 style = AppType.tableHead.copy(color = colors.muted)
             )
+            if (widths.actions > 0.dp) Box(Modifier.width(widths.actions))
             Text(
                 metric.header,
                 modifier = Modifier.width(widths.count),
@@ -447,12 +477,16 @@ private fun SongTableHeader(mode: RankingMode, metric: RankingMetric, durationWi
 internal fun SongRow(rank: RankingEntry, position: Int, metric: RankingMetric,
                     latinDurationUnits: Boolean = false,
                     durationColumns: DurationColumnWidths? = null,
+                    queueSong: ((String, () -> Boolean) -> Unit)? = null,
                     playSong: (String, () -> Boolean) -> Unit) {
     val colors = LocalStatsColors.current
     val columns = if (metric == RankingMetric.Duration) durationColumns
         ?: rememberDurationColumnWidths(rank.durationMs, RankingRowText, latinDurationUnits) else null
     val exiting = LocalStatsPageExiting.current
     val currentExiting = rememberUpdatedState(exiting)
+    var hovered by remember { mutableStateOf(false) }
+    var queueFocused by remember { mutableStateOf(false) }
+    var pointerQueueFocus by remember { mutableStateOf(false) }
     var attached by remember { mutableStateOf(true) }
     DisposableEffect(Unit) { onDispose { attached = false } }
     val playbackModifier = if (rank.key.mode == RankingMode.Song && !exiting) {
@@ -462,8 +496,10 @@ internal fun SongRow(rank: RankingEntry, position: Int, metric: RankingMetric,
             })
         }
     } else Modifier
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val widths = tableWidths(maxWidth, columns?.total)
+    BoxWithConstraints(Modifier.fillMaxWidth()
+        .onPointerEvent(PointerEventType.Enter) { hovered = true }
+        .onPointerEvent(PointerEventType.Exit) { hovered = false }) {
+        val widths = tableWidths(maxWidth, columns?.total, songActions = rank.key.mode == RankingMode.Song)
         HoverColor(colors.pageBackground, colors.rankingRowHover) { background ->
             Column {
                 Row(
@@ -512,6 +548,40 @@ internal fun SongRow(rank: RankingEntry, position: Int, metric: RankingMetric,
                         overflow = TextOverflow.Ellipsis,
                         style = RankingRowText.copy(color = colors.muted)
                     )
+                    if (widths.actions > 0.dp) {
+                        Box(Modifier.width(widths.actions).height(RankingRowHeight),
+                            contentAlignment = Alignment.Center) {
+                            if (queueSong != null && !exiting) {
+                                // Keep a focusable button in its reserved column; hover/focus only changes opacity.
+                                Box(Modifier.alpha(if (hovered || (queueFocused && !pointerQueueFocus)) 1f else 0f)) {
+                                    HoverColor(Color.Transparent, colors.hover, "下一首播放") { background ->
+                                        BasicButton(onClick = {
+                                            if (attached && !currentExiting.value) {
+                                                queueSong(rank.key.name) { attached && !currentExiting.value }
+                                            }
+                                        }, modifier = Modifier.size(34.dp)
+                                            .onPointerEvent(PointerEventType.Press, PointerEventPass.Initial) {
+                                                pointerQueueFocus = true
+                                            }
+                                            .onPreviewKeyEvent {
+                                                if (it.type == KeyEventType.KeyDown) pointerQueueFocus = false
+                                                false
+                                            }
+                                            .onFocusChanged {
+                                                queueFocused = it.isFocused
+                                                if (!it.isFocused) pointerQueueFocus = false
+                                            }
+                                            .semantics { contentDescription = "下一首播放" },
+                                            shape = AppShape(8.dp), size = ControlSize.Small,
+                                            colors = ButtonColors(background, colors.text, background, colors.muted),
+                                            contentPadding = PaddingValues(0.dp)) {
+                                            HostToolbarIcon("ic_add", IconPaths.AddCircle, colors.text)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     Row(
                         Modifier.width(widths.count),
                         horizontalArrangement = if (metric == RankingMetric.Duration) Arrangement.End else Arrangement.Center,
@@ -601,21 +671,24 @@ internal data class TableWidths(
     val rank: Dp,
     val song: Dp,
     val album: Dp,
-    val count: Dp
+    val count: Dp,
+    val actions: Dp = 0.dp
 )
 
-internal fun tableWidths(maxWidth: Dp, durationWidth: Dp? = null): TableWidths {
-    if (maxWidth < 440.dp) {
+internal fun tableWidths(maxWidth: Dp, durationWidth: Dp? = null, songActions: Boolean = false): TableWidths {
+    val actions = if (songActions) RankingQueueActionWidth else 0.dp
+    val contentWidth = (maxWidth - actions).coerceAtLeast(0.dp)
+    if (contentWidth < 440.dp) {
         val rank = 36.dp
         val count = maxOf(72.dp, durationWidth ?: 0.dp)
-        return TableWidths(rank, (maxWidth - rank - count).coerceAtLeast(0.dp), 0.dp, count)
+        return TableWidths(rank, (contentWidth - rank - count).coerceAtLeast(0.dp), 0.dp, count, actions)
     }
     val rank = 48.dp
     val count = maxOf(96.dp, durationWidth ?: 0.dp)
-    val remaining = (maxWidth - rank - count).coerceAtLeast(0.dp)
+    val remaining = (contentWidth - rank - count).coerceAtLeast(0.dp)
     val song = remaining * 0.56f
     val album = remaining - song
-    return TableWidths(rank, song, album, count)
+    return TableWidths(rank, song, album, count, actions)
 }
 
 @Composable

@@ -47,6 +47,10 @@ fun main(args: Array<String>) {
     check(renamed.transitions == targets.transitions.map(::method))
     check(renamed.theme!!.configs == method(targets.theme!!.configs) && renamed.theme!!.dark == method(targets.theme!!.dark))
     check(renamed.warnings.isEmpty())
+    check(renamed.sidebar!!.entry == site(targets.sidebar!!.entry))
+    check(renamed.sidebar!!.control == method(targets.sidebar!!.control))
+    check(renamed.sidebar!!.route == method(targets.sidebar!!.route))
+    check(renamed.sidebar!!.style == site(targets.sidebar!!.style))
     println("PASS renamed application classes, methods and fields retain all structural targets")
 
     fun rejected(label: String, bodies: List<HostMethodBody>) {
@@ -78,13 +82,19 @@ fun main(args: Array<String>) {
     }, index.fields))
     check(noTheme.caption != null && noTheme.theme == null && noTheme.warnings.isNotEmpty())
     println("PASS optional caption/theme failures keep valid core targets without selecting an arbitrary candidate")
+    val sidebarBody = index.body(targets.sidebar!!.control)!!
+    val noSidebar = HostUiDiscovery.discover(HostBytecodeIndex(index.methods - sidebarBody, index.fields))
+    check(noSidebar.sidebar == null && noSidebar.caption == targets.caption && noSidebar.warnings.isNotEmpty())
+    println("PASS optional sidebar discovery fails independently and preserves the titlebar entry")
 
     HostUiRuntime.activate(bridge).use {
         check(HostUiRuntime.current === bridge)
         check(bridge.caption != null)
     }
     check(HostUiRuntime.current == null)
-    if (path.fileName.toString() == "spw-host.jar") { checkLifecycle(bridge); checkTargetCache(bridge) }
+    if (path.fileName.toString() == "spw-host.jar") {
+        checkLifecycle(bridge); checkTargetCache(bridge); checkImportStop(bridge)
+    }
     Thread.currentThread().interrupt()
     try { check(runCatching { HostBytecodeIndex.read(path) }.isFailure) }
     finally { Thread.interrupted() }
@@ -172,7 +182,7 @@ private fun checkTargetCache(bridge: HostUiBridge) {
     check(cache.identity(root.resolve(".").resolve("host.bin")) == identity)
     check(HostTargetCache(file, "test-dev.2").read(identity) == null)
     val original = java.nio.file.Files.readString(file)
-    java.nio.file.Files.writeString(file, original.replace("\"format\":1", "\"format\":99"))
+    java.nio.file.Files.writeString(file, original.replace("\"format\":${HostTargetCache.FORMAT}", "\"format\":99"))
     check(cache.read(identity) == null)
     val timestamp = java.nio.file.Files.getLastModifiedTime(host)
     java.nio.file.Files.writeString(host, "host two")
@@ -343,9 +353,9 @@ private fun checkTargetCache(bridge: HostUiBridge) {
             if (stopAttempts.incrementAndGet() == 1) error("stop close failed")
         } }, failed = { error("close session failed") }, report = { if (it.startsWith("ready")) released.countDown() })
     closing.start(); check(released.await(5, TimeUnit.SECONDS))
-    check(runCatching { closing.close() }.isFailure)
+    check(runCatching { EventQueue.invokeAndWait { closing.close() } }.isFailure)
     check(stopAttempts.get() == 1)
-    closing.close(); check(stopAttempts.get() == 2)
+    EventQueue.invokeAndWait { closing.close() }; check(stopAttempts.get() == 2)
     println("PASS close failure propagates, retains ownership and only explicit next close retries release")
     val closes = AtomicInteger()
     val same = IllegalStateException("shared error")
@@ -354,4 +364,81 @@ private fun checkTargetCache(bridge: HostUiBridge) {
     check(runCatching { group.registrationFailed(same) }.getOrThrow().rollbackComplete == false)
     check(closes.get() == 3)
     println("PASS cleanup visits all handles even with shared exception instances")
+}
+
+/** Reproduce the host's UI-waits-for-stop-worker ordering without starting the player. */
+private fun checkImportStop(bridge: HostUiBridge) {
+    val stoppedBridge = HostUiBridge(bridge.targets, bridge.javaClass.classLoader)
+    val ready = CountDownLatch(1)
+    val closes = AtomicInteger()
+    val errors = java.util.concurrent.atomic.AtomicReference<Throwable?>()
+    val session = HostUiIntegration(source = { Path.of("synthetic-stop-host") },
+        loader = bridge.javaClass.classLoader, cache = null, discover = { _, _ -> stoppedBridge },
+        install = { AutoCloseable { check(EventQueue.isDispatchThread()); closes.incrementAndGet() } },
+        failed = { errors.set(it) }, report = { if (it.startsWith("ready")) ready.countDown() },
+        releaseFailed = { errors.set(it) })
+    session.start(); check(ready.await(5, TimeUnit.SECONDS))
+    lateinit var replacement: HostUiIntegration
+    val replaced = CountDownLatch(1)
+    val installs = AtomicInteger()
+    val stop = java.util.concurrent.FutureTask {
+        session.close(); session.close(); StatsWindow.close()
+    }
+    val worker = Thread(stop, "Synthetic-SPW-Stop").apply { isDaemon = true }
+    try {
+        EventQueue.invokeAndWait {
+            replacement = HostUiIntegration(source = { Path.of("synthetic-stop-replacement") },
+                loader = bridge.javaClass.classLoader, cache = null, discover = { _, _ -> bridge },
+                install = {
+                    check(closes.get() == 1) { "Replacement installed before retired hooks were released" }
+                    installs.incrementAndGet(); AutoCloseable { }
+                }, failed = { errors.set(it); replaced.countDown() },
+                report = { if (it.startsWith("ready")) replaced.countDown() })
+            // Put the next installation ahead of the old cleanup in the EDT queue.
+            val enqueue = HostUiIntegration::class.java.declaredMethods.single { it.name == "enqueueInstall" }
+                .also { check(it.trySetAccessible()) }
+            enqueue.invoke(replacement, Path.of("synthetic-stop-replacement"), null, bridge, false, System.nanoTime())
+            worker.start()
+            try {
+                stop.get(1, TimeUnit.SECONDS)
+                check(!stoppedBridge.acceptingActions) { "Retired actions remained valid until queued cleanup" }
+                check(closes.get() == 0) { "Hook cleanup escaped the EDT" }
+            } catch (error: Throwable) { errors.set(error) }
+        }
+        worker.join(3000)
+        check(!worker.isAlive && stop.isDone)
+        check(replaced.await(5, TimeUnit.SECONDS))
+        EventQueue.invokeAndWait { }
+        check(errors.get() == null) { "Import stop blocked the EDT or cleanup failed: ${errors.get()}" }
+        check(closes.get() == 1 && installs.get() == 1)
+    } finally {
+        EventQueue.invokeAndWait { session.close(); replacement.close() }
+    }
+    println("PASS UI waiting on a stop worker does not deadlock; duplicate stop queues one EDT release including legacy close")
+    println("PASS replacement queued before cleanup drains retired hooks first without double release")
+
+    val installed = CountDownLatch(1)
+    val failed = CountDownLatch(1)
+    val attempts = AtomicInteger()
+    val reported = AtomicInteger()
+    val retiring = HostUiIntegration(source = { Path.of("synthetic-release-failure") },
+        loader = bridge.javaClass.classLoader, cache = null, discover = { _, _ -> bridge },
+        install = { AutoCloseable { if (attempts.incrementAndGet() == 1) error("synthetic release failure") } },
+        failed = { throw AssertionError("Unexpected install failure", it) },
+        report = { if (it.startsWith("ready")) installed.countDown() },
+        releaseFailed = { reported.incrementAndGet(); failed.countDown() })
+    retiring.start(); check(installed.await(5, TimeUnit.SECONDS))
+    retiring.close(); check(failed.await(5, TimeUnit.SECONDS)); EventQueue.invokeAndWait { }
+    check(attempts.get() == 1 && reported.get() == 1)
+    val blocked = CountDownLatch(1)
+    val blockedInstalls = AtomicInteger()
+    val next = HostUiIntegration(source = { Path.of("synthetic-blocked-replacement") },
+        loader = bridge.javaClass.classLoader, cache = null, discover = { _, _ -> bridge },
+        install = { blockedInstalls.incrementAndGet(); AutoCloseable { } },
+        failed = { blocked.countDown() }, report = {})
+    next.start(); check(blocked.await(5, TimeUnit.SECONDS)); EventQueue.invokeAndWait { }
+    check(blockedInstalls.get() == 0 && attempts.get() == 1)
+    EventQueue.invokeAndWait { retiring.close(); next.close() }
+    check(attempts.get() == 2)
+    println("PASS deferred cleanup failure is reported once, retains ownership and blocks new hooks until explicit retry")
 }

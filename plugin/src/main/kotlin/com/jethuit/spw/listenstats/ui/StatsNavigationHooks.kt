@@ -73,6 +73,7 @@ object StatsNavigationHooks {
 
     /** Ask other tools to leave first; they may synchronously accept or defer for draft confirmation. */
     fun openStats() {
+        if (HostUiRuntime.current?.acceptingActions == false) return
         if (StatsHostState.visible && !StatsHostState.closing) return
         val host = binding
         if (!registered || host == null) {
@@ -82,7 +83,25 @@ object StatsNavigationHooks {
         prepareOpen(host)
     }
 
+    fun openConfiguration() {
+        if (HostUiRuntime.current?.acceptingActions == false) return
+        val host = binding
+        if (!registered || host == null) {
+            WorkshopApi.ui.toast("配置页面导航尚未准备好，请稍后重试", WorkshopApi.Ui.ToastType.Warning)
+            return
+        }
+        cancelPendingOpen()
+        runCatching {
+            host.navigate(HostPluginConfiguration.route(host.navigator.javaClass.classLoader,
+                com.jethuit.spw.listenstats.PluginState.pluginId))
+        }.onFailure {
+            PluginLog.error("Opening statistics configuration failed", it)
+            WorkshopApi.ui.toast("无法打开插件配置，请查看诊断日志", WorkshopApi.Ui.ToastType.Warning)
+        }
+    }
+
     private fun prepareOpen(host: Binding, restore: ForwardReturn? = null) {
+        if (HostUiRuntime.current?.acceptingActions == false) return
         cancelPendingOpen()
         val ticket = preparationTicket
         com.jethuit.spw.listenstats.data.StatsSnapshots.prepareOpen {
@@ -206,7 +225,8 @@ object StatsNavigationHooks {
                 override fun before(call: MethodHookParam) {
                     val request = requestOf(call.args.firstOrNull()) ?: return
                     call.setResult(null)
-                    if (registered && pending === request && binding === request.host &&
+                    if (registered && HostUiRuntime.current?.acceptingActions != false &&
+                        pending === request && binding === request.host &&
                         (request.restore == null || (forwardReturn === request.restore && request.restore.matches())) &&
                         call.thisObject === request.host.navigator && request.host.currentRoute() == request.route.get()) {
                         pending = null

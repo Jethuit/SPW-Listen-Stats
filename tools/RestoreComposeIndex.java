@@ -13,6 +13,7 @@ public final class RestoreComposeIndex {
         Map<String, PackageParts> packages = new TreeMap<>();
         int[] count = {0};
         Set<String> foundationParts = Set.of(
+            "androidx/compose/foundation/ClickableKt.class",
             "androidx/compose/foundation/FocusableKt.class",
             "androidx/compose/foundation/gestures/TapGestureDetectorKt.class",
             "androidx/compose/foundation/lazy/LazyDslKt.class",

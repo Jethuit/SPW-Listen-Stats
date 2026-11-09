@@ -19,6 +19,9 @@ import com.jethuit.spw.listenstats.ui.HookFailurePolicy
 import com.jethuit.spw.listenstats.ui.HookHandles
 import com.jethuit.spw.listenstats.ui.HostHookInstallation
 import com.jethuit.spw.listenstats.ui.UiPerformanceProbe
+import com.jethuit.spw.listenstats.ui.QueueNotificationHooks
+import com.jethuit.spw.listenstats.ui.StatsEntryPlacement
+import com.jethuit.spw.listenstats.ui.StatsSidebarEntry
 
 class MainPlugin(
     pluginContext: PluginContext
@@ -36,6 +39,7 @@ class MainPlugin(
         com.jethuit.spw.listenstats.data.PlaybackTracker.initialize()
         closeHooks()
         com.jethuit.spw.listenstats.data.StatsSnapshots.start()
+        StatsEntryPlacement.start()
         com.jethuit.spw.listenstats.updates.Updates.start()
         UiPerformanceProbe.mark("plugin_preload_started")
         val host = WorkshopApi.instance.javaClass
@@ -48,8 +52,8 @@ class MainPlugin(
             install = ::installHostUi,
             checkInstallAllowed = ::checkUiPermission,
             ready = {
-                if ("titlebar" !in PluginState.registeredHooks) {
-                    WorkshopApi.ui.toast("顶部统计按钮加载失败，仍可从插件配置打开", WorkshopApi.Ui.ToastType.Warning)
+                if ("titlebar" !in PluginState.registeredHooks || "sidebar" !in PluginState.registeredHooks) {
+                    WorkshopApi.ui.toast("部分统计入口加载失败，仍可使用可用入口或从插件配置打开", WorkshopApi.Ui.ToastType.Warning)
                 }
                 WorkshopApi.ui.toast("听歌统计已启用", WorkshopApi.Ui.ToastType.Success)
             },
@@ -94,6 +98,32 @@ class MainPlugin(
                 complete = false
                 PluginLog.error("Optional titlebar entry unavailable", failure)
             }
+            try {
+                handles += StatsSidebarEntry.register(addHook = { target, method, caller, parameters, content ->
+                    WorkshopApi.hookRegistrar.afterComposable(target, method, caller, parameters, 25, content)
+                }, replaceHook = { target, method, caller, parameters, content ->
+                    WorkshopApi.hookRegistrar.replaceComposable(target, method, caller, parameters, 50, content)
+                })
+                PluginState.registeredHooks += "sidebar"
+            } catch (failure: Throwable) {
+                if (HookFailurePolicy.noRetry(failure)) throw failure
+                complete = false
+                PluginLog.error("Optional sidebar entry unavailable", failure)
+                if (failure is com.jethuit.spw.listenstats.ui.HookRegistrationFailure && !failure.rollbackComplete) throw failure
+            }
+            handles += StatsEntryPlacement.installed("sidebar" in PluginState.registeredHooks,
+                "titlebar" in PluginState.registeredHooks)
+            try {
+                handles += QueueNotificationHooks.register(checkNotNull(bridge.queueNotifications)) { target, method, parameters, callback ->
+                    WorkshopApi.hookRegistrar.hookMethod(target, method, parameters, callback)
+                }
+                PluginState.registeredHooks += "queue-notification"
+            } catch (failure: Throwable) {
+                if (HookFailurePolicy.noRetry(failure)) throw failure
+                complete = false
+                PluginLog.error("Optional silent queue insertion unavailable", failure)
+                if (failure is com.jethuit.spw.listenstats.ui.HookRegistrationFailure && !failure.rollbackComplete) throw failure
+            }
         } catch (failure: Throwable) {
             PluginState.registeredHooks = emptySet()
             throw handles.registrationFailed(failure)
@@ -127,10 +157,11 @@ class MainPlugin(
     }
 
     private fun closeHooks() {
+        StatsEntryPlacement.stop()
         com.jethuit.spw.listenstats.updates.Updates.stop()
-        com.jethuit.spw.listenstats.data.StatsSnapshots.stop()
         integration?.close()
-        PluginState.registeredHooks = emptySet()
+        com.jethuit.spw.listenstats.data.StatsSnapshots.stop()
+        // The installation clears registeredHooks after its queued EDT release actually succeeds.
         integration = null
         PluginState.discoveryStatus = "stopped"
     }

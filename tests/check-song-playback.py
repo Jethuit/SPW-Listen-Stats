@@ -21,7 +21,10 @@ jdk, compiler = b.find_jdk(), b.find_kotlinc()
 kotlin = compiler.parent.parent
 classes = b.BUILD / 'plugin-classes'
 assert classes.resolve().is_relative_to(b.BUILD.resolve()) and classes.name == 'plugin-classes'
-b.compile_kotlin(jdk, compiler, b.ensure_host_jar(b.DEFAULT_SPW_DIR), classes)
+if '--reuse-classes' in sys.argv:
+    assert classes.is_dir(), 'Build the current plugin first; reuse is only for fixture-only corrections'
+else:
+    b.compile_kotlin(jdk, compiler, b.ensure_host_jar(b.DEFAULT_SPW_DIR), classes)
 fixture = work / 'fixtures'
 fixture.mkdir(exist_ok=True)
 cp = os.pathsep.join(map(str, [fixture, kotlin / 'lib/kotlin-stdlib.jar', classes,
@@ -45,7 +48,8 @@ run([str(jdk / 'bin/java.exe'), '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kot
 run([str(jdk / 'bin/java.exe'), '-cp', str(kotlin / 'lib/*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
     '-no-stdlib', '-classpath', cp, f'-Xfriend-paths={classes}',
     f'-Xplugin={kotlin / "lib/compose-compiler-plugin.jar"}', '-jvm-target', '25', '-d', str(fixture),
-    str(root / 'tests/SongPlaybackRegressionTest.kt'), str(root / 'tests/RankingRegressionTest.kt')], 'compile-regressions')
+    str(root / 'tests/SongPlaybackRegressionTest.kt'), str(root / 'tests/QueueNotificationRegressionTest.kt'),
+    str(root / 'tests/RankingRegressionTest.kt')], 'compile-regressions')
 env = os.environ.copy()
 env['APPDATA'] = str(work / 'appdata')
 env['LOCALAPPDATA'] = str(work / 'localappdata')
@@ -54,7 +58,7 @@ native.mkdir(exist_ok=True)
 java = [str(jdk / 'bin/java.exe'), '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8',
     '--enable-native-access=ALL-UNNAMED', f'-Dskiko.library.path={b.DEFAULT_SPW_DIR / "app"}',
     f'-Djna.tmpdir={native}', '-cp', cp]
-for entry in ['SongPlaybackRegressionTestKt', 'RankingRegressionTestKt']:
+for entry in ['SongPlaybackRegressionTestKt', 'QueueNotificationRegressionTestKt', 'RankingRegressionTestKt']:
     run([*java, entry, str(work), str(fake_host)], entry, env)
     print((work / f'{entry}.log').read_text(encoding='utf-8').strip())
 package = b.package(classes)

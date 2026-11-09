@@ -40,12 +40,14 @@ open class HostTargetCache(val file: Path, val pluginVersion: String) {
         val nav = data.getValue("navigation").jsonArray.also { check(it.size == 9) }
         val caption = data.getValue("caption").jsonArray.also { check(it.size == 2) }
         val theme = data.getValue("theme").jsonArray.also { check(it.size == 2) }
+        val sidebar = data["sidebar"]?.takeUnless { it is JsonNull }?.jsonArray?.also { check(it.size == 4) }
         return HostUiTargets(site(data.getValue("page")), site(data.getValue("layer")),
             HostNavigationTargets(field(nav[0]), field(nav[1]), method(nav[2]), method(nav[3]),
                 method(nav[4]), method(nav[5]), field(nav[6]), method(nav[7]), method(nav[8])),
             data.getValue("transitions").jsonArray.map(::method).also { check(it.size == 3) },
             HostCaptionTargets(site(caption[0]), method(caption[1])),
-            HostThemeTargets(method(theme[0]), method(theme[1])), emptyList())
+            HostThemeTargets(method(theme[0]), method(theme[1])), emptyList(),
+            sidebar?.let { HostSidebarTargets(site(it[0]), method(it[1]), method(it[2]), site(it[3])) })
     }
     /** Serialize/write temporary off EDT. The caller guards only the final atomic publication. */
     open fun prepare(identity: Identity, targets: HostUiTargets): Path {
@@ -67,6 +69,9 @@ open class HostTargetCache(val file: Path, val pluginVersion: String) {
                 put("transitions", buildJsonArray { targets.transitions.forEach { add(method(it)) } })
                 put("caption", buildJsonArray { add(site(caption.entry)); add(method(caption.control)) })
                 put("theme", buildJsonArray { add(method(theme.configs)); add(method(theme.dark)) })
+                put("sidebar", targets.sidebar?.let { value -> buildJsonArray {
+                    add(site(value.entry)); add(method(value.control)); add(method(value.route)); add(site(value.style))
+                } } ?: JsonNull)
             })
         }.toString()
         Files.createDirectories(file.toAbsolutePath().parent)
@@ -78,5 +83,5 @@ open class HostTargetCache(val file: Path, val pluginVersion: String) {
         // No non-atomic replacement fallback: failed cache storage must not affect installed hooks.
         Files.move(temporary, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
     }
-    companion object { const val FORMAT = 1 }
+    companion object { const val FORMAT = 3 }
 }

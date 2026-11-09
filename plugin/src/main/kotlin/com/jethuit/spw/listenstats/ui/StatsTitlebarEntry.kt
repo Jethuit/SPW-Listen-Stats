@@ -35,7 +35,7 @@ object StatsTitlebarEntry {
         return addHook(site.target.className, site.target.name, site.callerClass, emptyList(), object : ComposableHook() {
             @Composable
             override fun Content(call: UiHookCall) {
-                StatsTitlebarButton()
+                if (StatsEntryPlacement.showTitlebar) StatsTitlebarButton()
             }
         })
     }
@@ -44,14 +44,8 @@ object StatsTitlebarEntry {
 /** Uses SPW's own caption control, including its width, height, indication and tooltip. */
 @Composable
 fun StatsTitlebarButton(onClick: () -> Unit = StatsNavigationHooks::openStats) {
-    val density = LocalDensity.current
-    val painter = remember(density) {
-        HostCaptionButton.iconBytes.inputStream().use { loadSvgPainter(it, density) }
-    }
     val icon: @Composable BoxScope.() -> Unit = {
-        Box(Modifier.align(Alignment.Center).size(20.dp).drawWith {
-            with(painter) { draw(size) }
-        })
+        Box(Modifier.align(Alignment.Center)) { StatsEntryIcon() }
     }
     // Only this bridge knows the obfuscated JVM signature. Composer is the current host
     // composition, so no separate window or copied caption Row is introduced.
@@ -61,6 +55,15 @@ fun StatsTitlebarButton(onClick: () -> Unit = StatsNavigationHooks::openStats) {
         Modifier.semantics { contentDescription = "听歌统计" },
         true, null, 0f, icon, currentComposer, 0, 32 // Default host caption width.
     )
+}
+
+@Composable
+fun StatsEntryIcon() {
+    val density = LocalDensity.current
+    val painter = remember(density) {
+        HostCaptionButton.iconBytes.inputStream().use { loadSvgPainter(it, density) }
+    }
+    Box(Modifier.size(20.dp).drawWith { with(painter) { draw(size) } })
 }
 
 private object HostCaptionButton {
