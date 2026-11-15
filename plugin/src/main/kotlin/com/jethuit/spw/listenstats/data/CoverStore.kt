@@ -176,39 +176,55 @@ object CoverStore {
         return FetchResult(result, retryMs)
     }
 
-    private fun decodeThumbnail(bytes: ByteArray, size: Int): ImageBitmap? {
-        var source: Image? = null
-        var surface: Surface? = null
+    private suspend fun decodeThumbnail(bytes: ByteArray, size: Int): ImageBitmap? {
+        var current: Image? = null
         return try {
             val decoded = Image.makeFromEncoded(bytes)
-            source = decoded
-            if (decoded.width <= 0 || decoded.height <= 0) return null
-            val raster = Surface.makeRasterN32Premul(size, size)
-            surface = raster
-            val scale = maxOf(
-                size.toFloat() / decoded.width.toFloat(),
-                size.toFloat() / decoded.height.toFloat()
-            )
-            val drawWidth = decoded.width * scale
-            val drawHeight = decoded.height * scale
-            raster.canvas.clear(0)
-            raster.canvas.drawImageRect(
-                decoded,
-                Rect.makeWH(decoded.width.toFloat(), decoded.height.toFloat()),
-                Rect.makeXYWH((size - drawWidth) / 2f, (size - drawHeight) / 2f, drawWidth, drawHeight),
-                SamplingMode.LINEAR,
-                null,
-                true
-            )
-            raster.makeImageSnapshot().toComposeImageBitmap()
+            current = decoded
+            val sourceWidth = decoded.width
+            val sourceHeight = decoded.height
+            if (sourceWidth <= 0 || sourceHeight <= 0) return null
+            val side = minOf(sourceWidth, sourceHeight).toFloat()
+            var bounds = Rect.makeXYWH((sourceWidth - side) / 2f, (sourceHeight - side) / 2f, side, side)
+            var reductions = 0
+            // A single bilinear/cubic sample misses most source pixels at large
+            // reductions. Average in roughly 2:1 steps before the final resize.
+            while (bounds.width > size * 2f) {
+                coroutineContext.ensureActive()
+                val nextSize = kotlin.math.ceil(bounds.width / 2.0).toInt()
+                val previous = checkNotNull(current)
+                current = resize(previous, bounds, nextSize, SamplingMode.LINEAR)
+                previous.close()
+                bounds = Rect.makeWH(nextSize.toFloat(), nextSize.toFloat())
+                reductions++
+            }
+            coroutineContext.ensureActive()
+            // Mitchell balances detail and smoothness. Exact-size covers bypass
+            // cubic filtering so already correctly sized artwork stays unchanged.
+            val sampling = if (bounds.width == size.toFloat()) SamplingMode.LINEAR else SamplingMode.MITCHELL
+            val thumbnail = resize(checkNotNull(current), bounds, size, sampling)
+            try {
+                CoverDiagnostics.log("cover resample source=${sourceWidth}x${sourceHeight} px=$size reductions=$reductions")
+                thumbnail.toComposeImageBitmap()
+            } catch (failure: Throwable) {
+                thumbnail.close()
+                throw failure
+            }
         } catch (failure: Throwable) {
+            coroutineContext.ensureActive()
             PluginLog.error("decoding cover thumbnail failed", failure)
             null
         } finally {
-            surface?.close()
-            source?.close()
+            current?.close()
         }
     }
+
+    private fun resize(source: Image, bounds: Rect, size: Int, sampling: SamplingMode): Image =
+        Surface.makeRasterN32Premul(size, size).use { raster ->
+            raster.canvas.clear(0)
+            raster.canvas.drawImageRect(source, bounds, Rect.makeWH(size.toFloat(), size.toFloat()), sampling, null, true)
+            raster.makeImageSnapshot()
+        }
 
     // Caller holds stateLock, including the generation check before committing.
     private fun cachePut(key: String, bitmap: ImageBitmap) {

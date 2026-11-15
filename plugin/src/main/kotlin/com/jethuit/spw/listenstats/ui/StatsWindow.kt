@@ -366,7 +366,6 @@ fun ListenStatsApp(
         val rankingBaseKey = "${snapshot?.loadedAt ?: 0L}|${rankingMode.storage}|${rankingMetric.storage}"
         val rankingKey = "$rankingBaseKey|$query"
         LaunchedEffect(rankingBaseKey) {
-            UiPerformanceProbe.mark("ranking_index_start")
             rankingIndex = null
             rankingIndexKey = null
             rankingReadyKey = null
@@ -376,6 +375,11 @@ fun ListenStatsApp(
                 rankingReadyKey = rankingKey
                 return@LaunchedEffect
             }
+            // Warm the hidden ranking after the overview's actual entrance finishes.
+            // A user selecting ranking can request it immediately instead of waiting
+            // for the old overview animation; no fixed-delay timer or duplicate job.
+            snapshotFlow { !latestExiting && (page == StatsPage.Ranking || !entering) }.first { it }
+            UiPerformanceProbe.mark("ranking_index_start")
             val source = snapshot
             val computed = withContext(Dispatchers.Default) {
                 Rankings.index(source, rankingMode, rankingMetric)

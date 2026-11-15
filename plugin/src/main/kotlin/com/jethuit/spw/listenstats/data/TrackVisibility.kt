@@ -13,13 +13,28 @@ object TrackVisibility {
     /** An absent path is legacy/unknown metadata, so it remains visible. */
     fun isVisible(track: TrackMeta): Boolean {
         val raw = track.path.trim()
+        return isVisiblePath(raw)
+    }
+
+    private fun isVisiblePath(raw: String): Boolean {
         if (raw.isEmpty()) return true
         val path = pathOf(raw) ?: return true
+        PerformanceProbe.mark("TrackVisibility.fileCheck")
         return Files.isRegularFile(path)
     }
 
+    /** One read observes each path once; the next read rechecks deletions and restorations. */
+    class Snapshot {
+        private val paths = HashMap<String, Boolean>()
+        private fun visible(raw: String): Boolean = paths.getOrPut(raw) { isVisiblePath(raw) }
+        fun isVisible(track: TrackMeta): Boolean = visible(track.path.trim())
+        fun fingerprint(tracks: Iterable<TrackMeta>): Long = fingerprintPaths(tracks, ::visible)
+    }
+
     /** Detects external deletion/replacement without changing durable statistics. */
-    fun fingerprint(tracks: Iterable<TrackMeta>): Long {
+    fun fingerprint(tracks: Iterable<TrackMeta>): Long = Snapshot().fingerprint(tracks)
+
+    private fun fingerprintPaths(tracks: Iterable<TrackMeta>, visible: (String) -> Boolean): Long {
         var result = 1L
         tracks.asSequence()
             .map { it.path.trim() }
@@ -27,9 +42,8 @@ object TrackVisibility {
             .distinct()
             .sorted()
             .forEach { raw ->
-                val visible = pathOf(raw)?.let(Files::isRegularFile) ?: true
                 result = result * 31 + raw.hashCode()
-                result = result * 31 + if (visible) 1 else 0
+                result = result * 31 + if (visible(raw)) 1 else 0
             }
         return result
     }

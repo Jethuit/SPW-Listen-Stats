@@ -5,8 +5,8 @@
 ## 发布已经准备好的包
 
 1. 按构建流程准备未发布的新版本，检查包内版本、文件名、发布说明和 SHA-256；保留该安装包，不在 Actions 中重建。
-2. 通过 GitHub 插件的 `create_blob`（`encoding: base64`）传送原始安装包，记录返回的 Git blob SHA。该二进制对象不加入源码文件树，不提交 SPW 安装文件、工具链或私人数据。
-3. 将当前源码、`docs/releases/v<版本>.md`、发布脚本和工作流同步至 GitHub，保留远端 README 与已有历史。更新 `.github/release-request.json`，写入版本、Git blob SHA、包的 SHA-256 和字节数。
+2. 通过 GitHub 插件的 `create_blob`（`encoding: base64`）传送原始安装包，记录返回的 Git blob SHA。大包可按顺序分块传送，每块分别记录 SHA；这些二进制对象不加入源码文件树，不提交 SPW 安装文件、工具链或私人数据。
+3. 将当前源码、`docs/releases/v<版本>.md`、发布脚本和工作流同步至 GitHub，保留远端 README 与已有历史。更新 `.github/release-request.json`，写入版本、包的 SHA-256 和字节数；整包使用 `package_blob_sha`，分块使用按原文件顺序排列的 `package_blob_shas`，两者只填写一个。Actions 拼接后先验证完整包的大小、SHA-256 和 Manifest，再执行原有发布保护流程。
 4. 对 `main` 的这项发布请求变更会自动触发工作流；也可在 Actions 中手动运行。工作流固定使用本次提交的源码和说明，先校验包，再创建草稿，附件全部验证后才发布。
 
 GitHub 的 blob 接口用于本次包的传送，正式下载始终使用 Release 附件。不要将这类未加入文件树的中转对象当作长期包存储；新版本发布前重新通过插件传送对应原包。

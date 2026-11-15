@@ -234,7 +234,7 @@ object LiveStore {
     @Synchronized fun merge(
         host: StatsData,
         importedEvents: List<ListeningEvent> = emptyList(),
-        trackVisible: (TrackMeta) -> Boolean = TrackVisibility::isVisible
+        trackVisible: (TrackMeta) -> Boolean = TrackVisibility.Snapshot()::isVisible
     ): StatsData = PerformanceProbe.measure("LiveStore.merge") {
         mergeInternal(host, importedEvents, trackVisible)
     }
@@ -262,10 +262,11 @@ object LiveStore {
             }
         }
         val hostRows = PerformanceProbe.measure("LiveStore.indexHostRows") {
-            visibleHost.listens.associateBy { it.id }
+            if (ordered.isEmpty()) emptyMap() else visibleHost.listens.associateBy { it.id }
         }
         val byTrack = PerformanceProbe.measure("LiveStore.groupHostByTrack") {
-            visibleHost.listens.groupBy { it.trackId }.mapValues { (_, rows) -> rows.sortedBy { it.startTimeMs } }
+            if (ordered.isEmpty()) emptyMap() else
+                visibleHost.listens.groupBy { it.trackId }.mapValues { (_, rows) -> rows.sortedBy { it.startTimeMs } }
         }
         val nextHostStart = PerformanceProbe.measure("LiveStore.buildNextHostStart") {
             byTrack.values.flatMap { rows ->

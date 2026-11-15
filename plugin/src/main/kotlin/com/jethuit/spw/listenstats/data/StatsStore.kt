@@ -46,7 +46,8 @@ object StatsStore {
         val host = HostDatabase.load(path, aggregate = false)
         val backupRevision = BackupService.revision()
         val liveRevision = LiveStore.revision()
-        val visibilityFingerprint = visibilityFingerprint(host)
+        val visibility = TrackVisibility.Snapshot()
+        val visibilityFingerprint = visibilityFingerprint(host, visibility)
         synchronized(cacheLock) {
             mergeCache?.takeIf {
                 it.host === host && it.backupRevision == backupRevision && it.liveRevision == liveRevision &&
@@ -54,11 +55,11 @@ object StatsStore {
             }?.let { return it.data }
         }
         return try {
-            val merged = BackupService.mergeWithLive(host)
+            val merged = BackupService.mergeWithLive(host, visibility)
             val result = LiveStore.storageError()?.let { merged.copy(error = it) } ?: merged
             synchronized(cacheLock) {
                 mergeCache = MergeCache(host, BackupService.revision(), LiveStore.revision(),
-                    visibilityFingerprint(host), result)
+                    visibilityFingerprint(host, visibility), result)
             }
             result
         } catch (failure: Exception) {
@@ -67,11 +68,11 @@ object StatsStore {
         }
     }
 
-    private fun visibilityFingerprint(host: StatsData): Long {
+    private fun visibilityFingerprint(host: StatsData, visibility: TrackVisibility.Snapshot): Long {
         val source = DataFiles.sourceId()
         val live = LiveStore.snapshot().map { it.event(source).track }
-        return TrackVisibility.fingerprint(host.tracks.values + live) * 31 +
-            BackupService.visibilityFingerprint()
+        return visibility.fingerprint(host.tracks.values + live) * 31 +
+            BackupService.visibilityFingerprint(visibility)
     }
 
     fun diagnosticPath(): String = databasePath?.toString() ?: "unresolved"

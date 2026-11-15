@@ -60,7 +60,8 @@ def validate_request(request: dict, root: Path) -> None:
     version = request.get('version', '')
     if not re.fullmatch(r'\d+\.\d+\.\d+', version):
         raise ValueError('Only a new stable version can be published')
-    for key, length in [('package_blob_sha', 40), ('package_sha256', 64)]:
+    package_blob_shas(request)
+    for key, length in [('package_sha256', 64)]:
         if not re.fullmatch(rf'[0-9a-f]{{{length}}}', request.get(key, '')):
             raise ValueError(f'Invalid {key}')
     size = request.get('package_size')
@@ -72,6 +73,31 @@ def validate_request(request: dict, root: Path) -> None:
                         for target in node.targets) and isinstance(node.value, ast.Constant)]
     if versions != [version]:
         raise ValueError('Release request and source version do not match')
+
+
+def package_blob_shas(request: dict) -> list[str]:
+    if ('package_blob_sha' in request) == ('package_blob_shas' in request):
+        raise ValueError('Specify exactly one package blob source')
+    values = request.get('package_blob_shas', [request.get('package_blob_sha')])
+    if (not isinstance(values, list) or not 1 <= len(values) <= 128
+            or any(not isinstance(value, str) or not re.fullmatch(r'[0-9a-f]{40}', value) for value in values)):
+        raise ValueError('Invalid package blob source')
+    return values
+
+
+def download_package(client, request: dict) -> bytes:
+    data = bytearray()
+    for sha in package_blob_shas(request):
+        blob = client.request('GET', f'git/blobs/{sha}')
+        if blob.get('encoding') != 'base64' or blob.get('sha') != sha:
+            raise ValueError('Invalid prepared package blob')
+        chunk = base64.b64decode(''.join(blob['content'].split()), validate=True)
+        if len(data) + len(chunk) > request['package_size']:
+            raise ValueError('Prepared package exceeds the declared size')
+        data.extend(chunk)
+    result = bytes(data)
+    validate_package(request, result)
+    return result
 
 
 def validate_package(request: dict, data: bytes) -> None:
@@ -137,10 +163,7 @@ def main() -> None:
     validate_request(request, root)
     notes = (root / 'docs/releases' / f"v{request['version']}.md").read_text(encoding='utf-8')
     client = GitHub(os.environ['GITHUB_TOKEN'])
-    blob = client.request('GET', f"git/blobs/{request['package_blob_sha']}")
-    if blob.get('encoding') != 'base64' or blob.get('sha') != request['package_blob_sha']:
-        raise ValueError('Invalid prepared package blob')
-    data = base64.b64decode(''.join(blob['content'].split()), validate=True)
+    data = download_package(client, request)
     url = publish(client, request, data, notes, os.environ['RELEASE_COMMIT'])
     print(f'Published {url}')
     summary = f"Published [{request['version']}]({url}) as `{BOT}`.\n\nSHA-256: `{request['package_sha256']}`\n"

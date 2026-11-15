@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -48,11 +49,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.onPointerEvent
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.focus.FocusRequester
@@ -67,6 +67,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jethuit.spw.listenstats.data.CoverDiagnostics
@@ -84,10 +85,11 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import com.jethuit.spw.listenstats.PluginLog
 import com.xuncorp.spw.workshop.api.WorkshopApi
+import kotlin.math.roundToInt
 
 const val RANKING_PAGE_SIZE = 25
 private val RankingCoverSize = 48.dp
-private val RankingCoverRadius = 4.dp
+private val RankingCoverRadius = 0.dp
 private val RankingQueueActionWidth = 42.dp
 // 65dp content plus a 1dp gap preserves the host's approximately 66dp row pitch.
 private val RankingRowHeight = 65.dp
@@ -642,24 +644,21 @@ internal fun Cover(trackId: String) {
             if (image == null) delay(CoverStore.retryDelayMillis(trackId))
         }
     }
-    Surface(
-        modifier = Modifier.size(RankingCoverSize),
-        shape = AppShape(RankingCoverRadius),
-        color = colors.subtle,
-        border = BorderStroke(1.dp, SolidColor(colors.line))
-    ) {
-        val bitmap = image
-        if (bitmap != null) {
-            Box(
-                Modifier.fillMaxSize().drawWith {
-                    val sx = size.width / bitmap.width.toFloat()
-                    val sy = size.height / bitmap.height.toFloat()
-                    withTransform({ scale(sx, sy, pivot = Offset.Zero) }) {
-                        drawImage(bitmap)
-                    }
-                }
-            )
-        } else {
+    val bitmap = image
+    if (bitmap != null) {
+        Box(
+            Modifier.size(RankingCoverSize).clip(AppShape(RankingCoverRadius)).drawWith {
+                drawImage(bitmap, dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+                    filterQuality = FilterQuality.Medium)
+            }
+        )
+    } else {
+        Surface(
+            modifier = Modifier.size(RankingCoverSize),
+            shape = AppShape(RankingCoverRadius),
+            color = colors.subtle,
+            border = BorderStroke(1.dp, SolidColor(colors.line))
+        ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 AppIcon(IconPaths.QueueMusic, colors.muted, iconSize = 22.dp)
             }

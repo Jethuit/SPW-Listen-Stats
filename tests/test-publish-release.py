@@ -1,5 +1,6 @@
 """Synthetic publisher checks: no GitHub requests or real package modifications."""
 import hashlib
+import base64
 import importlib.util
 import io
 from pathlib import Path
@@ -54,6 +55,31 @@ class PublisherTests(unittest.TestCase):
 
     def run_publish(self):
         return publisher.publish(self.client, self.request, self.data, self.notes, COMMIT)
+
+    def test_chunked_package_is_reassembled_in_order_and_fully_verified(self):
+        split = len(self.data) // 2
+        chunks = [self.data[:split], self.data[split:]]
+        blobs = {}
+        for chunk in chunks:
+            sha = hashlib.sha1(f'blob {len(chunk)}\0'.encode() + chunk).hexdigest()
+            blobs[f'git/blobs/{sha}'] = dict(sha=sha, encoding='base64', content=base64.b64encode(chunk).decode())
+        request = dict(self.request, package_blob_shas=[item['sha'] for item in blobs.values()])
+        client = type('BlobClient', (), {'request': lambda _, method, path: blobs[path]})()
+        self.assertEqual(publisher.download_package(client, request), self.data)
+        request['package_blob_shas'].reverse()
+        with self.assertRaises(ValueError):
+            publisher.download_package(client, request)
+        request['package_size'] = 1
+        with self.assertRaisesRegex(ValueError, 'declared size'):
+            publisher.download_package(client, request)
+
+    def test_blob_source_is_explicit_bounded_and_supports_legacy_single_blob(self):
+        self.assertEqual(publisher.package_blob_shas({'package_blob_sha': 'a' * 40}), ['a' * 40])
+        for invalid in ({}, {'package_blob_shas': []}, {'package_blob_shas': ['invalid']},
+                        {'package_blob_shas': ['a' * 40] * 129},
+                        {'package_blob_sha': 'a' * 40, 'package_blob_shas': ['a' * 40]}):
+            with self.assertRaises(ValueError):
+                publisher.package_blob_shas(invalid)
 
     def test_new_release_uploads_both_assets_before_publication(self):
         url = self.run_publish()

@@ -5,10 +5,12 @@ import com.jethuit.spw.listenstats.data.*
 import com.jethuit.spw.listenstats.ui.StatsHostState
 import com.jethuit.spw.listenstats.ui.StatsNavigationHooks
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import javax.swing.SwingUtilities
 
 fun checkSnapshotPreparation() {
@@ -50,6 +52,60 @@ fun checkSnapshotPreparation() {
         }
     } finally { StatsSnapshots.stop() }
     println("PASS warm entry refreshes settings before presenting cached data")
+
+    val integrationReady = CompletableDeferred<Unit>()
+    val preferencesReady = CountDownLatch(1)
+    val prioritizedReads = AtomicInteger()
+    val prioritized = StatsSnapshotSession(read = {
+        check(integrationReady.isCompleted) { "History read competed with UI integration" }
+        prioritizedReads.incrementAndGet()
+        result
+    }, preferences = { displayPreferences })
+    StatsSnapshots.start(prioritized, initialize = { preferencesReady.countDown() }, preloadAfter = integrationReady)
+    try {
+        check(preferencesReady.await(5, TimeUnit.SECONDS)) { "Preferences must initialize before UI integration finishes" }
+        val opened = CountDownLatch(1)
+        SwingUtilities.invokeAndWait {
+            StatsSnapshots.prepareOpen { opened.countDown() }
+            check(prioritizedReads.get() == 0 && prioritized.latest == null && opened.count == 1L)
+        }
+        integrationReady.complete(Unit)
+        check(opened.await(5, TimeUnit.SECONDS))
+        check(prioritizedReads.get() == 1 && prioritized.latest?.data?.millisOn(day) == 120_000L)
+    } finally { StatsSnapshots.stop() }
+    println("PASS startup loads preferences early; history and pending opens wait for UI completion")
+
+    val oldGate = CompletableDeferred<Unit>()
+    val newGate = CompletableDeferred<Unit>()
+    val oldInitialized = CountDownLatch(1)
+    val newInitialized = CountDownLatch(1)
+    val staleReads = AtomicInteger()
+    val staleOpens = AtomicInteger()
+    val oldSession = StatsSnapshotSession(read = { staleReads.incrementAndGet(); result },
+        preferences = { displayPreferences })
+    StatsSnapshots.start(oldSession, initialize = { oldInitialized.countDown() }, preloadAfter = oldGate)
+    check(oldInitialized.await(5, TimeUnit.SECONDS))
+    SwingUtilities.invokeAndWait { StatsSnapshots.prepareOpen { staleOpens.incrementAndGet() } }
+    StatsSnapshots.stop()
+    val newSession = StatsSnapshotSession(read = {
+        check(newGate.isCompleted) { "An old UI completion released the new session" }
+        result
+    }, preferences = { displayPreferences })
+    StatsSnapshots.start(newSession, initialize = { newInitialized.countDown() }, preloadAfter = newGate)
+    try {
+        check(newInitialized.await(5, TimeUnit.SECONDS))
+        oldGate.complete(Unit)
+        val opened = CountDownLatch(1)
+        SwingUtilities.invokeAndWait {
+            check(StatsSnapshots.current === newSession && newSession.latest == null)
+            StatsSnapshots.prepareOpen { opened.countDown() }
+        }
+        newGate.complete(Unit)
+        check(opened.await(5, TimeUnit.SECONDS))
+        SwingUtilities.invokeAndWait { check(staleOpens.get() == 0) }
+        check(staleReads.get() == 0 && oldSession.latest == null && newSession.latest != null)
+    } finally { StatsSnapshots.stop() }
+    println("PASS stop cancels startup wait; old completion cannot release or reopen a replacement session")
 
     for (action in listOf("ready", "navigate", "back", "close", "stop")) {
         val started = CountDownLatch(1)

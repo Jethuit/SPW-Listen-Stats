@@ -24,6 +24,7 @@ object ListeningEvents {
     /** A larger listening snapshot must not erase already known track metadata. */
     fun mergeTrack(preferred: TrackMeta, fallback: TrackMeta): TrackMeta {
         require(preferred.id == fallback.id)
+        if (preferred == fallback) return preferred
         return preferred.copy(
             title = preferred.title.takeIf { it.isNotBlank() && it != "未知歌曲" }
                 ?: fallback.title.takeIf { it.isNotBlank() } ?: preferred.title,
@@ -88,6 +89,18 @@ object ListeningEvents {
         val owners = HashMap<String, String>()
         val localLibrary = DataFiles.sourceId()
         PerformanceProbe.measure("ListeningEvents.unionCore") { for (event in events) {
+            // Most host/backup rows are independent, single-span plays. They need
+            // no candidate lists, metadata reduction or interval union. Check aliases
+            // too: an indirect owner must still take the full reconciliation path.
+            if (event.preciseSpans == null && event.spans.size == 1 && event.spans[0].durationMs > 0 &&
+                event.id !in owners && event.aliases.none { it in owners }) {
+                val independent = if (event.id in event.aliases) event.copy(aliases = event.aliases - event.id) else event
+                groups[independent.id] = independent
+                owners[independent.id] = independent.id
+                independent.aliases.forEach { owners[it] = independent.id }
+                PerformanceProbe.mark("ListeningEvents.independent")
+                continue
+            }
             val keys = event.aliases + event.id
             val matches = keys.mapNotNull { owners[it] }.distinct()
             val candidates = matches.mapNotNull { groups.remove(it) } + event
@@ -131,15 +144,16 @@ object ListeningEvents {
         // Resolve before the session union so choosing a longer old snapshot cannot choose its tags.
         PerformanceProbe.measure("ListeningEvents.aggregateMetadata") { for (event in input) {
             val trackId = localTrackId(event)
-            val meta = event.track.copy(id = trackId)
+            val meta = if (event.track.id == trackId) event.track else event.track.copy(id = trackId)
             metadata[trackId] = (metadata[trackId] ?: base.tracks[trackId])?.let { mergeTrack(it, meta) } ?: meta
         } }
         val events = PerformanceProbe.measure("ListeningEvents.aggregateResolve") { union(input).map { event ->
             val trackId = localTrackId(event)
-            val meta = event.track.copy(id = trackId)
+            val meta = if (event.track.id == trackId) event.track else event.track.copy(id = trackId)
             val resolved = metadata[trackId]?.let { mergeTrack(it, meta) } ?: meta
             tracks[trackId] = resolved
-            event.copy(track = resolved.copy(id = event.track.id))
+            val eventTrack = if (resolved.id == event.track.id) resolved else resolved.copy(id = event.track.id)
+            if (event.track == eventTrack) event else event.copy(track = eventTrack)
         } }
         PerformanceProbe.measure("ListeningEvents.aggregateTimeSplit") { for (event in events) {
             val trackId = if (event.libraryId == localLibrary) event.track.id else "${event.libraryId}:${event.track.id}"

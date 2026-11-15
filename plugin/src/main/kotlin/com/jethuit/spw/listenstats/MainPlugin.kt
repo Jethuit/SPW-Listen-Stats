@@ -38,9 +38,9 @@ class MainPlugin(
         com.jethuit.spw.listenstats.data.StatsStore.initialize(pluginContext.pluginPath)
         com.jethuit.spw.listenstats.data.PlaybackTracker.initialize()
         closeHooks()
-        com.jethuit.spw.listenstats.data.StatsSnapshots.start()
+        val uiStartup = kotlinx.coroutines.CompletableDeferred<Unit>()
+        com.jethuit.spw.listenstats.data.StatsSnapshots.start(preloadAfter = uiStartup)
         StatsEntryPlacement.start()
-        com.jethuit.spw.listenstats.updates.Updates.start()
         UiPerformanceProbe.mark("plugin_preload_started")
         val host = WorkshopApi.instance.javaClass
         integration = HostUiIntegration(
@@ -52,18 +52,23 @@ class MainPlugin(
             install = ::installHostUi,
             checkInstallAllowed = ::checkUiPermission,
             ready = {
+                uiStartup.complete(Unit)
                 if ("titlebar" !in PluginState.registeredHooks || "sidebar" !in PluginState.registeredHooks) {
                     WorkshopApi.ui.toast("部分统计入口加载失败，仍可使用可用入口或从插件配置打开", WorkshopApi.Ui.ToastType.Warning)
                 }
                 WorkshopApi.ui.toast("听歌统计已启用", WorkshopApi.Ui.ToastType.Success)
             },
             failed = { failure ->
+                // Public playback recording and statistics preparation remain independent
+                // of internal UI integration, including permission failures.
+                uiStartup.complete(Unit)
                 PluginLog.error("Structural host UI discovery/installation failed", failure)
                 WorkshopApi.ui.toast("听歌记录已启用，但统计页面接入失败，请在插件配置中写入诊断日志",
                     WorkshopApi.Ui.ToastType.Warning)
             },
             report = { status -> PluginState.discoveryStatus = status; PluginLog.info("Host UI discovery: $status") }
         ).also { it.start() }
+        com.jethuit.spw.listenstats.updates.Updates.start()
     }
 
     private fun checkUiPermission() {
@@ -74,23 +79,38 @@ class MainPlugin(
 
     private fun installHostUi(bridge: HostUiBridge): AutoCloseable {
         val handles = HookHandles()
+        val timings = linkedMapOf<String, Long>()
+        fun <T> measure(group: String, action: () -> T): T {
+            val started = System.nanoTime()
+            try { return action() }
+            finally { timings[group] = (System.nanoTime() - started) / 1_000_000 }
+        }
         var complete = bridge.cacheable
         try {
             handles += HostUiRuntime.activate(bridge)
-            handles += StatsHostTransitionHooks.register { method, parameters, callback ->
-                WorkshopApi.hookRegistrar.hookMethod(StatsHostTransitionHooks.TARGET_CLASS, method, parameters, callback)
+            handles += measure("transitions") {
+                StatsHostTransitionHooks.register { method, parameters, callback ->
+                    WorkshopApi.hookRegistrar.hookMethod(StatsHostTransitionHooks.TARGET_CLASS, method, parameters, callback)
+                }
             }
-            handles += StatsNavigationHooks.register { method, parameters, callback ->
-                WorkshopApi.hookRegistrar.hookMethod(bridge.targets.navigation.navigate.className, method, parameters, callback)
+            handles += measure("navigation") {
+                StatsNavigationHooks.register { method, parameters, callback ->
+                    WorkshopApi.hookRegistrar.hookMethod(bridge.targets.navigation.navigate.className, method, parameters, callback)
+                }
             }
-            handles += StatsPageHook.register(bridge) { target, method, caller, parameters, content ->
-                WorkshopApi.hookRegistrar.replaceComposable(target, method, caller, parameters, 50, content)
+            handles += measure("page") {
+                StatsPageHook.register(bridge) { target, method, caller, parameters, content ->
+                    WorkshopApi.hookRegistrar.replaceComposable(target, method, caller, parameters, 50, content)
+                }
             }
             PluginState.registeredHooks = setOf("page", "navigation", "page-transition", "page-isolation")
-            PluginLog.info("Structurally discovered UI registered: ${bridge.targets}")
+            // Full descriptors remain available in explicit diagnostics; keep startup logging compact.
+            PluginLog.info("Core host UI hooks registered")
             try {
-                handles += StatsTitlebarEntry.register { target, method, caller, parameters, content ->
-                    WorkshopApi.hookRegistrar.afterComposable(target, method, caller, parameters, 50, content)
+                handles += measure("titlebar") {
+                    StatsTitlebarEntry.register { target, method, caller, parameters, content ->
+                        WorkshopApi.hookRegistrar.afterComposable(target, method, caller, parameters, 50, content)
+                    }
                 }
                 PluginState.registeredHooks += "titlebar"
             } catch (failure: Throwable) {
@@ -99,11 +119,13 @@ class MainPlugin(
                 PluginLog.error("Optional titlebar entry unavailable", failure)
             }
             try {
-                handles += StatsSidebarEntry.register(addHook = { target, method, caller, parameters, content ->
-                    WorkshopApi.hookRegistrar.afterComposable(target, method, caller, parameters, 25, content)
-                }, replaceHook = { target, method, caller, parameters, content ->
-                    WorkshopApi.hookRegistrar.replaceComposable(target, method, caller, parameters, 50, content)
-                })
+                handles += measure("sidebar") {
+                    StatsSidebarEntry.register(addHook = { target, method, caller, parameters, content ->
+                        WorkshopApi.hookRegistrar.afterComposable(target, method, caller, parameters, 25, content)
+                    }, replaceHook = { target, method, caller, parameters, content ->
+                        WorkshopApi.hookRegistrar.replaceComposable(target, method, caller, parameters, 50, content)
+                    })
+                }
                 PluginState.registeredHooks += "sidebar"
             } catch (failure: Throwable) {
                 if (HookFailurePolicy.noRetry(failure)) throw failure
@@ -114,8 +136,10 @@ class MainPlugin(
             handles += StatsEntryPlacement.installed("sidebar" in PluginState.registeredHooks,
                 "titlebar" in PluginState.registeredHooks)
             try {
-                handles += QueueNotificationHooks.register(checkNotNull(bridge.queueNotifications)) { target, method, parameters, callback ->
-                    WorkshopApi.hookRegistrar.hookMethod(target, method, parameters, callback)
+                handles += measure("queue-notification") {
+                    QueueNotificationHooks.register(checkNotNull(bridge.queueNotifications)) { target, method, parameters, callback ->
+                        WorkshopApi.hookRegistrar.hookMethod(target, method, parameters, callback)
+                    }
                 }
                 PluginState.registeredHooks += "queue-notification"
             } catch (failure: Throwable) {
@@ -126,7 +150,9 @@ class MainPlugin(
             }
         } catch (failure: Throwable) {
             PluginState.registeredHooks = emptySet()
-            throw handles.registrationFailed(failure)
+            throw measure("rollback") { handles.registrationFailed(failure) }
+        } finally {
+            PluginLog.info("Host UI install stages_ms=$timings")
         }
         val registered = PluginState.registeredHooks
         return HostHookInstallation(handles, complete, onClosed = {

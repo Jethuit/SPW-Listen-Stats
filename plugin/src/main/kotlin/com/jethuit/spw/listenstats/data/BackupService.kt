@@ -45,9 +45,9 @@ object BackupService {
     }
 
     /** Tracks external deletion/replacement of files referenced by imported events. */
-    @Synchronized fun visibilityFingerprint(): Long = runCatching {
+    @Synchronized fun visibilityFingerprint(visibility: TrackVisibility.Snapshot = TrackVisibility.Snapshot()): Long = runCatching {
         val bundle = imported()
-        TrackVisibility.fingerprint(bundle.events.map { it.track } + bundle.legacy.tracks.values)
+        visibility.fingerprint(bundle.events.map { it.track } + bundle.legacy.tracks.values)
     }.getOrDefault(0L)
 
     private fun importSignature(): ImportSignature? {
@@ -214,19 +214,19 @@ object BackupService {
         host.copy(error = listOfNotNull(host.error, "备份读取失败，原文件已保留：${failure.message}").joinToString("；"))
     }
 
-    fun mergeWithLive(host: StatsData): StatsData {
+    fun mergeWithLive(host: StatsData, visibility: TrackVisibility.Snapshot = TrackVisibility.Snapshot()): StatsData {
         val bundle = try { imported() } catch (failure: Exception) {
             PluginLog.error("reading imported backup failed", failure)
-            return LiveStore.merge(host).copy(error = listOfNotNull(host.error,
+            return LiveStore.merge(host, trackVisible = visibility::isVisible).copy(error = listOfNotNull(host.error,
                 "备份读取失败，原文件已保留：${failure.message}").joinToString("；"))
         }
-        val visibleLegacyTracks = bundle.legacy.tracks.filterValues(TrackVisibility::isVisible)
+        val visibleLegacyTracks = bundle.legacy.tracks.filterValues(visibility::isVisible)
         val visibleLegacy = bundle.legacy.copy(
             tracks = visibleLegacyTracks,
             counts = bundle.legacy.counts.filterKeys { it in visibleLegacyTracks }
         )
         return BackupCodec.applyLegacy(
-            LiveStore.merge(host, bundle.events, TrackVisibility::isVisible), visibleLegacy)
+            LiveStore.merge(host, bundle.events, visibility::isVisible), visibleLegacy)
     }
 
     private suspend fun report(action: String, failure: Throwable) {

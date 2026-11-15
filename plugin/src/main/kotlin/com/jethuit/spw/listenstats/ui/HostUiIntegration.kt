@@ -46,7 +46,9 @@ class HostUiIntegration(
         val started = System.nanoTime()
         worker.execute {
             try {
+                val sourceStarted = System.nanoTime()
                 val path = source()
+                emit("source_ms=${elapsed(sourceStarted)}")
                 val validation = System.nanoTime()
                 val identity = cache?.identity(path)
                 var bridge: HostUiBridge? = null
@@ -87,15 +89,24 @@ class HostUiIntegration(
 
     private fun enqueueInstall(path: Path, identity: HostTargetCache.Identity?, bridge: HostUiBridge,
                                cached: Boolean, started: Long) {
+        val enqueued = System.nanoTime()
         EventQueue.invokeLater {
+            val dispatched = System.nanoTime()
             synchronized(sessionLock) {
                 if (!current()) { worker.shutdown(); return@invokeLater }
+                val locked = System.nanoTime()
                 try {
                     // A replacement may already be queued before a stop worker posts its cleanup.
                     pendingReleases.toList().forEach { it.releaseDeferred() }
                     if (!current()) { worker.shutdown(); return@invokeLater }
                     check(blockedHandles.isEmpty()) { "Previous host hooks remain unreleased; registration stopped" }
-                    checkInstallAllowed()
+                    val permissionStarted = System.nanoTime()
+                    try { checkInstallAllowed() }
+                    finally {
+                        emit("edt_queue_ms=${(dispatched - enqueued) / 1_000_000}; " +
+                            "session_wait_ms=${(locked - dispatched) / 1_000_000}; " +
+                            "cleanup_ms=${(permissionStarted - locked) / 1_000_000}; permission_ms=${elapsed(permissionStarted)}")
+                    }
                     val installStarted = System.nanoTime()
                     actionBridge = bridge
                     val installed = install(bridge)

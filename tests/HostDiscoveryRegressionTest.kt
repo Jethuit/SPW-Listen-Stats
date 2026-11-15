@@ -214,6 +214,10 @@ private fun checkTargetCache(bridge: HostUiBridge) {
         session.start()
         check(done.await(10, TimeUnit.SECONDS)) { "Timed out $label; $logs" }
         EventQueue.invokeAndWait { session.close() }
+        if (installs.get() > 0) check(logs.any {
+            it.startsWith("edt_queue_ms=") && it.contains("session_wait_ms=") &&
+                it.contains("cleanup_ms=") && it.contains("permission_ms=")
+        }) { "Missing installation wait diagnostics: $logs" }
         println("PASS $label offline scans=${scans.get()} installs=${installs.get()}; $logs")
         return scans.get() to installs.get()
     }
