@@ -19,9 +19,8 @@ object DataFiles {
     }
 
     /** Installation identity scopes host database IDs; never equate tracks just by their title. */
-    @Synchronized fun sourceId(): String {
+    @Synchronized fun sourceId(directory: Path = directory()): String {
         PerformanceProbe.mark("DataFiles.sourceId")
-        val directory = directory()
         val path = directory.resolve("source-id.txt")
         val backup = directory.resolve("source-id.backup.txt")
         fun readId(file: Path) = runCatching { validId(Files.readString(file).trim()) }.getOrNull()

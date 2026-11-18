@@ -23,43 +23,31 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
-import com.jethuit.spw.listenstats.DisplayPreferences
 import com.jethuit.spw.listenstats.ui.StatsText as Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.awt.ComposePanel
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.unit.dp
-import com.jethuit.spw.listenstats.PluginLog
 import com.jethuit.spw.listenstats.Prefs
-import com.jethuit.spw.listenstats.data.BackupService
 import com.jethuit.spw.listenstats.data.ChartType
 import com.jethuit.spw.listenstats.data.Granularity
 import com.jethuit.spw.listenstats.data.RangePreset
 import com.jethuit.spw.listenstats.data.RankingMode
 import com.jethuit.spw.listenstats.data.RankingMetric
-import com.jethuit.spw.listenstats.data.RankedEntry
-import com.jethuit.spw.listenstats.data.RankingIndex
-import com.jethuit.spw.listenstats.data.Rankings
 import com.jethuit.spw.listenstats.data.StatsCalculations
-import com.jethuit.spw.listenstats.data.StatsData
-import com.jethuit.spw.listenstats.data.StatsStore
-import com.jethuit.spw.listenstats.util.formatDay
 import com.moriafly.salt.ui.Card as SaltCard
 import com.moriafly.salt.ui.BasicButton
 import com.moriafly.salt.ui.ButtonColors
@@ -69,168 +57,9 @@ import com.moriafly.salt.ui.SaltTheme
 import com.moriafly.salt.ui.rememberScrollState
 import com.moriafly.salt.ui.saltConfigs
 import com.moriafly.salt.ui.verticalScroll
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.flow.first
-import androidx.compose.runtime.snapshotFlow
-import com.jethuit.spw.listenstats.data.StatsSnapshots
-import com.jethuit.spw.listenstats.data.StatsSnapshotSession
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.awt.BorderLayout
-import java.awt.Color as AwtColor
-import java.awt.Frame
-import java.awt.GraphicsEnvironment
-import java.awt.KeyboardFocusManager
-import java.awt.Rectangle
-import java.awt.Window
-import java.awt.event.KeyEvent
 import java.time.LocalDate
-import javax.swing.JComponent
-import javax.swing.JDialog
-import javax.swing.JPanel
-import javax.swing.KeyStroke
-import javax.swing.SwingUtilities
-import kotlin.math.min
-
-/**
- * The host main window is a plain AWT frame. A borderless JDialog owned by it
- * gives us a real full-window page without depending on the host's obfuscated
- * navigation composables.
- */
-object StatsWindow {
-    @Volatile private var dialog: JDialog? = null
-
-    fun open(): Boolean {
-        if (!SwingUtilities.isEventDispatchThread()) {
-            var opened = false
-            try {
-                SwingUtilities.invokeAndWait { opened = open() }
-            } catch (failure: Throwable) {
-                PluginLog.error("opening stats window on EDT failed", failure)
-            }
-            return opened
-        }
-        dialog?.dispose()
-        val owner = findHostFrame()
-        if (owner == null) {
-            PluginLog.error("host frame not found")
-            return false
-        }
-        val frame = JDialog(owner, "听歌统计", false)
-        frame.isUndecorated = true
-        frame.background = AwtColor(0, 0, 0, 0)
-        frame.setBounds(clampToScreen(owner.bounds))
-        val panel = ComposePanel()
-        val content = JPanel(BorderLayout())
-        content.isOpaque = false
-        content.add(panel, BorderLayout.CENTER)
-        val scrollPane = javax.swing.JScrollPane(
-            content,
-            javax.swing.ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-            javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
-        )
-        scrollPane.border = null
-        scrollPane.isOpaque = false
-        scrollPane.viewport.isOpaque = false
-        scrollPane.verticalScrollBar.unitIncrement = 48
-        var contentHeightPx = frame.height
-        var lastPage: StatsPage? = null
-        fun applyContentSize() {
-            val viewportWidth = scrollPane.viewport.width.coerceAtLeast(1)
-            val viewportHeight = scrollPane.viewport.height.coerceAtLeast(1)
-            content.preferredSize = java.awt.Dimension(
-                viewportWidth,
-                contentHeightPx.coerceAtLeast(viewportHeight)
-            )
-            content.revalidate()
-            scrollPane.revalidate()
-        }
-        panel.setContent {
-            ListenStatsApp(
-                onClose = { frame.dispose() },
-                onScrollTop = { SwingUtilities.invokeLater { scrollPane.verticalScrollBar.value = 0 } },
-                onContentHeight = { page, heightPx ->
-                    contentHeightPx = heightPx
-                    if (lastPage != page) {
-                        lastPage = page
-                        SwingUtilities.invokeLater { scrollPane.verticalScrollBar.value = 0 }
-                    }
-                    SwingUtilities.invokeLater { applyContentSize() }
-                }
-            )
-        }
-        scrollPane.viewport.addComponentListener(object : java.awt.event.ComponentAdapter() {
-            override fun componentResized(e: java.awt.event.ComponentEvent?) {
-                applyContentSize()
-            }
-        })
-        frame.contentPane.layout = BorderLayout()
-        frame.contentPane.add(scrollPane, BorderLayout.CENTER)
-        frame.rootPane.registerKeyboardAction(
-            { frame.dispose() },
-            KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
-            JComponent.WHEN_IN_FOCUSED_WINDOW
-        )
-        frame.addWindowListener(object : java.awt.event.WindowAdapter() {
-            override fun windowClosed(e: java.awt.event.WindowEvent?) {
-                if (dialog === frame) {
-                    dialog = null
-                }
-            }
-        })
-        frame.isVisible = true
-        frame.toFront()
-        panel.requestFocusInWindow()
-        dialog = frame
-        PluginLog.info("stats window opened at ${frame.bounds}; panel=${panel.width}x${panel.height}; insets=${frame.insets}")
-        return true
-    }
-
-    private fun findHostFrame(): Frame? {
-        val active = KeyboardFocusManager.getCurrentKeyboardFocusManager().activeWindow
-        val activeFrame = generateSequence(active) { it.owner }
-            .filterIsInstance<Frame>()
-            .firstOrNull { it.isShowing && it.width > 600 && it.height > 400 }
-        if (activeFrame != null) {
-            PluginLog.info("host frame from focus: ${activeFrame.title} ${activeFrame.bounds}")
-            return activeFrame
-        }
-        val frames = Window.getWindows()
-            .filterIsInstance<Frame>()
-            .filter { it.isShowing && it.width > 600 && it.height > 400 }
-        for (candidate in frames) {
-            PluginLog.info("host frame candidate: ${candidate.title} ${candidate.bounds} active=${candidate.isActive}")
-        }
-        return frames.firstOrNull { it.title.contains("Salt Player") }
-            ?: frames.maxByOrNull { it.width.toLong() * it.height }
-    }
-
-    private fun clampToScreen(bounds: Rectangle): Rectangle {
-        val environment = GraphicsEnvironment.getLocalGraphicsEnvironment()
-        val configuration = environment.screenDevices
-            .map { it.defaultConfiguration.bounds }
-            .firstOrNull { it.intersects(bounds) }
-            ?: environment.defaultScreenDevice.defaultConfiguration.bounds
-        val width = bounds.width.coerceAtMost(configuration.width)
-        val height = bounds.height.coerceAtMost(configuration.height)
-        val x = bounds.x.coerceIn(configuration.x, configuration.x + configuration.width - width)
-        val y = bounds.y.coerceIn(configuration.y, configuration.y + configuration.height - height)
-        return Rectangle(x, y, width, height)
-    }
-
-    fun bounds(): Rectangle? = dialog?.bounds
-
-    fun close() {
-        val target = dialog ?: return
-        val dispose = { target.dispose(); if (dialog === target) dialog = null }
-        if (SwingUtilities.isEventDispatchThread()) dispose()
-        else SwingUtilities.invokeLater {
-            runCatching(dispose).onFailure { PluginLog.error("Closing legacy statistics window failed", it) }
-        }
-    }
-}
 
 private fun savedDate(key: String): LocalDate? = Prefs.getString(key, "")
     .takeIf { it.isNotBlank() }?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
@@ -238,32 +67,17 @@ private fun savedDate(key: String): LocalDate? = Prefs.getString(key, "")
 enum class StatsPage { Overview, Ranking }
 
 @Composable
-fun ListenStatsApp(
-    embedded: Boolean = false,
-    onClose: () -> Unit,
-    onScrollTop: () -> Unit = {},
-    onContentHeight: (StatsPage, Int) -> Unit = { _, _ -> }
-) {
+fun ListenStatsApp() {
     val scrollState = rememberScrollState(0)
     val scope = rememberCoroutineScope()
-    val backupExceptionHandler = remember {
-        CoroutineExceptionHandler { _, failure ->
-            PluginLog.error("backup coroutine uncaught failure", failure)
-        }
-    }
-    val scrollTop: () -> Unit = {
-        if (embedded) {
-            scope.launch { scrollState.scrollTo(0) }
-        } else {
-            onScrollTop()
-        }
-    }
-    val snapshots = remember { StatsSnapshots.current ?: StatsSnapshotSession() }
-    val initial = remember { snapshots.latest }
+    val scrollTop: () -> Unit = { scope.launch { scrollState.scrollTo(0) } }
     var entering by remember { mutableStateOf(true) }
-    var data by remember { mutableStateOf(initial?.data) }
-    var displayPreferences by remember { mutableStateOf(initial?.preferences ?: DisplayPreferences()) }
-    var today by remember { mutableStateOf(LocalDate.now()) }
+    var reloadTick by remember { mutableStateOf(0) }
+    val exiting = StatsHostState.closing
+    val prepared = rememberPageStatistics(reloadTick, canApply = !entering && !exiting)
+    val data = prepared.data
+    val displayPreferences = prepared.preferences
+    val today = prepared.today
     var page by remember {
         mutableStateOf(
             if (System.getProperty("spw.listenstats.startpage") == "ranking") {
@@ -276,7 +90,7 @@ fun ListenStatsApp(
     var chartType by remember { mutableStateOf(ChartType.fromStorage(Prefs.getString("chartType", ChartType.Bar.storage))) }
     var userGranularity by remember { mutableStateOf(Granularity.fromStorage(Prefs.getString("granularity", Granularity.Day.storage))) }
     var rangePreset by remember { mutableStateOf(RangePreset.fromStorage(Prefs.getString("range", RangePreset.Today.storage))) }
-    var selectedDate by remember { mutableStateOf(savedDate("selectedDate") ?: if (rangePreset == RangePreset.Selected) today else null) }
+    var selectedDate by remember { mutableStateOf(savedDate("selectedDate") ?: if (rangePreset == RangePreset.Selected) LocalDate.now() else null) }
     var heatmapYear by remember { mutableStateOf(today.year) }
     var heatmapRolling by remember { mutableStateOf(false) }
     var heatmapWeekly by remember { mutableStateOf(false) }
@@ -286,30 +100,20 @@ fun ListenStatsApp(
     var rankPage by remember { mutableStateOf(1) }
     var rankingMode by remember { mutableStateOf(RankingMode.fromStorage(Prefs.getString("rankingMode", RankingMode.Song.storage))) }
     var rankingMetric by remember { mutableStateOf(RankingMetric.fromStorage(Prefs.getString("rankingMetric", RankingMetric.Count.storage))) }
-    var rankingIndex by remember { mutableStateOf<RankingIndex?>(null) }
-    var rankingIndexKey by remember { mutableStateOf<String?>(null) }
-    var rankingEntries by remember { mutableStateOf<List<RankedEntry>>(emptyList()) }
-    var rankingReadyKey by remember { mutableStateOf<String?>(null) }
     var bottomScrollRequest by remember { mutableStateOf(0) }
-    var reloadTick by remember { mutableStateOf(0) }
     var dateDialogOpen by remember { mutableStateOf(false) }
     var aboutDialogOpen by remember { mutableStateOf(false) }
-    var backupBusy by remember { mutableStateOf(false) }
-    var localExiting by remember { mutableStateOf(false) }
-    val exiting = if (embedded) StatsHostState.closing else localExiting
-    val latestExiting by rememberUpdatedState(exiting)
     val closeTicket = StatsHostState.closeTicket
     val requestExit: () -> Unit = {
         if (aboutDialogOpen) aboutDialogOpen = false
-        else if (embedded) onClose() else localExiting = true
+        else StatsHostState.requestClose()
     }
     val focus = LocalFocusManager.current
-    DisposableEffect(embedded) {
-        val presenter = if (embedded) StatsHostState.attachPresenter() else null
-        onDispose { presenter?.close() }
+    DisposableEffect(Unit) {
+        val presenter = StatsHostState.attachPresenter()
+        onDispose { presenter.close() }
     }
     LaunchedEffect(Unit) { UiPerformanceProbe.mark("window_composed") }
-    SideEffect { if (embedded) StatsHostState.setAnimationsEnabled(displayPreferences.pageAnimations) }
     LaunchedEffect(exiting) {
         if (exiting) {
             entering = true
@@ -319,26 +123,7 @@ fun ListenStatsApp(
         }
     }
 
-    LaunchedEffect(reloadTick) {
-        // The embedded entry is prepared before navigation. Standalone previews may load here.
-        if (initial == null) withContext(Dispatchers.IO) { Prefs.initialize() }
-        while (true) {
-            UiPerformanceProbe.mark("refresh_start", "tick=$reloadTick")
-            val loaded = withContext(Dispatchers.IO) { snapshots.load() }
-            if (data == null) {
-                data = loaded.data
-                displayPreferences = loaded.preferences
-            } else {
-                // Wait for the actual spring completion, including interrupted/reversed entrances.
-                snapshotFlow { !entering && !latestExiting }.first { it }
-                data = loaded.data
-                displayPreferences = loaded.preferences
-            }
-            today = LocalDate.now()
-            UiPerformanceProbe.mark("refresh_applied", "tick=$reloadTick error=${loaded.data.error != null}")
-            delay(displayPreferences.refreshIntervalSeconds * 1_000L)
-        }
-    }
+    SideEffect { StatsHostState.setAnimationsEnabled(displayPreferences.pageAnimations) }
     LaunchedEffect(query, displayPreferences.rankingPageSize) { rankPage = 1 }
     LaunchedEffect(bottomScrollRequest) {
         if (bottomScrollRequest > 0) {
@@ -351,7 +136,7 @@ fun ListenStatsApp(
     }
 
     CompositionLocalProvider(LocalStatsAnimationsEnabled provides displayPreferences.pageAnimations) {
-    StatsTheme(inheritMaterial = embedded && LocalStatsMaterialBridge.current) {
+    StatsTheme(inheritMaterial = LocalStatsMaterialBridge.current) {
         val colors = LocalStatsColors.current
         val font = LocalHostFontFamily.current
         val inheritedText = SaltTheme.textStyles
@@ -363,81 +148,28 @@ fun ListenStatsApp(
         )) {
         val snapshot = data
         val summary = remember(snapshot?.loadedAt, today) { snapshot?.let { StatsCalculations.summary(it, today) } }
-        val rankingBaseKey = "${snapshot?.loadedAt ?: 0L}|${rankingMode.storage}|${rankingMetric.storage}"
-        val rankingKey = "$rankingBaseKey|$query"
-        LaunchedEffect(rankingBaseKey) {
-            rankingIndex = null
-            rankingIndexKey = null
-            rankingReadyKey = null
-            if (snapshot == null) {
-                rankingEntries = emptyList()
-                rankingIndexKey = rankingBaseKey
-                rankingReadyKey = rankingKey
-                return@LaunchedEffect
-            }
-            // Warm the hidden ranking after the overview's actual entrance finishes.
-            // A user selecting ranking can request it immediately instead of waiting
-            // for the old overview animation; no fixed-delay timer or duplicate job.
-            snapshotFlow { !latestExiting && (page == StatsPage.Ranking || !entering) }.first { it }
-            UiPerformanceProbe.mark("ranking_index_start")
-            val source = snapshot
-            val computed = withContext(Dispatchers.Default) {
-                Rankings.index(source, rankingMode, rankingMetric)
-            }
-            rankingIndex = computed
-            rankingIndexKey = rankingBaseKey
-            UiPerformanceProbe.mark("ranking_index_ready")
-        }
-        LaunchedEffect(rankingBaseKey, rankingIndexKey, query) {
-            if (rankingIndexKey != rankingBaseKey) return@LaunchedEffect
-            val index = rankingIndex ?: return@LaunchedEffect
-            rankingReadyKey = null
-            if (query.isNotBlank()) delay(150)
-            UiPerformanceProbe.mark("ranking_filter_start", "queryLength=${query.length}")
-            val computed = withContext(Dispatchers.Default) { index.filter(query) }
-            rankingEntries = computed
-            rankingReadyKey = rankingKey
-            UiPerformanceProbe.mark("ranking_filter_ready", "entries=${computed.size}")
-        }
-        val rankingReady = rankingReadyKey == rankingKey
-        // Keep the last completed result visible while a refresh/search builds the
-        // replacement index. Clearing it here caused a visible blank/loading flash.
-        val displayedRankingEntries = rankingEntries
+        val ranking = rememberPageRanking(snapshot, rankingMode, rankingMetric, query,
+            mayPrepare = !exiting && (page == StatsPage.Ranking || !entering))
+        val displayedRankingEntries = ranking.entries
         val rankCount = displayedRankingEntries.size
         val totalPages = rankingTotalPages(rankCount, displayPreferences.rankingPageSize)
         val safePage = rankingSafePage(rankCount, rankPage, displayPreferences.rankingPageSize)
         LaunchedEffect(totalPages) {
             if (rankPage > totalPages) rankPage = totalPages
         }
-        StatsPageEnter(exiting, exitMotion = if (embedded) StatsHostState.exitMotion else StatsExitMotion.Return,
+        StatsPageEnter(exiting, exitMotion = StatsHostState.exitMotion,
             onEntered = { entering = false; UiPerformanceProbe.mark("window_entered") }, onExited = {
-            if (embedded) StatsHostState.finishClose(closeTicket) else onClose()
+            StatsHostState.finishClose(closeTicket)
         }) {
         Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {
         StatsPageFrame(requestExit, actions = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-            if (snapshot != null) {
-            BackupMenu(
-                onImport = {
-                    if (!backupBusy) scope.launch(backupExceptionHandler) {
-                        backupBusy = true
-                        try {
-                            if (BackupService.importBackup()) {
-                                rankPage = 1
-                                scrollTop()
-                                reloadTick++
-                            }
-                        } finally { backupBusy = false }
-                    }
-                },
-                onExport = {
-                    if (!backupBusy) scope.launch(backupExceptionHandler) {
-                        backupBusy = true
-                        try { BackupService.export(snapshot) }
-                        finally { backupBusy = false }
-                    }
-                }
-            )
+            if (snapshot != null && !snapshot.libraryAccessDenied) {
+            StatisticsBackupMenu(snapshot) {
+                rankPage = 1
+                scrollTop()
+                reloadTick++
+            }
             }
             SettingsButton(onClick = {
                 dateDialogOpen = false
@@ -446,9 +178,8 @@ fun ListenStatsApp(
             })
             AboutButton(onClick = { dateDialogOpen = false; aboutDialogOpen = true })
             }
-        }) {
+        }) { titlePadding ->
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val density = LocalDensity.current
             val pageWidth = when {
                 maxWidth > 1192.dp -> 1080.dp
                 maxWidth > 900.dp -> maxWidth - 112.dp
@@ -456,22 +187,14 @@ fun ListenStatsApp(
                 else -> (maxWidth - 36.dp).coerceAtLeast(280.dp)
             }
             Box(
-                Modifier
-                    .then(
-                        if (embedded) Modifier.fillMaxSize().verticalScroll(scrollState)
-                        else Modifier.fillMaxWidth()
-                    ),
+                Modifier.fillMaxSize().verticalScroll(scrollState),
                 contentAlignment = Alignment.TopCenter
             ) {
                         Column(
                             Modifier
                                 .width(pageWidth)
                                 .wrapContentHeight(unbounded = true)
-                                .onSizeChanged { size ->
-                                    // Swing dimensions are logical pixels; Compose size is device pixels.
-                                    onContentHeight(page, (size.height / density.density).toInt() + 56)
-                                }
-                                .padding(bottom = if (embedded) 96.dp else 24.dp)
+                                .padding(top = titlePadding.calculateTopPadding(), bottom = 96.dp)
                         ) {
                             Box(Modifier.height(12.dp))
                             PageNav(page) { newPage ->
@@ -483,9 +206,15 @@ fun ListenStatsApp(
                             }
                             StatsPageBody(page) { shownPage ->
                             Column(Modifier.fillMaxWidth()) {
-                            if (snapshot == null || summary == null) {
+                            if (snapshot?.libraryAccessDenied == true) {
+                                ErrorBanner(checkNotNull(snapshot.error))
+                            } else if (snapshot == null || summary == null) {
                                 StatsPlaceholder(shownPage)
                             } else {
+                            snapshot.storageWarning?.let { warning ->
+                                ErrorBanner(warning)
+                                Box(Modifier.height(18.dp))
+                            }
                             if (snapshot.error != null) {
                                 ErrorBanner(snapshot.error)
                                 Box(Modifier.height(18.dp))
@@ -577,7 +306,7 @@ fun ListenStatsApp(
                                         userGranularity = it
                                         Prefs.putStringAsync("granularity", it.storage)
                                     },
-                                    scrollState = if (embedded) scrollState else null,
+                                    scrollState = scrollState,
                                     displayPreferences = displayPreferences
                                 )
                                 StatsPage.Ranking -> RankingPage(
@@ -602,7 +331,7 @@ fun ListenStatsApp(
                                     onQueryChange = { query = it },
                                     page = safePage,
                                     pageSize = displayPreferences.rankingPageSize,
-                                    loading = !rankingReady && rankingEntries.isEmpty(),
+                                    loading = !ranking.ready && ranking.entries.isEmpty(),
                                     latinDurationUnits = displayPreferences.detailLatinDurationUnits,
                                     onPageChange = {
                                         val wasAtBottom = scrollState.maxValue > 0 &&

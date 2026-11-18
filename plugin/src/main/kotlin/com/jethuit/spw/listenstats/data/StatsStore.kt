@@ -14,7 +14,7 @@ object StatsStore {
         val host: StatsData,
         val backupRevision: Long,
         val liveRevision: Long,
-        val visibilityFingerprint: Long,
+        val visibility: TrackVisibility.Snapshot,
         val data: StatsData
     )
     private val cacheLock = Any()
@@ -28,13 +28,16 @@ object StatsStore {
 
     fun load(): StatsData = PerformanceProbe.measure("StatsStore.load") { loadInternal() }
 
+    fun hasLibraryAccess(): Boolean = runCatching {
+        WorkshopApi.manager.isPermissionGranted(PluginPermission.LIBRARY_READ)
+    }.getOrDefault(false)
+
+    fun accessDenied(): StatsData = StatsData.empty(error = "请先授权曲库读取权限").copy(libraryAccessDenied = true)
+
     private fun loadInternal(): StatsData {
-        val allowed = runCatching {
-            WorkshopApi.manager.isPermissionGranted(PluginPermission.LIBRARY_READ)
-        }.getOrDefault(false)
-        if (!allowed) {
+        if (!hasLibraryAccess()) {
             synchronized(cacheLock) { mergeCache = null }
-            return StatsData.empty(error = "请先授权曲库读取权限")
+            return accessDenied()
         }
         val path = databasePath?.takeIf { Files.isRegularFile(it) }
             ?: resolveDatabasePath(PluginState.pluginPath)
@@ -47,32 +50,23 @@ object StatsStore {
         val backupRevision = BackupService.revision()
         val liveRevision = LiveStore.revision()
         val visibility = TrackVisibility.Snapshot()
-        val visibilityFingerprint = visibilityFingerprint(host, visibility)
-        synchronized(cacheLock) {
-            mergeCache?.takeIf {
-                it.host === host && it.backupRevision == backupRevision && it.liveRevision == liveRevision &&
-                    it.visibilityFingerprint == visibilityFingerprint
-            }?.let { return it.data }
+        val cached = synchronized(cacheLock) { mergeCache }
+        if (cached != null && cached.host === host && cached.backupRevision == backupRevision &&
+            cached.liveRevision == liveRevision && visibility.matches(cached.visibility)) {
+            return cached.data
         }
         return try {
             val merged = BackupService.mergeWithLive(host, visibility)
-            val result = LiveStore.storageError()?.let { merged.copy(error = it) } ?: merged
+            val warning = LiveStore.storageError()?.let { "$it。可从更多操作导出当前统计。" }
+            val result = merged.copy(storageWarning = warning, importedRevision = backupRevision)
             synchronized(cacheLock) {
-                mergeCache = MergeCache(host, BackupService.revision(), LiveStore.revision(),
-                    visibilityFingerprint(host, visibility), result)
+                mergeCache = if (result.error == null) MergeCache(host, backupRevision, liveRevision, visibility, result) else null
             }
             result
         } catch (failure: Exception) {
             PluginLog.error("loading statistics failed", failure)
             host.copy(error = "统计数据读取失败：${failure.message}")
         }
-    }
-
-    private fun visibilityFingerprint(host: StatsData, visibility: TrackVisibility.Snapshot): Long {
-        val source = DataFiles.sourceId()
-        val live = LiveStore.snapshot().map { it.event(source).track }
-        return visibility.fingerprint(host.tracks.values + live) * 31 +
-            BackupService.visibilityFingerprint(visibility)
     }
 
     fun diagnosticPath(): String = databasePath?.toString() ?: "unresolved"

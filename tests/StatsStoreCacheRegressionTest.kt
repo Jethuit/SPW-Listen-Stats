@@ -75,7 +75,8 @@ fun main(args: Array<String>) {
         "track visibility changes should invalidate the merged snapshot"
     }
 
-    val importedTrack = TrackMeta("imported-track", "导入歌曲", "歌手", "专辑", "", 10_000)
+    val importedMedia = Files.createTempFile(root, "imported-track", ".m4a")
+    val importedTrack = TrackMeta("imported-track", "导入歌曲", "歌手", "专辑", "", 10_000, importedMedia.toString())
     val importedFile = com.jethuit.spw.listenstats.data.DataFiles.directory().resolve("imported.json")
     Files.createDirectories(importedFile.parent)
     Files.writeString(importedFile, BackupCodec.encode(BackupBundle(listOf(
@@ -87,6 +88,11 @@ fun main(args: Array<String>) {
         "imported backup changes should invalidate the merged snapshot"
     }
 
+    Files.delete(importedMedia)
+    check(StatsStore.load().events.none { it.track.id == importedTrack.id })
+    Files.createFile(importedMedia)
+    check(StatsStore.load().events.any { it.track.id == importedTrack.id })
+
     DriverManager.getConnection("jdbc:sqlite:${database.toAbsolutePath()}").use { connection ->
         exec(connection, "INSERT INTO Listen VALUES ('host-row-2', 'host-track', ${start + 60_000}, 7000)")
     }
@@ -95,5 +101,63 @@ fun main(args: Array<String>) {
         "host database changes should invalidate the merged snapshot"
     }
 
+    // Mutate the live input after aggregation, before the result is published to the cache.
+    val concurrent = LiveStore.snapshot().single().copy(id = "concurrent", path = "",
+        startTimeMs = start + 100_000, spans = mutableListOf(ListeningSpan(start + 100_000, 6000)))
+    var inserted = false
+    StatsStore.initialize(pluginPath.toString())
+    com.jethuit.spw.listenstats.data.PerformanceProbe.sink = { stage, _ ->
+        if (stage == "LiveStore.merge" && !inserted) {
+            LiveStore.upsert(concurrent)
+            inserted = true
+        }
+    }
+    try {
+        val prior = StatsStore.load()
+        check(inserted && prior.events.none { it.id == "live:concurrent" })
+        check(StatsStore.load().events.any { it.id == "live:concurrent" })
+    } finally { com.jethuit.spw.listenstats.data.PerformanceProbe.sink = null }
+
+    // Hold the writer during its first save. Later requests must accept updates and persist the newest state.
+    val writing = java.util.concurrent.CountDownLatch(1)
+    val release = java.util.concurrent.CountDownLatch(1)
+    com.jethuit.spw.listenstats.data.PerformanceProbe.counterSink = { stage ->
+        if (stage == "DataFiles.sourceId" && Thread.currentThread().name == "ListenStats-Storage") {
+            writing.countDown()
+            check(release.await(5, java.util.concurrent.TimeUnit.SECONDS))
+        }
+    }
+    try {
+        LiveStore.requestSave()
+        check(writing.await(5, java.util.concurrent.TimeUnit.SECONDS))
+        LiveStore.upsert(concurrent.copy(title = "intermediate"))
+        LiveStore.requestSave()
+        LiveStore.upsert(concurrent.copy(title = "final"))
+        LiveStore.requestSave()
+    } finally {
+        release.countDown()
+        com.jethuit.spw.listenstats.data.PerformanceProbe.counterSink = null
+    }
+    LiveStore.load()
+    check(LiveStore.snapshot().single { it.id == concurrent.id }.title == "final")
+    // Make the save target a directory to force a real atomic-write failure on synthetic data.
+    val target = com.jethuit.spw.listenstats.data.DataFiles.directory().resolve("live-sessions.json")
+    val session = com.jethuit.spw.listenstats.data.StatsSnapshotSession(read = StatsStore::load,
+        preferences = { com.jethuit.spw.listenstats.DisplayPreferences() })
+    kotlinx.coroutines.runBlocking {
+        session.load()
+        Files.delete(target)
+        Files.createDirectory(target)
+        LiveStore.upsert(concurrent.copy(id = "not-yet-saved"))
+        LiveStore.save()
+        val latest = session.load().data
+        check(latest.error == null && latest.storageWarning != null)
+        val output = root.resolve("memory-backup.json")
+        com.jethuit.spw.listenstats.data.BackupService.exportFile(output, latest)
+        check(BackupCodec.read(output).events.any { it.id == "live:not-yet-saved" })
+        Files.delete(target)
+        LiveStore.save()
+        check(session.load().data.storageWarning == null)
+    }
     println("PASS merged snapshot reuses unchanged inputs and invalidates on live, backup, and host changes")
 }

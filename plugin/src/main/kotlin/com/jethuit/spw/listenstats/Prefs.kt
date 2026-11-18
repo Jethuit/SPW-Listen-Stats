@@ -17,6 +17,7 @@ data class DisplayPreferences(
 
 @OptIn(UnstableSpwWorkshopApi::class)
 object Prefs {
+    private var saveFailureReported = false
     private var helper: ConfigHelper? = null
     private val writer = java.util.concurrent.Executors.newSingleThreadExecutor { task ->
         Thread(task, "ListenStats-Preferences").apply { isDaemon = true }
@@ -29,6 +30,7 @@ object Prefs {
 
     @Synchronized
     fun initialize() {
+        saveFailureReported = false
         helper = try {
             WorkshopApi.manager.createConfigManager().getConfig("config.json").also { it.reload() }
         } catch (failure: Throwable) {
@@ -106,18 +108,22 @@ object Prefs {
 
     @Synchronized
     fun putString(key: String, value: String) {
-        try {
-            val config = helper ?: return
-            // Merge our UI selection into the latest settings rather than writing
-            // an older snapshot over the user's latest settings.
-            if (!config.reload()) {
-                PluginLog.error("reloading preferences before saving $key failed")
-                return
-            }
+        val saved = try {
+            val config = checkNotNull(helper) { "配置尚未就绪" }
+            check(config.reload()) { "配置重新读取失败" }
             config.set(key, value)
-            config.save()
-        } catch (failure: Throwable) {
+            check(config.save()) { "宿主未保存配置" }
+            true
+        } catch (failure: Exception) {
             PluginLog.error("saving preference $key failed", failure)
+            false
         }
+        if (!saved && !saveFailureReported) {
+            javax.swing.SwingUtilities.invokeLater {
+                runCatching { WorkshopApi.ui.toast("偏好设置保存失败，本次选择可能无法在下次打开时恢复",
+                    WorkshopApi.Ui.ToastType.Warning) }
+            }
+        }
+        saveFailureReported = !saved
     }
 }

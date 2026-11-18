@@ -29,12 +29,7 @@ object HostDatabase {
         var rowIdSupported: Boolean,
         val rows: LinkedHashMap<Long, ListenEntry>,
         val rawRows: LinkedHashMap<Long, RawListen>,
-        var rawRowCount: Long,
         var maxRowId: Long,
-        var maxStartTimeMs: Long?,
-        var rawDurationSum: Long,
-        var rawStartTimeSum: Long,
-        var rawTextLengthSum: Long,
         var tracks: LinkedHashMap<String, TrackMeta>,
         var dataVersion: Long,
         var builtZone: ZoneId? = null,
@@ -45,12 +40,7 @@ object HostDatabase {
     private data class RowBatch(
         val rows: List<Pair<Long, ListenEntry>>,
         val rawRows: LinkedHashMap<Long, RawListen>,
-        val rawRowCount: Long,
-        val maxRowId: Long,
-        val maxStartTimeMs: Long?,
-        val durationSum: Long,
-        val startTimeSum: Long,
-        val textLengthSum: Long
+        val maxRowId: Long
     )
 
     private data class RawListen(
@@ -127,12 +117,7 @@ object HostDatabase {
                 rowIdSupported = supportsRowId(connection),
                 rows = LinkedHashMap(),
                 rawRows = LinkedHashMap(),
-                rawRowCount = 0,
                 maxRowId = 0,
-                maxStartTimeMs = null,
-                rawDurationSum = 0,
-                rawStartTimeSum = 0,
-                rawTextLengthSum = 0,
                 tracks = LinkedHashMap(),
                 dataVersion = 0
             )
@@ -174,62 +159,19 @@ object HostDatabase {
             return
         }
 
-        val summary = listenSummary(state.connection)
-        val timeOrderIntact = state.maxStartTimeMs == null ||
-            summary.maxStartTimeMs == null || summary.maxStartTimeMs >= state.maxStartTimeMs!!
-        val canAppend = timeOrderIntact &&
-            summary.rawRowCount >= state.rawRowCount && summary.maxRowId >= state.maxRowId
-
-        if (canAppend) {
-            val batch = if (summary.maxRowId > state.maxRowId) {
-                readRows(state.connection, rowIdSupported = true, afterRowId = state.maxRowId)
-            } else {
-                emptyBatch()
-            }
-            val tailFloor = (state.maxRowId - RECENT_ROW_WINDOW).coerceAtLeast(0L)
-            val tail = if (state.maxRowId > 0L) {
-                readRows(state.connection, rowIdSupported = true, afterRowId = null,
-                    minRowIdExclusive = tailFloor, maxRowIdInclusive = state.maxRowId)
-            } else emptyBatch()
-            val oldTail = state.rawRows.filterKeys { it > tailFloor && it <= state.maxRowId }
-            val expected = summary.rawRowCount - state.rawRowCount
-            val expectedCount = state.rawRowCount - oldTail.size + tail.rawRowCount + batch.rawRowCount
-            val expectedDuration = state.rawDurationSum - oldTail.values.sumOf { it.durationMs } +
-                tail.durationSum + batch.durationSum
-            val expectedStart = state.rawStartTimeSum - oldTail.values.sumOf { it.startTimeMs } +
-                tail.startTimeSum + batch.startTimeSum
-            val expectedText = state.rawTextLengthSum - oldTail.values.sumOf { rawTextLength(it) } +
-                tail.textLengthSum + batch.textLengthSum
-            val tailKeysIntact = oldTail.keys == tail.rawRows.keys
-            val cursorConsistent = batch.rawRowCount == expected &&
-                (batch.rawRowCount == 0L || batch.maxRowId == summary.maxRowId) &&
-                expectedCount == summary.rawRowCount &&
-                expectedDuration == summary.durationSum &&
-                expectedStart == summary.startTimeSum &&
-                expectedText == summary.textLengthSum && tailKeysIntact
-            if (!cursorConsistent) {
-                fullReload(state)
-            } else {
-                tail.rawRows.forEach { (rowId, raw) ->
-                    state.rawRows[rowId] = raw
-                    state.rows.remove(rowId)
-                    validEntry(rowId, raw)?.let { state.rows[rowId] = it }
-                }
-                batch.rows.forEach { (rowId, entry) -> state.rows[rowId] = entry }
-                batch.rawRows.forEach { (rowId, raw) -> state.rawRows[rowId] = raw }
-                state.rawRowCount = summary.rawRowCount
-                state.maxRowId = summary.maxRowId
-                state.maxStartTimeMs = summary.maxStartTimeMs
-                state.rawDurationSum = summary.durationSum
-                state.rawStartTimeSum = summary.startTimeSum
-                state.rawTextLengthSum = summary.textLengthSum
-                state.tracks = readTracks(state.connection, state.rows.values.asSequence().map { it.trackId }.toSet())
-                invalidateBuiltData(state)
-            }
-        } else {
-            // A changed database with no provable append may contain edits, deletes,
-            // a rebuild, or a clock rollback. Re-read it once to restore a safe cursor.
+        val tailFloor = (state.maxRowId - RECENT_ROW_WINDOW).coerceAtLeast(0L)
+        if (!olderRowsMatch(state, tailFloor)) {
             fullReload(state)
+        } else {
+            // Replace the mutable tail and append new rows in one query.
+            val tail = readRows(state.connection, rowIdSupported = true, afterRowId = tailFloor)
+            state.rawRows.keys.removeIf { it > tailFloor }
+            state.rows.keys.removeIf { it > tailFloor }
+            state.rawRows.putAll(tail.rawRows)
+            tail.rows.forEach { (rowId, entry) -> state.rows[rowId] = entry }
+            state.maxRowId = state.rawRows.keys.maxOrNull() ?: 0
+            state.tracks = readTracks(state.connection, state.rows.values.asSequence().map { it.trackId }.toSet())
+            invalidateBuiltData(state)
         }
         val versionAfterRead = dataVersion(state.connection)
         state.dataVersion = if (versionAfterRead == versionBeforeRead) versionAfterRead else versionBeforeRead
@@ -249,12 +191,7 @@ object HostDatabase {
         state.rawRows.clear()
         state.rawRows.putAll(batch.rawRows)
         batch.rows.forEach { (rowId, entry) -> state.rows[rowId] = entry }
-        state.rawRowCount = batch.rawRowCount
         state.maxRowId = batch.maxRowId
-        state.maxStartTimeMs = batch.maxStartTimeMs
-        state.rawDurationSum = batch.durationSum
-        state.rawStartTimeSum = batch.startTimeSum
-        state.rawTextLengthSum = batch.textLengthSum
         state.tracks = readTracks(state.connection, state.rows.values.asSequence().map { it.trackId }.toSet())
         invalidateBuiltData(state)
     }
@@ -318,28 +255,19 @@ object HostDatabase {
     private fun readRows(
         connection: Connection,
         rowIdSupported: Boolean,
-        afterRowId: Long?,
-        minRowIdExclusive: Long? = null,
-        maxRowIdInclusive: Long? = null
+        afterRowId: Long?
     ): RowBatch = PerformanceProbe.measure("HostDatabase.readRows") {
-        readRowsInternal(connection, rowIdSupported, afterRowId, minRowIdExclusive, maxRowIdInclusive)
+        readRowsInternal(connection, rowIdSupported, afterRowId)
     }
 
     private fun readRowsInternal(
         connection: Connection,
         rowIdSupported: Boolean,
-        afterRowId: Long?,
-        minRowIdExclusive: Long? = null,
-        maxRowIdInclusive: Long? = null
+        afterRowId: Long?
     ): RowBatch {
         val select = if (rowIdSupported) {
-            val predicates = buildList {
-                afterRowId?.let { add("rowid > ?") }
-                minRowIdExclusive?.let { add("rowid > ?") }
-                maxRowIdInclusive?.let { add("rowid <= ?") }
-            }
             "SELECT rowid AS __rowid, id, trackId, startTime, duration FROM Listen" +
-                predicates.takeIf { it.isNotEmpty() }?.joinToString(" AND ", prefix = " WHERE ").orEmpty() +
+                (if (afterRowId != null) " WHERE rowid > ?" else "") +
                 " ORDER BY rowid"
         } else {
             "SELECT id, trackId, startTime, duration FROM Listen" +
@@ -348,33 +276,20 @@ object HostDatabase {
         }
         val rows = ArrayList<Pair<Long, ListenEntry>>()
         val rawRows = LinkedHashMap<Long, RawListen>()
-        var rawCount = 0L
         var maxRowId = 0L
-        var maxStart: Long? = null
-        var durationSum = 0L
-        var startTimeSum = 0L
-        var textLengthSum = 0L
         connection.prepareStatement(select).use { statement ->
-            var parameter = 1
-            afterRowId?.let { statement.setLong(parameter++, it) }
-            minRowIdExclusive?.let { statement.setLong(parameter++, it) }
-            if (maxRowIdInclusive != null) statement.setLong(parameter, maxRowIdInclusive)
+            afterRowId?.let { statement.setLong(1, it) }
             statement.executeQuery().use { result ->
                 var syntheticRowId = 0L
                 while (result.next()) {
-                    rawCount++
                     val rowId = if (rowIdSupported) result.getLong("__rowid") else ++syntheticRowId
                     maxRowId = maxOf(maxRowId, rowId)
                     val start = result.getLong("startTime")
-                    maxStart = maxStart?.let { maxOf(it, start) } ?: start
                     val rawDuration = result.getLong("duration")
-                    durationSum += rawDuration
-                    startTimeSum += start
                     val id = result.getString("id")
                     val trackId = result.getString("trackId")
                     val raw = RawListen(id, trackId, start, rawDuration)
                     rawRows[rowId] = raw
-                    textLengthSum += rawTextLength(raw)
                     val validTrackId = trackId ?: continue
                     val duration = rawDuration
                     if (duration <= 0) continue
@@ -387,26 +302,9 @@ object HostDatabase {
                 }
             }
         }
-        return RowBatch(rows, rawRows, rawCount, maxRowId, maxStart, durationSum, startTimeSum, textLengthSum)
+        return RowBatch(rows, rawRows, maxRowId)
     }
 
-    private fun emptyBatch() = RowBatch(
-        rows = emptyList(), rawRows = LinkedHashMap(), rawRowCount = 0,
-        maxRowId = 0, maxStartTimeMs = null, durationSum = 0,
-        startTimeSum = 0, textLengthSum = 0
-    )
-
-    private fun rawTextLength(raw: RawListen): Long =
-        (raw.id?.length?.toLong() ?: 0L) + (raw.trackId?.length?.toLong() ?: 0L)
-
-    private fun validEntry(rowId: Long, raw: RawListen): ListenEntry? {
-        val trackId = raw.trackId ?: return null
-        if (raw.durationMs <= 0) return null
-        return ListenEntry(raw.id ?: "$trackId-${raw.startTimeMs}", trackId,
-            raw.startTimeMs, raw.durationMs)
-    }
-
-    /** Only history-referenced tracks can affect the statistics snapshot. */
     private fun readTracks(connection: Connection, ids: Set<String>): LinkedHashMap<String, TrackMeta> =
         PerformanceProbe.measure("HostDatabase.readTracks") { readTracksInternal(connection, ids) }
 
@@ -459,31 +357,20 @@ object HostDatabase {
         return null
     }
 
-    private data class ListenSummary(
-        val rawRowCount: Long,
-        val maxRowId: Long,
-        val maxStartTimeMs: Long?,
-        val durationSum: Long,
-        val startTimeSum: Long,
-        val textLengthSum: Long
-    )
-
-    private fun listenSummary(connection: Connection): ListenSummary {
-        connection.createStatement().use { statement ->
-            statement.executeQuery(
-                "SELECT COUNT(*) AS rowCount, COALESCE(MAX(rowid), 0) AS maxRowId, MAX(startTime) AS maxStart, " +
-                    "COALESCE(SUM(duration), 0) AS durationSum, COALESCE(SUM(startTime), 0) AS startTimeSum, " +
-                    "COALESCE(SUM(COALESCE(LENGTH(id), 0) + COALESCE(LENGTH(trackId), 0)), 0) AS textLengthSum FROM Listen"
-            ).use { rows ->
-                check(rows.next()) { "Listen summary returned no row" }
-                return ListenSummary(
-                    rawRowCount = rows.getLong("rowCount"),
-                    maxRowId = rows.getLong("maxRowId"),
-                    maxStartTimeMs = rows.getLong("maxStart").let { if (rows.wasNull()) null else it },
-                    durationSum = rows.getLong("durationSum"),
-                    startTimeSum = rows.getLong("startTimeSum"),
-                    textLengthSum = rows.getLong("textLengthSum")
-                )
+    /** data_version covers the entire database. Verify every cached prefix row before reusing it. */
+    private fun olderRowsMatch(state: Cache, through: Long): Boolean {
+        val sql = "SELECT rowid, id, trackId, startTime, duration FROM Listen WHERE rowid <= ?"
+        state.connection.prepareStatement(sql).use { statement ->
+            statement.setLong(1, through)
+            statement.executeQuery().use { rows ->
+                var seen = 0
+                while (rows.next()) {
+                    val cached = state.rawRows[rows.getLong(1)] ?: return false
+                    if (cached.id != rows.getString(2) || cached.trackId != rows.getString(3) ||
+                        cached.startTimeMs != rows.getLong(4) || cached.durationMs != rows.getLong(5)) return false
+                    seen++
+                }
+                return seen == state.rawRows.keys.count { it <= through }
             }
         }
     }

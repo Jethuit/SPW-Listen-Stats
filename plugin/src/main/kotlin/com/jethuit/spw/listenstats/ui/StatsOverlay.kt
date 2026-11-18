@@ -14,9 +14,6 @@ fun StatsOverlay() {
     CaptureHostNavigator()
     if (!StatsHostState.visible) return
     Box(Modifier.fillMaxSize()) {
-        ListenStatsApp(
-            embedded = true,
-            onClose = { StatsHostState.requestClose() }
-        )
+        ListenStatsApp()
     }
 }

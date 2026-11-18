@@ -96,11 +96,28 @@ fun main(args: Array<String>) {
         arrayOf(WorkshopApi.Manager::class.java)) { _, method, _ ->
         check(method.name == "createConfigManager"); configManager
     } as WorkshopApi.Manager
+    val warnings = java.util.concurrent.atomic.AtomicInteger()
+    val ui = Proxy.newProxyInstance(WorkshopApi.Ui::class.java.classLoader,
+        arrayOf(WorkshopApi.Ui::class.java)) { _, method, _ ->
+        check(method.name == "toast"); warnings.incrementAndGet(); null
+    }
     WorkshopApi.instance = Proxy.newProxyInstance(WorkshopApi::class.java.classLoader,
         arrayOf(WorkshopApi::class.java)) { _, method, _ ->
-        check(method.name == "getManager"); manager
+        when (method.name) { "getManager" -> manager; "getUi" -> ui; else -> error(method.name) }
     } as WorkshopApi
     Prefs.initialize()
+    helper.saveSucceeds = false
+    Prefs.putString("range", "30")
+    Prefs.putString("chartType", "line")
+    javax.swing.SwingUtilities.invokeAndWait { }
+    check(warnings.get() == 1)
+    helper.saveSucceeds = true
+    Prefs.putString("range", "today")
+    helper.saveSucceeds = false
+    Prefs.putString("range", "30")
+    javax.swing.SwingUtilities.invokeAndWait { }
+    check(warnings.get() == 2 && saved["range"] == "today")
+    helper.saveSucceeds = true
     val initial = Prefs.displayPreferences()
     check(!initial.overviewLatinDurationUnits && !initial.detailLatinDurationUnits)
     for (overview in listOf(false, true)) for (detail in listOf(false, true)) {

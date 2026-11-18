@@ -54,7 +54,7 @@ internal object HostSongPlayback {
 
     private suspend fun perform(id: String, stillCurrent: () -> Boolean, queueNext: Boolean) {
         val action = if (queueNext) "添加到队列" else "播放歌曲"
-        val loader = WorkshopApi.instance.javaClass.classLoader
+        val targets = HostUiRuntime.current?.songPlayback ?: SongPlaybackTargets(WorkshopApi.instance.javaClass.classLoader)
         withTimeout(10_000) {
             SongPlaybackRequest(
                 lookup = { trackId ->
@@ -68,7 +68,7 @@ internal object HostSongPlayback {
                 },
                 prepare = { song ->
                     try {
-                        if (queueNext) prepareQueueNext(loader, song) else prepare(loader, song)
+                        if (queueNext) targets.prepareQueueNext(song) else targets.prepare(song)
                     } catch (failure: ReflectiveOperationException) {
                         throw SongPlaybackUnavailable("当前播放器的${if (queueNext) "队列" else "播放"}接口不可用，请更新插件后重试", failure)
                     }
@@ -90,10 +90,13 @@ internal object HostSongPlayback {
         }
     }
 
-    private class PreparedSong(val itemType: Class<*>, val controllerType: Class<*>,
-                               val controller: () -> Any, val item: () -> Any)
+}
 
-    private fun prepareSong(loader: ClassLoader, song: MediaItem): PreparedSong {
+internal class SongPlaybackTargets(private val loader: ClassLoader) {
+    private class PreparedSong(val itemType: Class<*>, val controllerType: Class<*>,
+                               val controller: () -> Any, val item: (MediaItem) -> Any)
+
+    private val prepared: PreparedSong by lazy {
         val itemType = Class.forName("com.xuncorp.pisces.PiscesMediaItem", false, loader)
         val controllerType = Class.forName("com.xuncorp.voxzen.service.PlaybackController", false, loader)
         val properties = listOf("id", "title", "artist", "album", "albumArtist", "path")
@@ -106,13 +109,12 @@ internal object HostSongPlayback {
         check(Modifier.isStatic(instance.modifiers) && instance.type == controllerType) {
             "当前播放器的歌曲接口不受支持"
         }
-        return PreparedSong(itemType, controllerType, { instance.get(null) }, {
+        PreparedSong(itemType, controllerType, { instance.get(null) }, { song ->
             constructor.newInstance(song.id, song.title, song.artist, song.album, song.albumArtist, song.path)
         })
     }
 
-    internal fun prepare(loader: ClassLoader, song: MediaItem): () -> Unit {
-        val prepared = prepareSong(loader, song)
+    private val playSong: (MediaItem) -> Unit by lazy {
         val itemType = prepared.itemType
         val controllerType = prepared.controllerType
         val addToPlay = controllerType.getMethod("addToPlay", itemType)
@@ -123,9 +125,9 @@ internal object HostSongPlayback {
             }) {
             "当前播放器的播放接口不受支持"
         }
-        return {
+        val submit: (MediaItem) -> Unit = { song ->
             try {
-                val item = prepared.item()
+                val item = prepared.item(song)
                 val controller = prepared.controller()
                 // Match the native single-song action in SPW 1.19.3, including engine preparation.
                 // addToPlay alone updates the item/queue but does not start audio playback.
@@ -136,11 +138,10 @@ internal object HostSongPlayback {
                 throw failure.targetException
             }
         }
+        submit
     }
 
-    internal fun prepareQueueNext(loader: ClassLoader, song: MediaItem,
-                                  track: (Any) -> AutoCloseable = QueueNotificationHooks::track): () -> Unit {
-        val prepared = prepareSong(loader, song)
+    private val enqueueSong: (MediaItem, (Any) -> AutoCloseable) -> Unit by lazy {
         val add = prepared.controllerType.methods.singleOrNull { method ->
             val types = method.parameterTypes
             method.name == "addToPlayNext" && !Modifier.isStatic(method.modifiers) &&
@@ -150,11 +151,11 @@ internal object HostSongPlayback {
         val position = add.parameterTypes[0].enumConstants.singleOrNull {
             (it as? Enum<*>)?.name == "AfterLastAdded"
         } ?: throw SongPlaybackUnavailable("当前播放器不支持按顺序插播，无法添加歌曲")
-        return {
+        val submit: (MediaItem, (Any) -> AutoCloseable) -> Unit = { song, track ->
             var tracked: AutoCloseable? = null
             try {
                 val items = java.lang.reflect.Array.newInstance(prepared.itemType, 1)
-                val item = prepared.item()
+                val item = prepared.item(song)
                 java.lang.reflect.Array.set(items, 0, item)
                 tracked = track(item)
                 // Native queue behavior is retained; only this item's success notification is scoped out.
@@ -167,5 +168,22 @@ internal object HostSongPlayback {
                 throw failure
             }
         }
+        submit
+    }
+
+    fun diagnostics(): String {
+        fun resolve(check: () -> Unit): String = runCatching(check).fold(
+            onSuccess = { "available" }, onFailure = { "unavailable (${it.javaClass.simpleName}: ${it.message})" })
+        return "singleSongTarget=${resolve { playSong }}; insertNextTarget=${resolve { enqueueSong }}"
+    }
+
+    fun prepare(song: MediaItem): () -> Unit {
+        val submit = playSong
+        return { submit(song) }
+    }
+
+    fun prepareQueueNext(song: MediaItem, track: (Any) -> AutoCloseable = QueueNotificationHooks::track): () -> Unit {
+        val submit = enqueueSong
+        return { submit(song, track) }
     }
 }

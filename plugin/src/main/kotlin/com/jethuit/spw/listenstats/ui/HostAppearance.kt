@@ -15,19 +15,15 @@ data class HostAppearance(
 
 object HostAppearanceReader {
     fun read(): HostAppearance {
-        return try {
-            HostAppearance(
-                windowStyle = AppConfig.spwWindowStyle.name,
-                dark = when (AppConfig.lightDarkTheme.name) {
-                    "Light" -> false
-                    "Dark" -> true
-                    else -> null
-                },
-                fontStrategy = runCatching { AppConfig.fontStrategy.name }.getOrNull(),
-                customFontPath = runCatching { AppConfig.customFontFilePath }.getOrNull()
-            )
-        } catch (failure: Throwable) {
-            HostAppearance()
-        }
+        return HostAppearance(
+            windowStyle = runCatching { AppConfig.spwWindowStyle.name }.getOrNull(),
+            dark = when (runCatching { AppConfig.lightDarkTheme.name }.getOrNull()) {
+                "Light" -> false
+                "Dark" -> true
+                else -> null
+            },
+            fontStrategy = runCatching { AppConfig.fontStrategy.name }.getOrNull(),
+            customFontPath = runCatching { AppConfig.customFontFilePath }.getOrNull()
+        )
     }
 }

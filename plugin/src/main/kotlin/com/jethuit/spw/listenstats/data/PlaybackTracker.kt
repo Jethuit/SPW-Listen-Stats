@@ -153,7 +153,7 @@ object PlaybackTracker {
     private var stableTrackId: String? = null
 
     fun diagnostics(): String = synchronized(lock) {
-        "trackerActive=$active; generation=$generation; liveSessions=${LiveStore.snapshot().size}"
+        "trackerActive=$active; generation=$generation; liveSessions=${LiveStore.size()}"
     }
 
     fun initialize() = synchronized(lock) {
@@ -164,7 +164,7 @@ object PlaybackTracker {
         stableTrackId = null
         if (executor.isShutdown) executor = newExecutor()
         LiveStore.load()
-        accumulator = PlaybackAccumulator(::persistSession) { track -> LiveStore.recoverOpen(track.id) }
+        accumulator = PlaybackAccumulator(::persistSession) { track -> LiveStore.recoverOpen(track.id, deferSave = true) }
         lastSaveNano = System.nanoTime()
         active = true
     }
@@ -175,7 +175,7 @@ object PlaybackTracker {
             generation++
             observedTrack = null
             accumulator.finish()
-            LiveStore.finalizeOpenExcept()
+            LiveStore.finalizeOpenExcept(deferSave = true)
             LiveStore.save()
             executor.also { it.shutdownNow() }
         }
@@ -205,20 +205,20 @@ object PlaybackTracker {
         if (state == PlaybackExtensionPoint.State.Ended || state == PlaybackExtensionPoint.State.Idle) {
             accumulator.finish()
             accumulator.playing(false)
-            LiveStore.finalizeOpenExcept()
-            LiveStore.save()
+            LiveStore.finalizeOpenExcept(deferSave = true)
+            LiveStore.requestSave()
         } else if (state == PlaybackExtensionPoint.State.Buffering) accumulator.suspendSampling()
     }
 
     fun onIsPlayingChanged(isPlaying: Boolean) = enqueue(invalidateObservation = true) {
         accumulator.playing(isPlaying)
-        if (!isPlaying) LiveStore.save()
+        if (!isPlaying) LiveStore.requestSave()
     }
 
     fun onSeekTo(position: Long) = enqueue(invalidateObservation = true) {
         accumulator.seek(position)
-        if (position == 0L) LiveStore.finalizeOpenExcept()
-        LiveStore.save()
+        if (position == 0L) LiveStore.finalizeOpenExcept(deferSave = true)
+        LiveStore.requestSave()
     }
 
     fun onPositionUpdated(position: Long) {
@@ -282,7 +282,7 @@ object PlaybackTracker {
                         accumulator.sample(track, position, wall, nano)
                         if (nano - lastSaveNano >= 10_000_000_000L) {
                             lastSaveNano = nano
-                            LiveStore.save()
+                            LiveStore.requestSave()
                         }
                     }
                 }
@@ -295,7 +295,7 @@ object PlaybackTracker {
 
     private fun persistSession(session: LiveSession) {
         LiveStore.upsert(session)
-        if (session.finalized) LiveStore.save()
+        if (session.finalized) LiveStore.requestSave()
     }
 
     private fun newExecutor() = Executors.newSingleThreadExecutor { task ->

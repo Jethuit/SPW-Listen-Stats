@@ -40,6 +40,62 @@ private fun flushTracker() {
 
 fun main(args: Array<String>) {
     val root = Path.of(args.single())
+    test("a playback callback and checkpoint can finish while a 10000-session merge is paused") {
+        isolate(root, "merge-contention")
+        val media = PlaybackExtensionPoint.MediaItem("test", "", "", "", "", "active", 0, "", 0, 240_000, false, true)
+        val playback = Proxy.newProxyInstance(WorkshopApi.Playback::class.java.classLoader,
+            arrayOf(WorkshopApi.Playback::class.java)) { _, method, _ ->
+            if (method.name == "getCurrentMediaItem") media else null
+        }
+        WorkshopApi.instance = Proxy.newProxyInstance(WorkshopApi::class.java.classLoader,
+            arrayOf(WorkshopApi::class.java)) { _, method, _ -> if (method.name == "getPlayback") playback else null } as WorkshopApi
+        PlaybackTracker.initialize()
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val pool = java.util.concurrent.Executors.newSingleThreadExecutor()
+        try {
+            repeat(10_000) { LiveStore.upsert(piece("fixture-$it", START + 1000L * it, 500)) }
+            PlaybackTracker.onIsPlayingChanged(true); flushTracker()
+            PlaybackTracker.onPositionUpdated(0); flushTracker()
+            PlaybackTracker.onPositionUpdated(200); flushTracker()
+            val captured = LiveStore.snapshot().filter { it.durationMs > 0 }.sumOf { it.durationMs }
+            Thread.sleep(250)
+            val future = pool.submit<StatsData> {
+                LiveStore.merge(StatsData.empty(), trackVisible = {
+                    entered.countDown()
+                    check(release.await(5, TimeUnit.SECONDS))
+                    true
+                })
+            }
+            check(entered.await(5, TimeUnit.SECONDS))
+            val started = System.nanoTime()
+            PlaybackTracker.onPositionUpdated(450)
+            flushTracker()
+            val callbackMicros = (System.nanoTime() - started) / 1000
+            check(LiveStore.snapshot().any { it.trackId == "active" && it.durationMs > 0 })
+            val saveStart = System.nanoTime()
+            LiveStore.requestSave()
+            println("10000 sessions callback_with_worker_us=$callbackMicros request_save_us=${(System.nanoTime()-saveStart)/1000}")
+            release.countDown()
+            check(total(future.get(15, TimeUnit.SECONDS)) == captured)
+        } finally {
+            release.countDown()
+            pool.shutdownNow()
+            PlaybackTracker.shutdown()
+        }
+    }
+    test("an older merge cannot publish an alias onto a concurrently replaced record") {
+        isolate(root, "merge-repair")
+        val original = piece("mutable", START, 2_000)
+        LiveStore.upsert(original)
+        PerformanceProbe.sink = { stage, _ ->
+            if (stage == "LiveStore.matchCandidates") LiveStore.upsert(original.copy(title = "new metadata"))
+        }
+        try { LiveStore.merge(host(2_000)) } finally { PerformanceProbe.sink = null }
+        check(LiveStore.snapshot().single().let { it.title == "new metadata" && it.hostId == null })
+        LiveStore.merge(host(2_000))
+        check(LiveStore.snapshot().single().let { it.title == "new metadata" && it.hostId != null })
+    }
     test("lifecycle fragments deduplicate to one 240-second host play, including old exports") {
         isolate(root, "fragments")
         LiveStore.upsert(piece("first", START, 60_000))

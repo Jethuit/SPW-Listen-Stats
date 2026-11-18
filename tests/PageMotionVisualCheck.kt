@@ -240,8 +240,8 @@ private fun placeholderVisuals(out: Path) {
                         CompositionLocalProvider(LocalStatsColors provides colors,
                             LocalStatsAnimationsEnabled provides false) {
                             Box(Modifier.fillMaxSize().drawWith { drawRect(colors.pageBackground) }) {
-                                StatsPageFrame({}) {
-                                    Column(Modifier.fillMaxWidth().padding(horizontal = 32.dp)) {
+                                StatsPageFrame({}) { insets ->
+                                    Column(Modifier.fillMaxWidth().padding(insets).padding(horizontal = 32.dp)) {
                                         Spacer(Modifier.height(12.dp))
                                         PageNav(page) { page = it }
                                         StatsPlaceholder(page)

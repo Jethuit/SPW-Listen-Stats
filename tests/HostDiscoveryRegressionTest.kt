@@ -386,7 +386,7 @@ private fun checkImportStop(bridge: HostUiBridge) {
     val replaced = CountDownLatch(1)
     val installs = AtomicInteger()
     val stop = java.util.concurrent.FutureTask {
-        session.close(); session.close(); StatsWindow.close()
+        session.close(); session.close()
     }
     val worker = Thread(stop, "Synthetic-SPW-Stop").apply { isDaemon = true }
     try {

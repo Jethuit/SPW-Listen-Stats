@@ -39,8 +39,8 @@ fun main(args: Array<String>) {
             SaltTheme {
                 scroll = rememberScrollState(0)
                 Box(Modifier.fillMaxSize().drawWith { drawRect(Color(0xFFF8F8F8)) }) {
-                    StatsPageFrame(onBack = {}, actions = { BackupMenu({}, {}) }) {
-                        Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
+                    StatsPageFrame(onBack = {}, actions = { BackupMenu({}, {}) }) { insets ->
+                        Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(insets)) {
                             Box(Modifier.fillMaxWidth().height(80.dp).onGloballyPositioned {
                                 topY = it.positionInRoot().y
                             })

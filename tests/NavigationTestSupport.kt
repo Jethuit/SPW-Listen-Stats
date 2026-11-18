@@ -46,7 +46,8 @@ class TestNavigationCall(val host: TestNavigationHost, override val args: Array<
 }
 
 /** Hook API ordering, including the priority-80 asynchronous leave guard used by Lyrics. */
-class TestNavigationRegistration(val host: TestNavigationHost = TestNavigationHost(), bind: Boolean = true) : AutoCloseable {
+class TestNavigationRegistration(val host: TestNavigationHost = TestNavigationHost(), bind: Boolean = true,
+                                 afterNavigate: () -> Unit = {}) : AutoCloseable {
     data class Entry(val method: String, val callback: MethodHook)
     val hooks = mutableListOf<Entry>()
     val extra = mutableListOf<Entry>()
@@ -66,6 +67,7 @@ class TestNavigationRegistration(val host: TestNavigationHost = TestNavigationHo
         dispatch("navigate", arrayOf(route)) {
             check(route == host.currentRoute) { "Open request was not an equal copy of the current host route" }
         }
+        afterNavigate()
     }
     fun dispatch(method: String, args: Array<Any?> = emptyArray(), original: () -> Unit = {}): TestNavigationCall {
         val call = TestNavigationCall(host, args, method, original)

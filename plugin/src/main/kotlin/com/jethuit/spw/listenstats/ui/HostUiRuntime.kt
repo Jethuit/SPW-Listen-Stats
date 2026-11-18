@@ -16,6 +16,7 @@ class HostUiBridge(val targets: HostUiTargets, private val loader: ClassLoader,
         private set
     fun stopActions() { acceptingActions = false }
     // Prepared on the discovery worker before any statistics page can be presented.
+    internal val songPlayback = SongPlaybackTargets(loader)
     val initialAppearance = readAppearance()
     private val preparationWarnings = mutableListOf<String>()
     val warnings: List<String> get() = targets.warnings + preparationWarnings

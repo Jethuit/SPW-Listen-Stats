@@ -32,7 +32,10 @@ data class StatsData(
     val loadedAt: Long,
     val databaseFound: Boolean,
     val error: String?,
-    val events: List<ListeningEvent> = emptyList()
+    val events: List<ListeningEvent> = emptyList(),
+    val libraryAccessDenied: Boolean = false,
+    val storageWarning: String? = null,
+    val importedRevision: Long? = null
 ) {
     fun millisOn(date: LocalDate): Long = dailyMillis[date] ?: 0L
 

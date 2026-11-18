@@ -10,7 +10,7 @@ import java.nio.file.Path
 import java.sql.DriverManager
 import java.util.Locale
 
-/** Cold snapshot only; synthetic data, no live host or personal history. */
+/** Cold snapshot and unchanged refreshes; synthetic data, no live host or personal history. */
 fun main(args: Array<String>) {
     val root = Path.of(args[0]).toAbsolutePath()
     val rows = args.getOrNull(1)?.toInt() ?: 50_000
@@ -84,6 +84,19 @@ fun main(args: Array<String>) {
         println("COLD rows=$rows imported=$imported wall_ms=${"%.1f".format(Locale.ROOT, elapsed)} allocated_mb=${"%.1f".format(Locale.ROOT, mb)}")
         stages.forEach { (stage, nanos) -> println("STAGE $stage ms=${"%.1f".format(Locale.ROOT, nanos / 1_000_000.0)}") }
         println("COUNTERS $counters")
+        PerformanceProbe.sink = null
+        PerformanceProbe.counterSink = null
+        repeat(5) { check(StatsStore.load() === data) }
+        val samples = DoubleArray(25)
+        val refreshAllocated = bean.getThreadAllocatedBytes(Thread.currentThread().id)
+        for (index in samples.indices) {
+            val before = System.nanoTime()
+            check(StatsStore.load() === data)
+            samples[index] = (System.nanoTime() - before) / 1_000_000.0
+        }
+        val bytesPerRefresh = (bean.getThreadAllocatedBytes(Thread.currentThread().id) - refreshAllocated) / samples.size
+        samples.sort()
+        println("REFRESH median_ms=${"%.3f".format(Locale.ROOT, samples[samples.size / 2])} bytes_per_refresh=$bytesPerRefresh")
     } finally {
         PerformanceProbe.sink = null
         PerformanceProbe.counterSink = null

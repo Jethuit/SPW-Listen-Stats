@@ -71,7 +71,7 @@ fun main(args: Array<String>) {
         engine.finish()
         val resumed = LiveStore.merge(StatsData.empty())
         BackupService.importFile(backup)
-        val merged = BackupService.merge(resumed)
+        val merged = BackupService.mergeWithLive(StatsData.empty())
         val reversed = ListeningEvents.aggregate(StatsData.empty(), BackupCodec.read(backup).events + resumed.events)
         checkData(merged, 14_000, 1); checkData(reversed, 14_000, 1)
         check(merged.events.single().spans == reversed.events.single().spans)

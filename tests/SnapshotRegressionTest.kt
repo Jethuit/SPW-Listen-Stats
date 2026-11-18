@@ -6,7 +6,6 @@ import com.jethuit.spw.listenstats.ui.StatsHostState
 import com.jethuit.spw.listenstats.ui.StatsNavigationHooks
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -19,11 +18,12 @@ fun checkSnapshotPreparation() {
     var result = StatsData.empty().copy(dailyMillis = mapOf(day to 60_000L))
     var throws = false
     var displayPreferences = DisplayPreferences()
+    var allowed = true
     val session = StatsSnapshotSession(read = {
         reads++
         if (throws) error("synthetic read failure")
         result
-    }, preferences = { displayPreferences })
+    }, preferences = { displayPreferences }, hasAccess = { allowed })
     runBlocking {
         check(session.load().data.millisOn(day) == 60_000L)
         check(session.load(reuse = true).data.millisOn(day) == 60_000L && reads == 1)
@@ -35,6 +35,10 @@ fun checkSnapshotPreparation() {
         check(session.load().data.let { it.millisOn(day) == 60_000L && it.error != null })
         throws = true
         check(session.load().data.let { it.millisOn(day) == 60_000L && it.error != null })
+        allowed = false
+        check(session.load(reuse = true).data.let { it.libraryAccessDenied && it.dailyMillis.isEmpty() })
+        allowed = true
+        check(session.load().data.dailyMillis.isEmpty()) { "a read failure resurrected revoked history" }
         throws = false
         result = StatsData.empty().copy(dailyMillis = mapOf(day to 120_000L))
         check(session.load().data.let { it.millisOn(day) == 120_000L && it.error == null })
@@ -116,7 +120,8 @@ fun checkSnapshotPreparation() {
             check(release.await(5, TimeUnit.SECONDS))
             result
         }, preferences = { DisplayPreferences() })
-        TestNavigationRegistration().use { registration ->
+        val navigated = CountDownLatch(1)
+        TestNavigationRegistration(afterNavigate = navigated::countDown).use { registration ->
             try {
                 StatsHostState.close()
                 StatsSnapshots.start(delayed, initialize = {})
@@ -137,11 +142,7 @@ fun checkSnapshotPreparation() {
                     check(delivered.await(5, TimeUnit.SECONDS))
                     // Separate asynchronous preparation requests can finish in either order.
                     // Await the navigation result itself instead of a second request's callback.
-                    if (action == "ready") kotlinx.coroutines.runBlocking {
-                        kotlinx.coroutines.withTimeout(5_000) {
-                            androidx.compose.runtime.snapshotFlow { StatsHostState.visible }.first { it }
-                        }
-                    }
+                    if (action == "ready") check(navigated.await(5, TimeUnit.SECONDS))
                     // Flush callbacks queued on the same UI thread before checking navigation state.
                     SwingUtilities.invokeAndWait { }
                     SwingUtilities.invokeAndWait {

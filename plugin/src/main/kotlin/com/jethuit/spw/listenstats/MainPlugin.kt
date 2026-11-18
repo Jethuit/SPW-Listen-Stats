@@ -53,10 +53,15 @@ class MainPlugin(
             checkInstallAllowed = ::checkUiPermission,
             ready = {
                 uiStartup.complete(Unit)
-                if ("titlebar" !in PluginState.registeredHooks || "sidebar" !in PluginState.registeredHooks) {
-                    WorkshopApi.ui.toast("部分统计入口加载失败，仍可使用可用入口或从插件配置打开", WorkshopApi.Ui.ToastType.Warning)
+                val hooks = PluginState.registeredHooks
+                val entryHint = when {
+                    "titlebar" in hooks && "sidebar" in hooks -> null
+                    "titlebar" in hooks -> "侧栏入口不可用，可从顶部统计图标或插件配置打开"
+                    "sidebar" in hooks -> "顶部入口不可用，可从侧栏「统计」或插件配置打开"
+                    else -> "顶部和侧栏入口不可用，请从插件配置打开"
                 }
-                WorkshopApi.ui.toast("听歌统计已启用", WorkshopApi.Ui.ToastType.Success)
+                WorkshopApi.ui.toast(entryHint?.let { "听歌统计已启用。$it" } ?: "听歌统计已启用",
+                    if (entryHint == null) WorkshopApi.Ui.ToastType.Success else WorkshopApi.Ui.ToastType.Warning)
             },
             failed = { failure ->
                 // Public playback recording and statistics preparation remain independent
@@ -169,7 +174,6 @@ class MainPlugin(
             javax.swing.SwingUtilities.invokeLater {
                 com.jethuit.spw.listenstats.ui.StatsHostState.close()
             }
-            com.jethuit.spw.listenstats.ui.StatsWindow.close()
             com.jethuit.spw.listenstats.data.CoverStore.clear()
         }
     }
@@ -220,6 +224,8 @@ class MainPlugin(
                         appendLine("databaseCandidates=${com.jethuit.spw.listenstats.data.StatsStore.diagnosticCandidates()}")
                         appendLine("sourceId=$source; registeredHooks=${PluginState.registeredHooks} (registration only)")
                         appendLine("hostUiDiscovery=${PluginState.discoveryStatus}; hostUiTargets=${HostUiRuntime.current?.targets ?: "unavailable"}")
+                        appendLine(HostUiRuntime.current?.songPlayback?.diagnostics()
+                            ?: "singleSongTarget=inactive; insertNextTarget=inactive")
                         appendLine("materialBridgeActive=${com.jethuit.spw.listenstats.ui.StatsHostState.materialBridgeAvailable}; pageIsolationHook=${HostUiRuntime.current?.targets?.layer ?: "unavailable"}")
                         appendLine("navigationReady=${StatsNavigationHooks.navigatorReady}; statisticsVisible=${com.jethuit.spw.listenstats.ui.StatsHostState.visible}")
                         appendLine("${com.jethuit.spw.listenstats.data.PlaybackTracker.diagnostics()}")

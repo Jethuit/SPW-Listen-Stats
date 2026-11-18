@@ -104,10 +104,35 @@ private fun checkNavigationGuards() {
     println("PASS disabled animation respects rejected navigation; native overlays get back priority; stale same-route opens stay canceled")
 }
 
+/** Try a distinct plugin page with Navigation3, then pass its key to the real 1.19.3 Navigator. */
+private fun checkNativePagePrototype() {
+    val native = TestNativeNavigator()
+    val key = object : androidx.navigation3.runtime.NavKey {}
+    val scope = androidx.navigation3.runtime.EntryProviderScope<Any> { error("Unregistered route: $it") }
+    // Use the actual provider ABI; this test runner does not transform Compose lambdas.
+    val add = scope.javaClass.methods.single {
+        it.name == "addEntryProvider" && it.parameterTypes.first() == Any::class.java &&
+            it.parameterTypes[2] == Map::class.java
+    }
+    val content: (Any, androidx.compose.runtime.Composer, Int) -> Unit = { _, _, _ -> }
+    add.invoke(scope, key, "listenstats-prototype", emptyMap<String, Any>(), content)
+    @Suppress("UNCHECKED_CAST")
+    val provider = scope.javaClass.getMethod("build").invoke(scope) as (Any) -> androidx.navigation3.runtime.NavEntry<Any>
+    check(provider(key).contentKey == "listenstats-prototype")
+    check(native.routeType.isSealed && !native.routeType.isInstance(key))
+    val failure = runCatching { native.navigate.invoke(native.navigator, key) }.exceptionOrNull()
+    check(failure is IllegalArgumentException) { "Unexpected Navigator response: $failure" }
+    check(native.history.toList() == listOf(native.initial)) { "Rejected key changed the host back stack" }
+    check(runCatching { java.lang.reflect.Proxy.newProxyInstance(native.routeType.classLoader,
+        arrayOf(native.routeType)) { _, _, _ -> null } }.exceptionOrNull() is IllegalArgumentException)
+    println("PASS native entry resolves the prototype; sealed ScreenRoute rejects its key without changing the back stack")
+}
+
 fun main() {
     com.jethuit.spw.listenstats.ui.HostUiRuntime.activate(com.jethuit.spw.listenstats.ui.HostUiBridge(
         com.jethuit.spw.listenstats.ui.HostUiDiscovery.discover(com.jethuit.spw.listenstats.ui.HostBytecodeIndex.read(
             java.nio.file.Path.of("build/tools/spw-host.jar"))), StatsNavigationHooks::class.java.classLoader))
+    checkNativePagePrototype()
     checkSnapshotPreparation()
     val registration = TestNavigationRegistration()
     check(registration.hooks.size == 5)

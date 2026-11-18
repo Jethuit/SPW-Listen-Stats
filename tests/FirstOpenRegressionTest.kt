@@ -50,16 +50,15 @@ fun main(args: Array<String>) {
     PerformanceProbe.counterSink = { if (it == "TrackVisibility.fileCheck") fileChecks++ }
     try {
         val first = TrackVisibility.Snapshot()
-        val before = first.fingerprint(listOf(located))
         repeat(100) { check(first.isVisible(located.copy(path = " ${media} "))) }
-        check(first.fingerprint(List(100) { located }) == before && fileChecks == 1)
+        check(fileChecks == 1)
         Files.delete(media)
         check(first.isVisible(located)) // A batch remains internally consistent.
         val second = TrackVisibility.Snapshot()
-        check(!second.isVisible(located) && second.fingerprint(listOf(located)) != before && fileChecks == 2)
+        check(!second.isVisible(located) && !second.matches(first) && fileChecks == 2)
         Files.writeString(media, "restored synthetic media")
         val third = TrackVisibility.Snapshot()
-        check(third.isVisible(located) && third.fingerprint(listOf(located)) == before && fileChecks == 3)
+        check(third.isVisible(located) && third.matches(first) && fileChecks == 3)
         check(third.isVisible(track) && third.isVisible(track.copy(path = "\u0000")))
         check(third.isVisible(track.copy(path = media.toUri().toString())))
         check(!third.isVisible(track.copy(path = root.toString())))

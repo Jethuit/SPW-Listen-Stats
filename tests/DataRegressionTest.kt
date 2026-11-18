@@ -117,6 +117,29 @@ fun main(args: Array<String>) {
         check(result.dailyMillis.values.sum() == 7_000L)
         check(result.playCount("track") == 1)
     }
+    test("undo first and subsequent imports preserves live plays and rejects stale confirmations") {
+        isolate(root, "undo")
+        val a = root.resolve("undo-a.json")
+        val b = root.resolve("undo-b.json")
+        Files.writeString(a, BackupCodec.encode(BackupBundle(listOf(event("a", 0)))))
+        Files.writeString(b, BackupCodec.encode(BackupBundle(listOf(event("b", 60_000)))))
+        fun ids() = BackupService.mergeWithLive(StatsData.empty()).events.map { it.id }.toSet()
+        check(BackupService.undoRevision() == null)
+        BackupService.importFile(a)
+        LiveStore.upsert(LiveSession("local", track.id, epoch + 120_000, 2_000, track.title, track.artist,
+            track.album, track.albumArtist, track.durationMs, true))
+        BackupService.undoImport(checkNotNull(BackupService.undoRevision()))
+        check(ids() == setOf("live:local") && BackupService.undoRevision() == null)
+        BackupService.importFile(a)
+        val stale = checkNotNull(BackupService.undoRevision())
+        BackupService.importFile(b)
+        check(runCatching { BackupService.undoImport(stale) }.isFailure)
+        check(ids() == setOf("a", "b", "live:local"))
+        val checkpoint = checkNotNull(BackupService.undoRevision())
+        BackupService.undoImport(checkpoint)
+        check(ids() == setOf("a", "live:local"))
+        check(BackupService.undoRevision() == null && runCatching { BackupService.undoImport(checkpoint) }.isFailure)
+    }
     test("v2 roundtrip, same-day additions, duplicate import, and cumulative imports") {
         isolate(root, "backup")
         val a = BackupBundle(listOf(event("a", 0)))
@@ -124,7 +147,7 @@ fun main(args: Array<String>) {
         val aFile = root.resolve("a.json"); val bFile = root.resolve("b.json")
         Files.writeString(aFile, BackupCodec.encode(a)); Files.writeString(bFile, BackupCodec.encode(b))
         BackupService.importFile(aFile); BackupService.importFile(aFile); BackupService.importFile(bFile)
-        val data = BackupService.merge(StatsData.empty())
+        val data = BackupService.mergeWithLive(StatsData.empty())
         check(data.events.size == 2 && data.dailyMillis.values.sum() == 12_000L)
         check(data.playCount("track") == 2)
         val exported = root.resolve("roundtrip.json")

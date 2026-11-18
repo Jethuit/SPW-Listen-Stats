@@ -78,6 +78,23 @@ fun main(args: Array<String>) {
     val deleted = HostDatabase.load(database, ZoneId.of("UTC"), aggregate = false)
     check(deleted.listens.map { it.id } == listOf("c", "b", "d", "one-${epoch + 2500}", "e"))
 
+    DriverManager.getConnection("jdbc:sqlite:${database.toAbsolutePath()}").use { connection ->
+        exec(connection, "WITH RECURSIVE n(i) AS (VALUES(1) UNION ALL SELECT i+1 FROM n WHERE i<100000) " +
+            "INSERT INTO Listen SELECT 'pad-'||i,'one',1000+i,100 FROM n")
+        HostDatabase.load(database)
+        exec(connection, "UPDATE Listen SET trackId='one' WHERE id='b'")
+        val start = System.nanoTime()
+        val changed = HostDatabase.load(database, aggregate = false)
+        check(changed.listens.single { it.id == "b" }.trackId == "one")
+        println("100000 older history rows, modified database refresh_ms=${(System.nanoTime() - start) / 1_000_000}")
+        exec(connection, "INSERT INTO Listen VALUES ('append-after-verification','two',200000,100)")
+        val appendStart = System.nanoTime()
+        val appendedAfterRepair = HostDatabase.load(database, aggregate = false)
+        check(appendedAfterRepair.listens.size == changed.listens.size + 1)
+        println("100000 history rows, complete prefix verification and append_ms=${(System.nanoTime() - appendStart) / 1_000_000}")
+
+    }
+
     HostDatabase.close()
     println("PASS host database uses append refresh, preserves same-time rows, and falls back for edits/deletes")
 }

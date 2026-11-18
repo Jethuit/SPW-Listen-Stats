@@ -87,10 +87,14 @@ fun main(args: Array<String>) = runBlocking {
         check(!submitted)
     }
     test("installed 1.19.3 internal signatures and constructor order prepare without playback") {
-        HostSongPlayback.prepare(SongPlaybackRequest::class.java.classLoader, song)
-        HostSongPlayback.prepareQueueNext(SongPlaybackRequest::class.java.classLoader, song)
-        check(runCatching { HostSongPlayback.prepare(object : ClassLoader(null) {}, song) }.isFailure)
-        check(runCatching { HostSongPlayback.prepareQueueNext(object : ClassLoader(null) {}, song) }.isFailure)
+        val installed = SongPlaybackTargets(SongPlaybackRequest::class.java.classLoader)
+        check(installed.diagnostics() == "singleSongTarget=available; insertNextTarget=available")
+        installed.prepare(song)
+        installed.prepareQueueNext(song)
+        val missing = SongPlaybackTargets(object : ClassLoader(null) {})
+        check(missing.diagnostics().let { "singleSongTarget=unavailable" in it && "insertNextTarget=unavailable" in it })
+        check(runCatching { missing.prepare(song) }.isFailure)
+        check(runCatching { missing.prepareQueueNext(song) }.isFailure)
     }
     // Child-first loading applies only to two synthetic internal host classes. Never invoke the real engine.
     fun fakeHost(): URLClassLoader = object : URLClassLoader(arrayOf(Path.of(args[1]).toUri().toURL()),
@@ -103,7 +107,7 @@ fun main(args: Array<String>) = runBlocking {
     }
     test("actual reflection adapter selects, prepares and starts one song in native order") {
         fakeHost().use { loader ->
-            val submit = HostSongPlayback.prepare(loader, song)
+            val submit = SongPlaybackTargets(loader).prepare(song)
             SwingUtilities.invokeAndWait { submit() }
             val controller = loader.loadClass("com.xuncorp.voxzen.service.PlaybackController")
             check(controller.getField("calls").get(null) == listOf("addToPlay", "prepare", "play"))
@@ -119,7 +123,7 @@ fun main(args: Array<String>) = runBlocking {
         fakeHost().use { loader ->
             val controller = loader.loadClass("com.xuncorp.voxzen.service.PlaybackController")
             controller.getField("failPreparation").setBoolean(null, true)
-            val failure = runCatching { HostSongPlayback.prepare(loader, song).invoke() }.exceptionOrNull()
+            val failure = runCatching { SongPlaybackTargets(loader).prepare(song).invoke() }.exceptionOrNull()
             check(failure?.message == "synthetic preparation failure")
             check(controller.getField("calls").get(null) == listOf("addToPlay", "prepare"))
             check(!controller.getField("playing").getBoolean(null))
@@ -131,7 +135,7 @@ fun main(args: Array<String>) = runBlocking {
             controller.getField("playing").setBoolean(null, true)
             var tracked = false
             SwingUtilities.invokeAndWait {
-                HostSongPlayback.prepareQueueNext(loader, song, track = { tracked = true; AutoCloseable {} }).invoke()
+                SongPlaybackTargets(loader).prepareQueueNext(song, track = { tracked = true; AutoCloseable {} }).invoke()
             }
             check(tracked)
             check(controller.getField("calls").get(null) == listOf("addToPlayNext"))
@@ -148,7 +152,7 @@ fun main(args: Array<String>) = runBlocking {
             controller.getField("failQueue").setBoolean(null, true)
             var released = false
             val failure = runCatching {
-                HostSongPlayback.prepareQueueNext(loader, song, track = { AutoCloseable { released = true } }).invoke()
+                SongPlaybackTargets(loader).prepareQueueNext(song, track = { AutoCloseable { released = true } }).invoke()
             }.exceptionOrNull()
             check(released)
             check(failure?.message == "synthetic queue failure")

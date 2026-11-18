@@ -78,10 +78,20 @@ data class SegmentOption(
 private val ControlHeight = 34.dp
 
 @Composable
-fun BackupMenu(onImport: () -> Unit, onExport: () -> Unit) {
+fun BackupMenu(onImport: () -> Unit, onExport: () -> Unit, onUndo: (() -> Unit)? = null) {
     val colors = LocalStatsColors.current
-    CompactMenuButton("更多操作", listOf("import" to "导入", "export" to "导出"),
-        onSelected = { if (it == "import") onImport() else onExport() }, buttonSize = 40.dp) {
+    val options = buildList {
+        add("import" to "导入")
+        add("export" to "导出")
+        if (onUndo != null) add("undo" to "撤销上次导入")
+    }
+    CompactMenuButton("更多操作", options, onSelected = {
+        when (it) {
+            "import" -> onImport()
+            "export" -> onExport()
+            "undo" -> onUndo?.invoke()
+        }
+    }, buttonSize = 40.dp) {
         Box(Modifier.size(20.dp).drawWith {
             for (x in listOf(0.2f, 0.5f, 0.8f)) {
                 drawCircle(colors.text, radius = 1.6.dp.toPx(),
@@ -220,7 +230,7 @@ fun HoverColor(
             .onPointerEvent(PointerEventType.Exit) { hovered = false }
     ) {
         content(if (hovered) hover else normal)
-        if (hovered && tooltip != null) StatsTooltip(TooltipData(tooltip, "", "", 0f, 24f))
+        if (hovered && tooltip != null) StatsTooltip(TooltipData(tooltip, "", "", 0f, 0f), controlTooltipPosition)
     }
 }
 
@@ -618,13 +628,28 @@ internal class FixedPositionProvider(
     }
 }
 
+// A control tooltip must leave its trigger clickable, including in a short viewport.
+private val controlTooltipPosition = object : PopupPositionProvider {
+    override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize,
+                                   layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
+        val maxX = (windowSize.width - popupContentSize.width).coerceAtLeast(0)
+        val maxY = (windowSize.height - popupContentSize.height).coerceAtLeast(0)
+        val x = anchorBounds.left.coerceIn(0, maxX)
+        val above = anchorBounds.top - popupContentSize.height
+        if (anchorBounds.bottom <= maxY) return IntOffset(x, anchorBounds.bottom)
+        if (above >= 0) return IntOffset(x, above)
+        val beside = if (anchorBounds.right <= maxX) anchorBounds.right else anchorBounds.left - popupContentSize.width
+        return IntOffset(beside.coerceIn(0, maxX), anchorBounds.top.coerceIn(0, maxY))
+    }
+}
+
 @Composable
-fun StatsTooltip(data: TooltipData?) {
+fun StatsTooltip(data: TooltipData?, positionProvider: PopupPositionProvider? = null) {
     if (data == null) return
     val colors = LocalStatsColors.current
     val density = androidx.compose.ui.platform.LocalDensity.current
     val position = IntOffset(data.x.toInt(), data.y.toInt())
-    Popup(popupPositionProvider = FixedPositionProvider(position, with(density) { 14.dp.roundToPx() })) {
+    Popup(popupPositionProvider = positionProvider ?: FixedPositionProvider(position, with(density) { 14.dp.roundToPx() })) {
         Surface(
             shape = AppShape(10.dp),
             color = colors.tooltipBackground,

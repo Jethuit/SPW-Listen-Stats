@@ -12,9 +12,13 @@ data class PreparedStatistics(val data: StatsData, val preferences: DisplayPrefe
 
 /** One enable session owns its cache. Failed reads never replace a successful snapshot. */
 class StatsSnapshotSession(
-    private val read: () -> StatsData = StatsStore::load,
-    private val preferences: () -> DisplayPreferences = Prefs::displayPreferences
+    private val read: () -> StatsData,
+    private val preferences: () -> DisplayPreferences = Prefs::displayPreferences,
+    private val hasAccess: () -> Boolean = { true }
 ) {
+    constructor() : this(StatsStore::load, Prefs::displayPreferences, StatsStore::hasLibraryAccess)
+
+    internal val pageActions = SupervisorJob()
     private val mutex = Mutex()
     private var lastSuccess: StatsData? = null
     @Volatile var latest: PreparedStatistics? = null
@@ -23,16 +27,19 @@ class StatsSnapshotSession(
     suspend fun load(reuse: Boolean = false): PreparedStatistics {
         mutex.lock()
         try {
-        // Reuse listening data, but refresh settings before the page's first frame.
-        if (reuse) latest?.let { cached ->
-            return cached.copy(preferences = preferences()).also { latest = it }
-        }
-        val result = try { read() }
-        catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: Exception) { StatsData.empty(error = "统计数据读取失败：${failure.message}") }
-        if (result.error == null) lastSuccess = result
-        val data = if (result.error != null) lastSuccess?.copy(error = result.error) ?: result else result
-        return PreparedStatistics(data, preferences()).also { latest = it }
+            val result = when {
+                !hasAccess() -> StatsStore.accessDenied()
+                reuse && latest?.data?.libraryAccessDenied == false -> latest!!.data
+                else -> try { read() }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) { StatsData.empty(error = "统计数据读取失败：${failure.message}") }
+            }
+            val data = when {
+                result.libraryAccessDenied -> { lastSuccess = null; result }
+                result.error == null -> result.also { lastSuccess = it }
+                else -> lastSuccess?.copy(error = result.error, storageWarning = result.storageWarning) ?: result
+            }
+            return PreparedStatistics(data, preferences()).also { latest = it }
         } finally { mutex.unlock() }
     }
 }
@@ -73,6 +80,7 @@ object StatsSnapshots {
     }
 
     fun stop() {
+        current?.pageActions?.cancel()
         current = null
         scope?.cancel()
         scope = null

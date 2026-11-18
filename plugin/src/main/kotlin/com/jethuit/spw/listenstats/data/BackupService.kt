@@ -4,24 +4,15 @@ import com.jethuit.spw.listenstats.PluginLog
 import com.xuncorp.spw.workshop.api.WorkshopApi
 import java.nio.file.Files
 import java.nio.file.Path
-import java.time.LocalDate
-import javax.swing.JFileChooser
-import javax.swing.JOptionPane
-import javax.swing.filechooser.FileNameExtensionFilter
+import kotlinx.serialization.json.*
 import java.nio.file.attribute.BasicFileAttributes
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import kotlin.concurrent.thread
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import java.util.concurrent.atomic.AtomicLong
 
 object BackupService {
     private val operationSequence = AtomicLong(0)
-    private val dialogLock = Any()
-    @Volatile private var activeChooser: JFileChooser? = null
     private data class ImportSignature(
         val path: Path,
         val modified: java.nio.file.attribute.FileTime,
@@ -43,12 +34,6 @@ object BackupService {
         }
         return inputRevision
     }
-
-    /** Tracks external deletion/replacement of files referenced by imported events. */
-    @Synchronized fun visibilityFingerprint(visibility: TrackVisibility.Snapshot = TrackVisibility.Snapshot()): Long = runCatching {
-        val bundle = imported()
-        visibility.fingerprint(bundle.events.map { it.track } + bundle.legacy.tracks.values)
-    }.getOrDefault(0L)
 
     private fun importSignature(): ImportSignature? {
         val path = importedFile().toAbsolutePath().normalize()
@@ -72,17 +57,57 @@ object BackupService {
         return bundle
     }
 
+    // The active imported.json points to one of two bounded undo slots. Only its
+    // atomic replacement commits an import; an interrupted staging write leaves the old slot usable.
+    private const val PREVIOUS = "imported.previous.json"
+    private const val ALTERNATE = "imported.previous-alt.json"
+    private const val UNDO_KEY = "localUndoSlot"
+
+    private fun undoSlot(current: Path): String? {
+        if (!Files.isRegularFile(current)) return null
+        require(Files.size(current) <= BackupCodec.MAX_BYTES) { "导入文件过大" }
+        val root = Json.parseToJsonElement(Files.readString(current)).jsonObject
+        val name = root[UNDO_KEY]?.jsonPrimitive?.content ?: PREVIOUS // previous versions
+        return name.takeIf { (it == PREVIOUS || it == ALTERNATE) && Files.isRegularFile(current.resolveSibling(it)) }
+    }
+
+    private fun withUndoSlot(text: String, slot: String): String {
+        val root = Json.parseToJsonElement(text).jsonObject
+        return JsonObject(root + (UNDO_KEY to JsonPrimitive(slot))).toString().also { BackupCodec.decode(it) }
+    }
+
+    @Synchronized fun undoRevision(): Long? =
+        if (undoSlot(importedFile()) == null) null else revision()
+
+    @Synchronized fun undoImport(expectedRevision: Long) {
+        check(revision() == expectedRevision) { "导入记录已变化，请重新选择撤销" }
+        val current = importedFile()
+        val previous = current.resolveSibling(checkNotNull(undoSlot(current)) { "没有可撤销的导入" })
+        val restored = BackupCodec.read(previous)
+        // An empty checkpoint represents the state before a first import.
+        if (restored.events.isEmpty() && restored.legacy.hours.isEmpty() && restored.legacy.tracks.isEmpty()) {
+            Files.delete(current)
+        } else {
+            DataFiles.writeAtomic(current, withUndoSlot(Files.readString(previous), "none"))
+        }
+        cache = null
+        revision()
+    }
+
     @Synchronized fun importFile(file: Path): BackupBundle {
         val incoming = BackupCodec.read(file)
         val existing = imported()
         val merged = BackupCodec.union(existing.copy(events = LiveStore.correctImportedEvents(existing.events)),
             incoming.copy(events = LiveStore.correctImportedEvents(incoming.events)))
         val text = BackupCodec.encode(merged)
-        BackupCodec.decode(text) // Validate the result before replacing any durable state.
-        if (Files.isRegularFile(importedFile())) {
-            DataFiles.writeAtomic(importedFile().resolveSibling("imported.previous.json"), Files.readString(importedFile()))
-        }
-        DataFiles.writeAtomic(importedFile(), text)
+        val current = importedFile()
+        val slot = if (undoSlot(current) == ALTERNATE) PREVIOUS else ALTERNATE
+        val committed = withUndoSlot(text, slot)
+        // Preserve the exact prior checkpoint. Restoration consumes any embedded undo pointer.
+        val checkpoint = if (Files.isRegularFile(current)) Files.readString(current) else BackupCodec.encode(existing)
+        BackupCodec.decode(checkpoint)
+        DataFiles.writeAtomic(current.resolveSibling(slot), checkpoint)
+        DataFiles.writeAtomic(current, committed)
         cache = null
         observedSignature = null
         inputRevision++
@@ -90,6 +115,7 @@ object BackupService {
     }
 
     @Synchronized fun exportFile(file: Path, data: StatsData) {
+        check(data.importedRevision == null || data.importedRevision == revision()) { "导入记录已更新，请刷新统计后再导出" }
         val existing = imported()
         val bundle = BackupCodec.union(BackupBundle(LiveStore.correctImportedEvents(data.events)),
             existing.copy(events = LiveStore.correctImportedEvents(existing.events)))
@@ -98,79 +124,41 @@ object BackupService {
         DataFiles.writeAtomic(file, text)
     }
 
-    /**
-     * Swing's modal chooser must not run in Compose's AWT event loop.  A
-     * dedicated worker also avoids the Compose 1.7 coroutine continuation
-     * failure that occurs when showOpenDialog/showSaveDialog blocks a click
-     * coroutine.  The worker is daemonized so a cancelled plugin cannot keep
-     * the host process alive.
-     */
-    private suspend fun <T> onDialogThread(action: String, block: () -> T): T = suspendCancellableCoroutine { continuation ->
-        PluginLog.info("backup dialog start action=$action callerThread=${Thread.currentThread().name}")
-        continuation.invokeOnCancellation {
-            val chooser = synchronized(dialogLock) { activeChooser }
-            if (chooser != null) {
-                PluginLog.info("backup dialog cancelled action=$action")
-                runCatching { chooser.cancelSelection() }
+    suspend fun undoBackup(expectedRevision: Long): Boolean {
+        if (!BackupDialogs.confirm("撤销上次导入", "恢复到上次导入前的统计？本机新听的记录会保留。")) return false
+        return try {
+            withContext(Dispatchers.IO) {
+                check(StatsStore.hasLibraryAccess()) { "请先授权曲库读取权限" }
+                undoImport(expectedRevision)
             }
-        }
-        thread(start = true, isDaemon = true, name = "spw-listen-stats-file-dialog") {
-            PluginLog.info("backup dialog running action=$action thread=${Thread.currentThread().name}")
-            runCatching(block).fold(
-                {
-                    PluginLog.info("backup dialog finish action=$action result=${if (it == null) "cancel" else "selected"}")
-                    if (continuation.isActive) continuation.resume(it)
-                },
-                {
-                    PluginLog.error("backup dialog failed action=$action", it)
-                    if (continuation.isActive) continuation.resumeWithException(it)
-                }
-            )
-        }
-    }
-
-    private fun chooseExportFileBlocking(): Path? {
-        val chooser = JFileChooser().apply {
-            dialogTitle = "导出听歌统计备份"
-            fileFilter = FileNameExtensionFilter("JSON 备份 (*.json)", "json")
-            selectedFile = java.io.File("spw-listen-stats-${LocalDate.now()}.json")
-        }
-        synchronized(dialogLock) { activeChooser = chooser }
-        return try {
-            if (chooser.showSaveDialog(null) != JFileChooser.APPROVE_OPTION) null
-            else chooser.selectedFile.toPath()
-        } finally { synchronized(dialogLock) { if (activeChooser === chooser) activeChooser = null } }
-    }
-
-    private fun chooseImportFileBlocking(): Path? {
-        val chooser = JFileChooser().apply {
-            dialogTitle = "导入听歌统计备份"
-            fileFilter = FileNameExtensionFilter("JSON 备份 (*.json)", "json")
-        }
-        synchronized(dialogLock) { activeChooser = chooser }
-        return try {
-            if (chooser.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) null
-            else chooser.selectedFile.toPath()
-        } finally { synchronized(dialogLock) { if (activeChooser === chooser) activeChooser = null } }
-    }
-
-    private fun confirmOverwriteBlocking(file: Path): Boolean {
-        val exists = Files.exists(file)
-        val accepted = !exists || JOptionPane.showConfirmDialog(
-            null, "替换现有备份文件？", "导出备份", JOptionPane.YES_NO_OPTION
-        ) == JOptionPane.YES_OPTION
-        PluginLog.info("backup overwrite decision accepted=$accepted exists=$exists path=${file.toAbsolutePath()}")
-        return accepted
+            WorkshopApi.ui.toast("已撤销上次导入", WorkshopApi.Ui.ToastType.Success)
+            true
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) { report("撤销导入", failure); false }
     }
 
     suspend fun export(data: StatsData) {
         val operationId = operationSequence.incrementAndGet()
         PluginLog.info("backup export requested operation=$operationId thread=${Thread.currentThread().name} events=${data.events.size}")
-        val file = onDialogThread("export-select#$operationId") { chooseExportFileBlocking() } ?: return
+        if (!StatsStore.hasLibraryAccess() || data.libraryAccessDenied) {
+            WorkshopApi.ui.toast("请先授权曲库读取权限", WorkshopApi.Ui.ToastType.Warning)
+            return
+        }
+        val file = BackupDialogs.chooseFile(export = true) ?: return
         PluginLog.info("backup export selected operation=$operationId path=${file.toAbsolutePath()}")
-        if (!onDialogThread("export-overwrite#$operationId") { confirmOverwriteBlocking(file) }) return
+        if (withContext(Dispatchers.IO) { Files.exists(file) }) {
+            val overwrite = BackupDialogs.confirm("导出备份", "替换现有备份文件？")
+            PluginLog.info("backup overwrite decision operation=$operationId accepted=$overwrite")
+            if (!overwrite) return
+        }
         try {
-            withContext(Dispatchers.IO) { exportFile(file, data) }
+            withContext(Dispatchers.IO) {
+                check(StatsStore.hasLibraryAccess()) { "请先授权曲库读取权限" }
+                val latest = if (data.importedRevision != null && data.importedRevision != revision()) {
+                    StatsStore.load().also { check(it.error == null) { it.error.orEmpty() } }
+                } else data
+                exportFile(file, latest)
+            }
             PluginLog.info("backup export completed operation=$operationId path=${file.toAbsolutePath()} bytes=${runCatching { Files.size(file) }.getOrDefault(-1L)}")
             WorkshopApi.ui.toast("已导出听歌统计备份", WorkshopApi.Ui.ToastType.Success)
         } catch (cancelled: CancellationException) { throw cancelled }
@@ -180,38 +168,19 @@ object BackupService {
     suspend fun importBackup(): Boolean {
         val operationId = operationSequence.incrementAndGet()
         PluginLog.info("backup import requested operation=$operationId thread=${Thread.currentThread().name}")
-        val path = onDialogThread("import-select#$operationId") { chooseImportFileBlocking() } ?: return false
+        val path = BackupDialogs.chooseFile(export = false) ?: return false
         PluginLog.info("backup import selected operation=$operationId path=${path.toAbsolutePath()} bytes=${runCatching { Files.size(path) }.getOrDefault(-1L)}")
         return try {
             val incoming = withContext(Dispatchers.IO) { importFile(path) }
             if (incoming.legacy.hours.isNotEmpty() || incoming.legacy.tracks.isNotEmpty()) {
-                onDialogThread("legacy-import-warning#$operationId") {
-                    JOptionPane.showMessageDialog(null,
-                        "已合并备份。旧版汇总没有会话 ID，按小时和次数取较大值保留，可能少计重叠日期中的不同收听。",
-                        "旧版备份已兼容导入", JOptionPane.INFORMATION_MESSAGE)
-                }
+                BackupDialogs.message("旧版备份已兼容导入",
+                    "已合并备份。旧版汇总没有会话 ID，按小时和次数取较大值保留，可能少计重叠日期中的不同收听。")
             }
             PluginLog.info("backup import completed operation=$operationId path=${path.toAbsolutePath()} events=${incoming.events.size} legacyHours=${incoming.legacy.hours.size} legacyTracks=${incoming.legacy.tracks.size}")
             WorkshopApi.ui.toast("已合并备份，重复会话不会重复累计", WorkshopApi.Ui.ToastType.Success)
             true
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Throwable) { report("导入", failure); false }
-    }
-
-    fun merge(host: StatsData): StatsData = try {
-        val bundle = imported()
-        val visibleTracks = bundle.legacy.tracks.filterValues(TrackVisibility::isVisible)
-        val visible = bundle.copy(
-            events = bundle.events.filter { TrackVisibility.isVisible(it.track) },
-            legacy = bundle.legacy.copy(
-                tracks = visibleTracks,
-                counts = bundle.legacy.counts.filterKeys { it in visibleTracks }
-            )
-        )
-        BackupCodec.apply(host, visible)
-    } catch (failure: Exception) {
-        PluginLog.error("merging imported backup failed", failure)
-        host.copy(error = listOfNotNull(host.error, "备份读取失败，原文件已保留：${failure.message}").joinToString("；"))
     }
 
     fun mergeWithLive(host: StatsData, visibility: TrackVisibility.Snapshot = TrackVisibility.Snapshot()): StatsData {
@@ -232,11 +201,8 @@ object BackupService {
     private suspend fun report(action: String, failure: Throwable) {
         PluginLog.error("backup $action failed", failure)
         // Error reporting is best effort; the original failure remains in the log.
-        runCatching {
-            onDialogThread("error-$action") {
-                    JOptionPane.showMessageDialog(null, "$action 失败：${failure.message}", "$action 失败",
-                        JOptionPane.ERROR_MESSAGE)
-            }
-        }.onFailure { PluginLog.error("showing backup $action error failed", it) }
+        try { BackupDialogs.message("$action 失败", "$action 失败：${failure.message}", error = true) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (problem: Exception) { PluginLog.error("showing backup $action error failed", problem) }
     }
 }
