@@ -293,6 +293,7 @@ object LiveStore {
     ): StatsData {
         val source = DataFiles.sourceId()
         val visibleIds = host.tracks.filterValues(trackVisible).keys
+        val missingTrackIds = mutableSetOf<String>()
         val visibleHost = host.copy(
             listens = host.listens.filter { it.trackId !in host.tracks || it.trackId in visibleIds },
             tracks = host.tracks.filterKeys { it in visibleIds }
@@ -303,8 +304,11 @@ object LiveStore {
             .sortedBy { firstObserved(it) }
         val hostEvents = PerformanceProbe.measure("LiveStore.buildHostEvents") {
             visibleHost.listens.map { listen ->
-                ListeningEvent("host:$source:${listen.id}", visibleHost.tracks[listen.trackId] ?: TrackMeta(
-                    listen.trackId, "未知歌曲", "", "", "", 0),
+                val track = visibleHost.tracks[listen.trackId] ?: run {
+                    missingTrackIds.add(listen.trackId)
+                    TrackMeta(listen.trackId, "未知歌曲", "", "", "", 0)
+                }
+                ListeningEvent("host:$source:${listen.id}", track,
                     listOf(ListeningSpan(listen.startTimeMs, listen.durationMs)),
                     approximate = true, libraryId = source)
             }
@@ -408,7 +412,7 @@ object LiveStore {
                     )
                 }
         }
-        return ListeningEvents.aggregate(visibleHost, hostEvents + liveEvents +
+        return ListeningEvents.aggregate(visibleHost.copy(missingHostTrackIds = missingTrackIds), hostEvents + liveEvents +
             correctImportedEvents(importedEvents, if (repairs.isEmpty()) original else original.map { repairs[it.id] ?: it }).filter { trackVisible(it.track) })
     }
 }

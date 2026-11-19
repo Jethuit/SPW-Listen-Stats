@@ -322,7 +322,7 @@ object HostDatabase {
                 statement.executeQuery().use { rows ->
                     while (rows.next()) {
                         val id = rows.getString("id") ?: continue
-                        val title = rows.getString("title") ?: continue
+                        val title = rows.getString("title") ?: "未知歌曲"
                         result[id] = TrackMeta(
                             id = id,
                             title = title,

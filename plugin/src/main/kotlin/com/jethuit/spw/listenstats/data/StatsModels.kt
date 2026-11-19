@@ -35,7 +35,9 @@ data class StatsData(
     val events: List<ListeningEvent> = emptyList(),
     val libraryAccessDenied: Boolean = false,
     val storageWarning: String? = null,
-    val importedRevision: Long? = null
+    val importedRevision: Long? = null,
+    val missingHostTrackIds: Set<String> = emptySet(),
+    val statisticsStart: Long = 0
 ) {
     fun millisOn(date: LocalDate): Long = dailyMillis[date] ?: 0L
 
@@ -48,6 +50,7 @@ data class StatsData(
         val durations = listeningMillisByTrack()
         val entries = (playCounts.keys + durations.keys).distinct()
             .mapNotNull { id ->
+                if (id in missingHostTrackIds) return@mapNotNull null
                 tracks[id]?.let { TrackRank(it, playCounts[id] ?: 0, durations[id] ?: 0L) }
             }
             .filter { if (metric == RankingMetric.Count) it.count > 0 else it.durationMs > 0L }

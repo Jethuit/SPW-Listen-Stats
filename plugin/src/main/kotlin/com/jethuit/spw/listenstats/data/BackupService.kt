@@ -35,6 +35,11 @@ object BackupService {
         return inputRevision
     }
 
+    @Synchronized fun resetStatistics(start: Long) {
+        StatisticsStart.save(start)
+        inputRevision++
+    }
+
     private fun importSignature(): ImportSignature? {
         val path = importedFile().toAbsolutePath().normalize()
         if (!Files.isRegularFile(path)) return null
@@ -119,7 +124,10 @@ object BackupService {
         val existing = imported()
         val bundle = BackupCodec.union(BackupBundle(LiveStore.correctImportedEvents(data.events)),
             existing.copy(events = LiveStore.correctImportedEvents(existing.events)))
-        val text = BackupCodec.encode(bundle)
+        val start = StatisticsStart.read()
+        val exported = if (start == 0L) bundle else BackupBundle(
+            bundle.events.mapNotNull { it.since(start) }, bundle.legacy.since(start))
+        val text = BackupCodec.encode(exported)
         BackupCodec.decode(text)
         DataFiles.writeAtomic(file, text)
     }
@@ -189,10 +197,11 @@ object BackupService {
             return LiveStore.merge(host, trackVisible = visibility::isVisible).copy(error = listOfNotNull(host.error,
                 "备份读取失败，原文件已保留：${failure.message}").joinToString("；"))
         }
-        val visibleLegacyTracks = bundle.legacy.tracks.filterValues(visibility::isVisible)
-        val visibleLegacy = bundle.legacy.copy(
+        val legacy = bundle.legacy.since(host.statisticsStart)
+        val visibleLegacyTracks = legacy.tracks.filterValues(visibility::isVisible)
+        val visibleLegacy = legacy.copy(
             tracks = visibleLegacyTracks,
-            counts = bundle.legacy.counts.filterKeys { it in visibleLegacyTracks }
+            counts = legacy.counts.filterKeys { it in visibleLegacyTracks }
         )
         return BackupCodec.applyLegacy(
             LiveStore.merge(host, bundle.events, visibility::isVisible), visibleLegacy)

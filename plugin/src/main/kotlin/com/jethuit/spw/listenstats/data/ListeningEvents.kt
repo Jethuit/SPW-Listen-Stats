@@ -147,7 +147,8 @@ object ListeningEvents {
             val meta = if (event.track.id == trackId) event.track else event.track.copy(id = trackId)
             metadata[trackId] = (metadata[trackId] ?: base.tracks[trackId])?.let { mergeTrack(it, meta) } ?: meta
         } }
-        val events = PerformanceProbe.measure("ListeningEvents.aggregateResolve") { union(input).map { event ->
+        val events = PerformanceProbe.measure("ListeningEvents.aggregateResolve") { union(input).mapNotNull { original ->
+            val event = original.since(base.statisticsStart) ?: return@mapNotNull null
             val trackId = localTrackId(event)
             val meta = if (event.track.id == trackId) event.track else event.track.copy(id = trackId)
             val resolved = metadata[trackId]?.let { mergeTrack(it, meta) } ?: meta
@@ -162,7 +163,8 @@ object ListeningEvents {
                 counts[trackId] = (counts[trackId] ?: 0) + 1
             }
         } }
-        return base.copy(events = events, dailyMillis = daily, hourlyMillis = hourly,
+        return base.copy(listens = if (base.statisticsStart == 0L) base.listens else emptyList(),
+            events = events, dailyMillis = daily, hourlyMillis = hourly,
             tracks = tracks, playCounts = counts, loadedAt = System.currentTimeMillis())
     }
 }

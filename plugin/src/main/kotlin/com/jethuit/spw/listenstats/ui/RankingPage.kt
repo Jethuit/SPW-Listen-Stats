@@ -2,6 +2,8 @@
 
 package com.jethuit.spw.listenstats.ui
 
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.selected
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -779,7 +781,7 @@ private fun Pagination(
                             style = AppType.tiny.copy(color = colors.muted)
                         )
                     } else {
-                        PageButton("$item", item == current, true, compact) { onPage(item) }
+                        PageButton("$item", item == current, compact) { onPage(item) }
                     }
                 }
             }
@@ -823,31 +825,32 @@ private fun PageArrowButton(
 private fun PageButton(
     text: String,
     active: Boolean,
-    enabled: Boolean,
-    compact: Boolean = false,
+    compact: Boolean,
     onClick: () -> Unit
 ) {
     val colors = LocalStatsColors.current
-    val color = when {
-        !enabled -> colors.muted.copy(alpha = 0.45f)
-        else -> colors.text
+    val shape = AppShape(8.dp)
+    val content: @Composable () -> Unit = {
+        Box(
+            Modifier.height(28.dp).padding(horizontal = if (compact) 4.dp else 7.dp)
+                .widthIn(min = if (compact) 24.dp else 28.dp),
+            contentAlignment = Alignment.Center
+        ) { Text(text, style = AppType.bodySmall.copy(color = colors.text)) }
     }
-    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+    if (active) {
+        var focused by remember { mutableStateOf(false) }
         Surface(
-            onClick = { if (enabled) onClick() },
-            shape = AppShape(8.dp),
-            color = if (active) colors.selectedControlBackground else Color.Transparent
-        ) {
-            Box(
-                Modifier.height(28.dp).padding(horizontal = if (compact) 4.dp else 7.dp)
-                    .widthIn(min = if (compact) 24.dp else 28.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text,
-                    style = AppType.bodySmall.copy(color = color)
-                )
-            }
+            modifier = Modifier.onFocusChanged { focused = it.isFocused }
+                .semantics { selected = true }
+                .clickable(interactionSource = null, indication = null, onClick = onClick),
+            color = colors.selectedControlBackground,
+            shape = shape,
+            border = if (focused) BorderStroke(1.dp, SolidColor(colors.muted)) else null,
+            content = content
+        )
+    } else {
+        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+            Surface(onClick = onClick, color = Color.Transparent, shape = shape, content = content)
         }
     }
 }

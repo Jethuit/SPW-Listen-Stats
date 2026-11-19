@@ -3,6 +3,13 @@
 
 package com.jethuit.spw.listenstats
 
+import com.jethuit.spw.listenstats.data.BackupDialogs
+import com.jethuit.spw.listenstats.data.StatsSnapshots
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.xuncorp.spw.workshop.api.PluginContext
 import com.xuncorp.spw.workshop.api.SpwPlugin
 import com.xuncorp.spw.workshop.api.UnstableSpwWorkshopApi
@@ -202,6 +209,23 @@ class MainPlugin(
             PluginLog.info("openStats requested from preference")
             javax.swing.SwingUtilities.invokeLater {
                 StatsNavigationHooks.openStats()
+            }
+        }
+
+        @JvmStatic
+        fun resetStatistics() {
+            val session = StatsSnapshots.current ?: return
+            CoroutineScope(session.pageActions + Dispatchers.Main).launch {
+                try {
+                    if (!BackupDialogs.confirm("重置统计数据", "从现在开始重新统计？SPW 的听歌历史和已有备份会保留。")) return@launch
+                    val start = System.currentTimeMillis()
+                    withContext(Dispatchers.IO) { session.reset(start) }
+                    WorkshopApi.ui.toast("已从现在开始重新统计", WorkshopApi.Ui.ToastType.Success)
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) {
+                    PluginLog.error("reset statistics failed", failure)
+                    WorkshopApi.ui.toast("重置失败，请查看诊断日志", WorkshopApi.Ui.ToastType.Warning)
+                }
             }
         }
 

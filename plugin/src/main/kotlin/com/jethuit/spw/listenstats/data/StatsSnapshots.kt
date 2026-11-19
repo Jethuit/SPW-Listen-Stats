@@ -24,6 +24,15 @@ class StatsSnapshotSession(
     @Volatile var latest: PreparedStatistics? = null
         private set
 
+    suspend fun reset(start: Long) {
+        mutex.lock()
+        try {
+            BackupService.resetStatistics(start)
+            lastSuccess = null
+            latest = null
+        } finally { mutex.unlock() }
+    }
+
     suspend fun load(reuse: Boolean = false): PreparedStatistics {
         mutex.lock()
         try {

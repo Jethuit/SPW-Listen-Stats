@@ -40,6 +40,17 @@ fun main(args: Array<String>) {
             track = located)))))
         check(roundtrip.events.single().track.path == located.path)
     }
+    test("missing host tracks retain time but only rank when their library row exists") {
+        val host = StatsData.empty(databaseFound = true).copy(
+            listens = listOf(ListenEntry("orphan", track.id, epoch, 6_000)))
+        val foreign = event("other-library", 20_000).copy(libraryId = "other-library")
+        val merged = LiveStore.merge(host, listOf(foreign))
+        check(merged.dailyMillis.values.sum() == 12_000L)
+        check(merged.sortedTracks(RankingMetric.Duration).single().track.id == "other-library:${track.id}")
+        val restored = LiveStore.merge(host.copy(tracks = mapOf(track.id to track.copy(title = "未知歌曲"))))
+        check(restored.sortedTracks(RankingMetric.Duration).single().track.id == track.id)
+        check(restored.dailyMillis.values.sum() == 6_000L)
+    }
     test("pause + cross-day + backward seek: actual intervals, one count") {
         val sessions = linkedMapOf<String, LiveSession>()
         val engine = PlaybackAccumulator { sessions[it.id] = it.copyForStore() }

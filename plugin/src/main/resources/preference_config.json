@@ -89,6 +89,19 @@
       ]
     },
     {
+      "title": "统计数据",
+      "config": "config.json",
+      "preferences": [
+        {
+          "type": "button",
+          "title": "重置统计数据",
+          "summary": "从确认时刻重新累计，保留 SPW 的听歌历史和已有备份。",
+          "arrow_type": "none",
+          "on_click": "com.jethuit.spw.listenstats.MainPlugin.resetStatistics"
+        }
+      ]
+    },
+    {
       "title": "更新与诊断",
       "config": "config.json",
       "preferences": [

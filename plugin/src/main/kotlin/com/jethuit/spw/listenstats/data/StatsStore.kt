@@ -56,7 +56,9 @@ object StatsStore {
             return cached.data
         }
         return try {
-            val merged = BackupService.mergeWithLive(host, visibility)
+            val start = StatisticsStart.read()
+            val base = if (start == 0L) host else host.copy(statisticsStart = start)
+            val merged = BackupService.mergeWithLive(base, visibility)
             val warning = LiveStore.storageError()?.let { "$it。可从更多操作导出当前统计。" }
             val result = merged.copy(storageWarning = warning, importedRevision = backupRevision)
             synchronized(cacheLock) {
@@ -65,7 +67,7 @@ object StatsStore {
             result
         } catch (failure: Exception) {
             PluginLog.error("loading statistics failed", failure)
-            host.copy(error = "统计数据读取失败：${failure.message}")
+            StatsData.empty(error = "统计数据读取失败：${failure.message}", databaseFound = host.databaseFound)
         }
     }
 

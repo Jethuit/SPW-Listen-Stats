@@ -158,6 +158,26 @@ fun main(args: Array<String>) {
         Files.delete(target)
         LiveStore.save()
         check(session.load().data.storageWarning == null)
+        // The boundary falls four seconds into the final seven-second host row.
+        val cutoff = start + 64_000
+        session.reset(cutoff)
+        val reset = session.load(reuse = true).data
+        check(reset.error == null && reset.statisticsStart == cutoff)
+        val crossing = reset.events.single { it.track.id == hostTrack.id }
+        check(crossing.spans == listOf(ListeningSpan(cutoff, 3_000L)))
+        check(reset.playCount(hostTrack.id) == 0)
+        check(reset.events.all { event -> event.spans.all { it.startMs >= cutoff } })
+        check(reset.dailyMillis.values.sum() == reset.events.sumOf { it.durationMs })
+        StatsStore.initialize(pluginPath.toString())
+        check(StatsStore.load().dailyMillis == reset.dailyMillis)
+        com.jethuit.spw.listenstats.data.BackupService.exportFile(output, reset)
+        val exported = BackupCodec.read(output)
+        check(exported.events.none { it.track.id == importedTrack.id })
+        check(exported.events.all { event -> event.spans.all { it.startMs >= cutoff } })
+        session.reset(start + 200_000)
+        val empty = session.load(reuse = true).data
+        check(empty.events.isEmpty() && empty.dailyMillis.isEmpty() && empty.sortedTracks().isEmpty())
+
     }
     println("PASS merged snapshot reuses unchanged inputs and invalidates on live, backup, and host changes")
 }
