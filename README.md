@@ -36,6 +36,14 @@ Salt Player for Windows 的本地听歌统计插件：看你听了多久，也�
 
 ## 常见问题
 
+### 如何恢复重置前的听歌统计？
+
+从 v0.5.3 起，“重置统计数据”会把确认时刻设为新的统计起点。要重新显示本机仍保留的全部历史，可以按以下步骤取消这个起点：
+
+1. 按 `Win + R`，输入 `%APPDATA%\Salt Player for Windows\workshop\data\com.jethuit.spw.listenstats` 并回车。如果找不到该目录，在插件配置中点击“写入诊断日志”，打开提示中的日志，按 `dataDirectory` 找到实际目录。
+2. 完全退出 SPW，将该目录中的 `statistics-start.txt` 重命名为 `statistics-start.txt.bak`。
+3. 重新打开 SPW 并进入“听歌统计”。重置前后仍保留的记录会一起计入概览和排行。
+
 **更新失败？** 先在 SPW 中删除插件，再导入新的安装包。
 
 **诊断日志在哪？** 在插件配置中开启写入诊断日志，然后查看数据目录里的 `status.log`。其中可能含本机路径，分享前请打码。
