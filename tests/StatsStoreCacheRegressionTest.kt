@@ -3,6 +3,7 @@
 import com.jethuit.spw.listenstats.PluginState
 import com.jethuit.spw.listenstats.data.BackupBundle
 import com.jethuit.spw.listenstats.data.BackupCodec
+import com.jethuit.spw.listenstats.data.BackupService
 import com.jethuit.spw.listenstats.data.LiveSession
 import com.jethuit.spw.listenstats.data.LiveStore
 import com.jethuit.spw.listenstats.data.ListeningEvent
@@ -157,7 +158,8 @@ fun main(args: Array<String>) {
         check(BackupCodec.read(output).events.any { it.id == "live:not-yet-saved" })
         Files.delete(target)
         LiveStore.save()
-        check(session.load().data.storageWarning == null)
+        val beforeReset = session.load().data
+        check(beforeReset.storageWarning == null)
         // The boundary falls four seconds into the final seven-second host row.
         val cutoff = start + 64_000
         session.reset(cutoff)
@@ -170,14 +172,41 @@ fun main(args: Array<String>) {
         check(reset.dailyMillis.values.sum() == reset.events.sumOf { it.durationMs })
         StatsStore.initialize(pluginPath.toString())
         check(StatsStore.load().dailyMillis == reset.dailyMillis)
-        com.jethuit.spw.listenstats.data.BackupService.exportFile(output, reset)
+        BackupService.exportFile(output, reset)
         val exported = BackupCodec.read(output)
         check(exported.events.none { it.track.id == importedTrack.id })
         check(exported.events.all { event -> event.spans.all { it.startMs >= cutoff } })
-        session.reset(start + 200_000)
+        val newerCutoff = start + 200_000
+        session.reset(newerCutoff)
         val empty = session.load(reuse = true).data
         check(empty.events.isEmpty() && empty.dailyMillis.isEmpty() && empty.sortedTracks().isEmpty())
 
+        val outdatedRestore = runCatching { session.restore(cutoff) }
+        check(outdatedRestore.exceptionOrNull() is IllegalStateException)
+        check(session.load(reuse = true).data === empty)
+
+        val newSpan = ListeningSpan(newerCutoff + 1_000, 6_000)
+        LiveStore.upsert(concurrent.copy(id = "after-reset", startTimeMs = newSpan.startMs,
+            spans = mutableListOf(newSpan)))
+        val afterReset = session.load().data
+        check(afterReset.events.single().id == "live:after-reset")
+        val savedImport = Files.readString(importedFile)
+        val priorExport = Files.readString(output)
+        session.restore(newerCutoff)
+        val restored = session.load(reuse = true).data
+        check(restored.error == null && restored.statisticsStart == 0L)
+        check(restored.events.map { it.id }.toSet() == beforeReset.events.map { it.id }.toSet() + "live:after-reset")
+        check(restored.dailyMillis.values.sum() == beforeReset.dailyMillis.values.sum() + newSpan.durationMs)
+        check(restored.playCount(hostTrack.id) == beforeReset.playCount(hostTrack.id))
+        check(!Files.exists(importedFile.resolveSibling("statistics-start.txt")))
+        check(Files.readString(importedFile) == savedImport && Files.readString(output) == priorExport)
+        check(runCatching { BackupService.exportFile(output, afterReset) }.isFailure)
+        val restoredOutput = root.resolve("restored-backup.json")
+        BackupService.exportFile(restoredOutput, restored)
+        val restoredBackup = BackupCodec.read(restoredOutput)
+        check(restoredBackup.events.map { it.id }.toSet() == restored.events.map { it.id }.toSet())
+        StatsStore.initialize(pluginPath.toString())
+        check(StatsStore.load().dailyMillis == restored.dailyMillis)
     }
-    println("PASS merged snapshot reuses unchanged inputs and invalidates on live, backup, and host changes")
+    println("PASS merged snapshots invalidate on live, backup, host, reset, and restore changes")
 }

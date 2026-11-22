@@ -40,6 +40,13 @@ object BackupService {
         inputRevision++
     }
 
+    @Synchronized internal fun restoreStatistics(expectedStart: Long) {
+        require(expectedStart > 0)
+        check(StatisticsStart.read() == expectedStart) { "统计起点已变化，请重新选择恢复" }
+        StatisticsStart.clear()
+        inputRevision++
+    }
+
     private fun importSignature(): ImportSignature? {
         val path = importedFile().toAbsolutePath().normalize()
         if (!Files.isRegularFile(path)) return null

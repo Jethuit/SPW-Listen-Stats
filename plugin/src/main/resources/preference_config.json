@@ -98,6 +98,13 @@
           "summary": "从确认时刻重新累计，保留 SPW 的听歌历史和已有备份。",
           "arrow_type": "none",
           "on_click": "com.jethuit.spw.listenstats.MainPlugin.resetStatistics"
+        },
+        {
+          "type": "button",
+          "title": "恢复全部统计",
+          "summary": "取消统计起点，重新计入重置前后仍保留的收听记录。",
+          "arrow_type": "none",
+          "on_click": "com.jethuit.spw.listenstats.MainPlugin.restoreStatistics"
         }
       ]
     },

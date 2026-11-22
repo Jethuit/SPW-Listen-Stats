@@ -4,6 +4,7 @@
 package com.jethuit.spw.listenstats
 
 import com.jethuit.spw.listenstats.data.BackupDialogs
+import com.jethuit.spw.listenstats.data.StatisticsStart
 import com.jethuit.spw.listenstats.data.StatsSnapshots
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -225,6 +226,28 @@ class MainPlugin(
                 catch (failure: Exception) {
                     PluginLog.error("reset statistics failed", failure)
                     WorkshopApi.ui.toast("重置失败，请查看诊断日志", WorkshopApi.Ui.ToastType.Warning)
+                }
+            }
+        }
+
+        @JvmStatic
+        fun restoreStatistics() {
+            val session = StatsSnapshots.current ?: return
+            CoroutineScope(session.pageActions + Dispatchers.Main).launch {
+                try {
+                    val start = withContext(Dispatchers.IO) { StatisticsStart.read() }
+                    if (start == 0L) {
+                        WorkshopApi.ui.toast("当前没有设置统计起点", WorkshopApi.Ui.ToastType.Success)
+                        return@launch
+                    }
+                    if (!BackupDialogs.confirm("恢复全部统计", "取消统计起点，重新计入重置前后仍保留的收听记录？")) return@launch
+                    withContext(Dispatchers.IO) { session.restore(start) }
+                    WorkshopApi.ui.toast("已取消统计起点，重新打开听歌统计即可查看", WorkshopApi.Ui.ToastType.Success)
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) {
+                    PluginLog.error("restore statistics failed", failure)
+                    val message = if (failure is IllegalStateException) failure.message else null
+                    WorkshopApi.ui.toast(message ?: "恢复失败，请查看诊断日志", WorkshopApi.Ui.ToastType.Warning)
                 }
             }
         }

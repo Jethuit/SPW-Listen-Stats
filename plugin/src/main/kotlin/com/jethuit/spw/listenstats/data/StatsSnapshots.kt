@@ -7,6 +7,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import javax.swing.SwingUtilities
 import com.jethuit.spw.listenstats.ui.UiPerformanceProbe
+import kotlin.coroutines.coroutineContext
 
 data class PreparedStatistics(val data: StatsData, val preferences: DisplayPreferences)
 
@@ -24,10 +25,15 @@ class StatsSnapshotSession(
     @Volatile var latest: PreparedStatistics? = null
         private set
 
-    suspend fun reset(start: Long) {
+    suspend fun reset(start: Long) = changeStatisticsStart { BackupService.resetStatistics(start) }
+
+    suspend fun restore(expectedStart: Long) = changeStatisticsStart { BackupService.restoreStatistics(expectedStart) }
+
+    private suspend fun changeStatisticsStart(change: () -> Unit) {
         mutex.lock()
         try {
-            BackupService.resetStatistics(start)
+            coroutineContext.ensureActive()
+            change()
             lastSuccess = null
             latest = null
         } finally { mutex.unlock() }

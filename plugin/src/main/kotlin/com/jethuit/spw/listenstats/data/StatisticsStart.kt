@@ -17,6 +17,10 @@ internal object StatisticsStart {
         require(time > 0)
         DataFiles.writeAtomic(file(), time.toString())
     }
+
+    fun clear() {
+        Files.delete(file())
+    }
 }
 
 internal fun ListeningEvent.since(start: Long): ListeningEvent? {
