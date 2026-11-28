@@ -1,5 +1,5 @@
 {
-  "version": "0.4.1",
-  "expected_body_sha256": "62621a24fcb575ad3a5e3b4b84f38111b62e8b3a535f8e509dd8ebb389a73b30",
-  "package_sha256": "494e1d371eb9e68701bde45f66a705d5ea5221afe4ec8ae52e473612bb22a152"
+  "version": "0.5.4",
+  "expected_body_sha256": "6bceaf4350ee75d16532e35fcc4f661fd8c01423b89e7da001eb919491542509",
+  "package_sha256": "b50acd2db71add72cf8e97c0e0e52cad0ad4baf827a3b7e75ff582fe2a26fab6"
 }
