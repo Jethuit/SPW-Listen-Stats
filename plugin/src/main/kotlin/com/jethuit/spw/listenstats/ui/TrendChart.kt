@@ -75,7 +75,9 @@ fun TrendChart(
     val focusRequester = remember { FocusRequester() }
     val exiting = LocalStatsPageExiting.current
     val widestLabel = remember(buckets, hostFont, measurer, density.density, density.fontScale) {
-        buckets.maxOfOrNull { measurer.measure(it.label, axisStyle).size.width.toFloat() } ?: 0f
+        val width = buckets.maxOfOrNull { measurer.measure(it.label, axisStyle).size.width.toFloat() } ?: 0f
+        UiPerformanceProbe.mark("trend_labels_measured", "buckets=${buckets.size}")
+        width
     }
 
     val values = buckets.map { it.millis }
@@ -352,6 +354,7 @@ fun TrendChart(
                             drawBase(null, null)
                         }
                         image = bitmap
+                        UiPerformanceProbe.mark("trend_static_layer_built", "buckets=${buckets.size}")
                     }
                     drawImage(cached)
                 }

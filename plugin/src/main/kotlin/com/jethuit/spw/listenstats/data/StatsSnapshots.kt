@@ -1,23 +1,47 @@
 package com.jethuit.spw.listenstats.data
 
+import androidx.compose.ui.text.font.FontFamily
 import com.jethuit.spw.listenstats.DisplayPreferences
+import com.jethuit.spw.listenstats.PageOptions
 import com.jethuit.spw.listenstats.Prefs
 import com.jethuit.spw.listenstats.PluginLog
+import com.jethuit.spw.listenstats.ui.HostAppearanceReader
+import com.jethuit.spw.listenstats.ui.HostFont
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
+import java.time.LocalDate
+import java.util.concurrent.TimeUnit
 import javax.swing.SwingUtilities
 import com.jethuit.spw.listenstats.ui.UiPerformanceProbe
 import kotlin.coroutines.coroutineContext
 
-data class PreparedStatistics(val data: StatsData, val preferences: DisplayPreferences)
+class PreparedStatistics internal constructor(
+    val data: StatsData,
+    val preferences: DisplayPreferences,
+    val today: LocalDate,
+    val options: PageOptions,
+    val overview: PreparedOverview?,
+    val checkedAtNanos: Long,
+    val font: FontFamily?
+) {
+    internal fun refreshDelayMillis(): Long {
+        val interval = preferences.refreshIntervalSeconds * 1_000L
+        val age = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - checkedAtNanos)
+        return (interval - age).coerceIn(0L, interval)
+    }
+}
 
 /** One enable session owns its cache. Failed reads never replace a successful snapshot. */
 class StatsSnapshotSession(
     private val read: () -> StatsData,
     private val preferences: () -> DisplayPreferences = Prefs::displayPreferences,
-    private val hasAccess: () -> Boolean = { true }
+    private val hasAccess: () -> Boolean = { true },
+    private val prepareHostFont: () -> FontFamily? = { null }
 ) {
-    constructor() : this(StatsStore::load, Prefs::displayPreferences, StatsStore::hasLibraryAccess)
+    constructor() : this(StatsStore::load, Prefs::displayPreferences, StatsStore::hasLibraryAccess, {
+        val appearance = HostAppearanceReader.read()
+        HostFont.load(appearance.fontStrategy, appearance.customFontPath)
+    })
 
     internal val pageActions = SupervisorJob()
     private val mutex = Mutex()
@@ -39,22 +63,41 @@ class StatsSnapshotSession(
         } finally { mutex.unlock() }
     }
 
-    suspend fun load(reuse: Boolean = false): PreparedStatistics {
+    suspend fun load(reuse: Boolean = false, selection: OverviewSelection? = null,
+                     prepareFont: Boolean = false): PreparedStatistics {
         mutex.lock()
         try {
+            val previous = latest
+            val hasLibraryAccess = hasAccess()
+            val reused = hasLibraryAccess && reuse && previous != null && !previous.data.libraryAccessDenied
             val result = when {
-                !hasAccess() -> StatsStore.accessDenied()
-                reuse && latest?.data?.libraryAccessDenied == false -> latest!!.data
+                !hasLibraryAccess -> StatsStore.accessDenied()
+                reused -> checkNotNull(previous).data
                 else -> try { read() }
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (failure: Exception) { StatsData.empty(error = "统计数据读取失败：${failure.message}") }
             }
+            val checkedAt = if (reused) checkNotNull(previous).checkedAtNanos else System.nanoTime()
             val data = when {
-                result.libraryAccessDenied -> { lastSuccess = null; result }
-                result.error == null -> result.also { lastSuccess = it }
+                result.libraryAccessDenied || result.error == null || reused -> result
                 else -> lastSuccess?.copy(error = result.error, storageWarning = result.storageWarning) ?: result
             }
-            return PreparedStatistics(data, preferences()).also { latest = it }
+            // Drop previous access immediately, including when this work is canceled before publication.
+            if (data.libraryAccessDenied) {
+                lastSuccess = null
+                latest = null
+            }
+            val display = preferences()
+            val today = LocalDate.now()
+            val options = display.pageOptions.withDateDefaults(today)
+            val overview = if (data.libraryAccessDenied) null else withContext(Dispatchers.Default) {
+                PreparedOverview.prepare(data, today, selection ?: OverviewSelection(today, options), previous?.overview)
+            }
+            val font = if (prepareFont) prepareHostFont() else previous?.font
+            if (prepareFont) UiPerformanceProbe.mark("open_font_prepared")
+            coroutineContext.ensureActive()
+            if (data.error == null) lastSuccess = data
+            return PreparedStatistics(data, display, today, options, overview, checkedAt, font).also { latest = it }
         } finally { mutex.unlock() }
     }
 }
@@ -84,7 +127,7 @@ object StatsSnapshots {
             ensureActive()
             val readStarted = System.nanoTime()
             UiPerformanceProbe.mark("preload_read_start")
-            val prepared = session.load(reuse = true)
+            val prepared = session.load(reuse = true, prepareFont = true)
             ensureActive()
             PluginLog.info("Statistics preload: preferences_ms=${(initialized - initializeStarted) / 1_000_000}; " +
                 "ui_wait_ms=${(readStarted - initialized) / 1_000_000}; " +
@@ -110,16 +153,21 @@ object StatsSnapshots {
         // Standalone synthetic navigation checks do not start the plugin lifecycle.
         if (session == null) { ready(); return }
         val preparation = preload ?: return
-        scope?.launch {
+        val owner = scope ?: return
+        owner.launch {
             preparation.await()
-            session.load(reuse = true)
+            session.load(reuse = true, prepareFont = true)
             ensureActive()
             val prepared = System.nanoTime()
+            UiPerformanceProbe.mark("open_prepare_complete", "prepare_ms=${(prepared - requested) / 1_000_000}")
             SwingUtilities.invokeLater {
                 if (current === session) {
-                    PluginLog.info("Statistics open: prepare_ms=${(prepared - requested) / 1_000_000}; " +
-                        "edt_queue_ms=${(System.nanoTime() - prepared) / 1_000_000}")
-                    UiPerformanceProbe.mark("open_ready")
+                    val edtQueueMs = (System.nanoTime() - prepared) / 1_000_000
+                    UiPerformanceProbe.mark("open_ready", "edt_queue_ms=$edtQueueMs")
+                    owner.launch {
+                        PluginLog.info("Statistics open: prepare_ms=${(prepared - requested) / 1_000_000}; " +
+                            "edt_queue_ms=$edtQueueMs")
+                    }
                     ready()
                 }
             }

@@ -28,9 +28,9 @@ import com.jethuit.spw.listenstats.data.ChartType
 import com.jethuit.spw.listenstats.DisplayPreferences
 import com.jethuit.spw.listenstats.data.Granularity
 import com.jethuit.spw.listenstats.data.RangePreset
-import com.jethuit.spw.listenstats.data.StatsCalculations
 import com.jethuit.spw.listenstats.data.StatsData
-import com.jethuit.spw.listenstats.data.StatsSummary
+import com.jethuit.spw.listenstats.data.OverviewSelection
+import com.jethuit.spw.listenstats.data.PreparedOverview
 import com.jethuit.spw.listenstats.data.ListeningDetails
 import com.jethuit.spw.listenstats.data.ListeningDetailsCalculator
 import com.jethuit.spw.listenstats.util.durationParts
@@ -44,22 +44,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
-fun OverviewPage(
+internal fun OverviewPage(
     data: StatsData,
-    summary: StatsSummary,
+    prepared: PreparedOverview?,
     today: LocalDate,
-    year: Int,
-    weekly: Boolean,
-    heatmapRolling: Boolean = false,
+    selection: OverviewSelection,
     onYearSelected: (Int) -> Unit,
     onHeatmapRollingSelected: (Boolean) -> Unit = {},
     onWeeklySelected: (Boolean) -> Unit,
-    selectedDate: LocalDate?,
-    rangePreset: RangePreset,
-    customStart: LocalDate?,
-    customEnd: LocalDate?,
     chartType: ChartType,
-    userGranularity: Granularity,
     onDaySelected: (LocalDate) -> Unit,
     onWeekSelected: (LocalDate, LocalDate) -> Unit,
     onRangePreset: (RangePreset) -> Unit,
@@ -70,29 +63,26 @@ fun OverviewPage(
     displayPreferences: DisplayPreferences = DisplayPreferences()
 ) {
     val colors = LocalStatsColors.current
-    val years = remember(data, today) { StatsCalculations.years(data, today) }
-    val heatmapStart = if (heatmapRolling) today.minusDays(364) else LocalDate.of(year, 1, 1)
-    val heatmapEnd = if (heatmapRolling) today else LocalDate.of(year, 12, 31)
-    val yearTotal = remember(data, heatmapStart, heatmapEnd) {
-        data.dailyMillis.filterKeys { it in heatmapStart..heatmapEnd }.values.sum()
+    val overview = remember(data.snapshotIdentity, today, selection, prepared) {
+        PreparedOverview.prepare(data, today, selection, prepared)
     }
-    val yearActiveDays = remember(data, heatmapStart, heatmapEnd) {
-        data.dailyMillis.count { (date, millis) -> date in heatmapStart..heatmapEnd && millis > 0 }
-    }
-    val range = StatsCalculations.range(rangePreset, today, selectedDate, customStart, customEnd)
-    val effectiveGranularity = if (range.days < 14) Granularity.Day else userGranularity
-    val buckets = remember(data, range, effectiveGranularity) {
-        StatsCalculations.chartBuckets(data, range, effectiveGranularity)
-    }
-    val rangeTotal = buckets.sumOf { it.millis }
-    val maxBucket = buckets.maxOfOrNull { it.millis } ?: 0L
-    val trendAxis = UiGeometry.trendAxis(maxBucket, hourly = range.days == 1)
+    val summary = overview.summary
+    val heatmap = overview.heatmap
+    val year = selection.year
+    val weekly = selection.weekly
+    val heatmapRolling = selection.rolling
+    val selectedDate = selection.selectedDate
+    val rangePreset = selection.rangePreset
+    val range = overview.range
+    val effectiveGranularity = overview.granularity
+    val buckets = overview.buckets
+    val trendAxis = UiGeometry.trendAxis(overview.maxBucket, hourly = range.days == 1)
     var detailIndex by remember(range, effectiveGranularity) { mutableStateOf<Int?>(null) }
     var detailOpen by remember(range, effectiveGranularity) { mutableStateOf(false) }
     var detailRequested by remember(range, effectiveGranularity) { mutableStateOf(false) }
     var details by remember(range, effectiveGranularity) { mutableStateOf<ListeningDetails?>(null) }
     val detailBucket = detailIndex?.let { buckets.getOrNull(it) }
-    LaunchedEffect(data, detailBucket, detailRequested) {
+    LaunchedEffect(data.snapshotIdentity, detailBucket, detailRequested) {
         if (detailRequested && detailBucket != null) {
             val result = withContext(Dispatchers.Default) { ListeningDetailsCalculator.calculate(data, detailBucket) }
             details = result
@@ -124,7 +114,7 @@ fun OverviewPage(
         SectionHeading(
             icon = IconPaths.CalendarMonth,
             title = "听歌热力图",
-            caption = "$yearActiveDays 个听歌日 · ${formatDuration(yearTotal, displayPreferences.overviewLatinDurationUnits)}"
+            caption = "${heatmap.activeDays} 个听歌日 · ${formatDuration(heatmap.totalMillis, displayPreferences.overviewLatinDurationUnits)}"
         ) {
             SegmentedControl(
                 options = listOf(
@@ -136,7 +126,7 @@ fun OverviewPage(
             )
             SelectBox(
                 label = if (heatmapRolling) "近一年" else "${year}年",
-                options = listOf("rolling" to "近一年") + years.map { it.toString() to "${it}年" },
+                options = listOf("rolling" to "近一年") + overview.years.map { it.toString() to "${it}年" },
                 selected = if (heatmapRolling) "rolling" else year.toString(),
                 onSelected = { key ->
                     if (key == "rolling") {
@@ -162,7 +152,8 @@ fun OverviewPage(
                 viewportRevision = viewportRevision,
                 rolling = heatmapRolling,
                 revealAnimations = displayPreferences.heatmapAnimations,
-                latinDurationUnits = displayPreferences.overviewLatinDurationUnits
+                latinDurationUnits = displayPreferences.overviewLatinDurationUnits,
+                prepared = heatmap
             )
         }
 
@@ -171,7 +162,7 @@ fun OverviewPage(
         SectionHeading(
             icon = IconPaths.ShowChart,
             title = "时长分布",
-            caption = "这段时间听了 ${formatDuration(rangeTotal, displayPreferences.overviewLatinDurationUnits)}",
+            caption = "这段时间听了 ${formatDuration(overview.rangeTotal, displayPreferences.overviewLatinDurationUnits)}",
             controlsGap = 9.dp
         ) {
             SegmentedControl(
@@ -187,7 +178,7 @@ fun OverviewPage(
                 iconOnly = true
             )
             SelectBox(
-                label = rangeLabel(rangePreset, selectedDate, customStart, customEnd),
+                label = rangeLabel(rangePreset, selectedDate, selection.customStart, selection.customEnd),
                 options = rangeOptions(selectedDate),
                 selected = rangePreset.storage,
                 onSelected = { key ->

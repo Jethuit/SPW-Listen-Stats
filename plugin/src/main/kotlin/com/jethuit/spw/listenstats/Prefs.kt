@@ -1,8 +1,14 @@
 package com.jethuit.spw.listenstats
 
+import com.jethuit.spw.listenstats.data.ChartType
+import com.jethuit.spw.listenstats.data.Granularity
+import com.jethuit.spw.listenstats.data.RangePreset
+import com.jethuit.spw.listenstats.data.RankingMetric
+import com.jethuit.spw.listenstats.data.RankingMode
 import com.xuncorp.spw.workshop.api.UnstableSpwWorkshopApi
 import com.xuncorp.spw.workshop.api.WorkshopApi
 import com.xuncorp.spw.workshop.api.config.ConfigHelper
+import java.time.LocalDate
 
 data class DisplayPreferences(
     val rankingPageSize: Int = 25,
@@ -12,8 +18,26 @@ data class DisplayPreferences(
     val showDetailHint: Boolean = true,
     val heatmapAnimations: Boolean = true,
     val overviewLatinDurationUnits: Boolean = false,
-    val detailLatinDurationUnits: Boolean = false
+    val detailLatinDurationUnits: Boolean = false,
+    val pageOptions: PageOptions = PageOptions()
 )
+
+data class PageOptions(
+    val chartType: ChartType = ChartType.Bar,
+    val granularity: Granularity = Granularity.Day,
+    val range: RangePreset = RangePreset.Today,
+    val selectedDate: LocalDate? = null,
+    val customStart: LocalDate? = null,
+    val customEnd: LocalDate? = null,
+    val rankingMode: RankingMode = RankingMode.Song,
+    val rankingMetric: RankingMetric = RankingMetric.Count
+) {
+    internal fun withDateDefaults(today: LocalDate): PageOptions = copy(
+        selectedDate = selectedDate ?: if (range == RangePreset.Selected) today else null,
+        customStart = customStart ?: if (range == RangePreset.Custom) today.minusDays(29) else null,
+        customEnd = customEnd ?: if (range == RangePreset.Custom) today else null
+    )
+}
 
 @OptIn(UnstableSpwWorkshopApi::class)
 object Prefs {
@@ -94,6 +118,8 @@ object Prefs {
             catch (_: Exception) { default }
         fun readBoundedInt(key: String, default: Int, range: IntRange): Int =
             getString(key, default.toString()).trim().toIntOrNull()?.takeIf { it in range } ?: default
+        fun readDate(key: String): LocalDate? = getString(key, "").takeIf { it.isNotBlank() }
+            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
         return DisplayPreferences(
             rankingPageSize = pageSize,
             pageAnimations = readBoolean("pageAnimations"),
@@ -102,7 +128,17 @@ object Prefs {
             showDetailHint = readBoolean("showDetailHint"),
             heatmapAnimations = readBoolean("heatmapAnimations"),
             overviewLatinDurationUnits = readBoolean("overviewLatinDurationUnits", false),
-            detailLatinDurationUnits = readBoolean("detailLatinDurationUnits", false)
+            detailLatinDurationUnits = readBoolean("detailLatinDurationUnits", false),
+            pageOptions = PageOptions(
+                chartType = ChartType.fromStorage(getString("chartType", "")),
+                granularity = Granularity.fromStorage(getString("granularity", "")),
+                range = RangePreset.fromStorage(getString("range", "")),
+                selectedDate = readDate("selectedDate"),
+                customStart = readDate("customStart"),
+                customEnd = readDate("customEnd"),
+                rankingMode = RankingMode.fromStorage(getString("rankingMode", "")),
+                rankingMetric = RankingMetric.fromStorage(getString("rankingMetric", ""))
+            )
         )
     }
 

@@ -15,7 +15,7 @@ b = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(b)
 package = b.BUILD / 'libs' / b.PACKAGE_FILENAME
 assert not package.exists(), f'Refusing to overwrite {package}'
-previous = b.BUILD / 'libs/SPW-Stats-v0.5.1-dev.1.spmod'
+previous = b.BUILD / 'libs/SPW-Stats-v0.5.4-dev.1.spmod'
 previous_digest = hashlib.sha256(previous.read_bytes()).hexdigest() if previous.exists() else None
 work = b.BUILD / 'tests' / f'first-open-{b.PLUGIN_VERSION}'
 work.mkdir(parents=True, exist_ok=True)

@@ -30,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,13 +42,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.unit.dp
+import com.jethuit.spw.listenstats.DisplayPreferences
+import com.jethuit.spw.listenstats.PageOptions
 import com.jethuit.spw.listenstats.Prefs
-import com.jethuit.spw.listenstats.data.ChartType
-import com.jethuit.spw.listenstats.data.Granularity
+import com.jethuit.spw.listenstats.data.OverviewSelection
 import com.jethuit.spw.listenstats.data.RangePreset
-import com.jethuit.spw.listenstats.data.RankingMode
-import com.jethuit.spw.listenstats.data.RankingMetric
 import com.jethuit.spw.listenstats.data.StatsCalculations
+import com.jethuit.spw.listenstats.data.StatsSnapshots
+import com.jethuit.spw.listenstats.data.StatsSnapshotSession
 import com.moriafly.salt.ui.Card as SaltCard
 import com.moriafly.salt.ui.BasicButton
 import com.moriafly.salt.ui.ButtonColors
@@ -61,9 +63,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-private fun savedDate(key: String): LocalDate? = Prefs.getString(key, "")
-    .takeIf { it.isNotBlank() }?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-
 enum class StatsPage { Overview, Ranking }
 
 @Composable
@@ -74,10 +73,10 @@ fun ListenStatsApp() {
     var entering by remember { mutableStateOf(true) }
     var reloadTick by remember { mutableStateOf(0) }
     val exiting = StatsHostState.closing
-    val prepared = rememberPageStatistics(reloadTick, canApply = !entering && !exiting)
-    val data = prepared.data
-    val displayPreferences = prepared.preferences
-    val today = prepared.today
+    val snapshots = remember { StatsSnapshots.current ?: StatsSnapshotSession() }
+    val initial = remember { snapshots.latest }
+    val initialDay = remember { initial?.today ?: LocalDate.now() }
+    val options = remember { initial?.options ?: PageOptions() }
     var page by remember {
         mutableStateOf(
             if (System.getProperty("spw.listenstats.startpage") == "ranking") {
@@ -87,22 +86,29 @@ fun ListenStatsApp() {
             }
         )
     }
-    var chartType by remember { mutableStateOf(ChartType.fromStorage(Prefs.getString("chartType", ChartType.Bar.storage))) }
-    var userGranularity by remember { mutableStateOf(Granularity.fromStorage(Prefs.getString("granularity", Granularity.Day.storage))) }
-    var rangePreset by remember { mutableStateOf(RangePreset.fromStorage(Prefs.getString("range", RangePreset.Today.storage))) }
-    var selectedDate by remember { mutableStateOf(savedDate("selectedDate") ?: if (rangePreset == RangePreset.Selected) LocalDate.now() else null) }
-    var heatmapYear by remember { mutableStateOf(today.year) }
+    var chartType by remember { mutableStateOf(options.chartType) }
+    var userGranularity by remember { mutableStateOf(options.granularity) }
+    var rangePreset by remember { mutableStateOf(options.range) }
+    var selectedDate by remember { mutableStateOf(options.selectedDate) }
+    var heatmapYear by remember { mutableStateOf(initialDay.year) }
     var heatmapRolling by remember { mutableStateOf(false) }
     var heatmapWeekly by remember { mutableStateOf(false) }
-    var customStart by remember { mutableStateOf(savedDate("customStart") ?: if (rangePreset == RangePreset.Custom) today.minusDays(29) else null) }
-    var customEnd by remember { mutableStateOf(savedDate("customEnd") ?: if (rangePreset == RangePreset.Custom) today else null) }
+    var customStart by remember { mutableStateOf(options.customStart) }
+    var customEnd by remember { mutableStateOf(options.customEnd) }
     var query by remember { mutableStateOf("") }
     var rankPage by remember { mutableStateOf(1) }
-    var rankingMode by remember { mutableStateOf(RankingMode.fromStorage(Prefs.getString("rankingMode", RankingMode.Song.storage))) }
-    var rankingMetric by remember { mutableStateOf(RankingMetric.fromStorage(Prefs.getString("rankingMetric", RankingMetric.Count.storage))) }
+    var rankingMode by remember { mutableStateOf(options.rankingMode) }
+    var rankingMetric by remember { mutableStateOf(options.rankingMetric) }
     var bottomScrollRequest by remember { mutableStateOf(0) }
     var dateDialogOpen by remember { mutableStateOf(false) }
     var aboutDialogOpen by remember { mutableStateOf(false) }
+    val selection = OverviewSelection(heatmapYear, heatmapRolling, heatmapWeekly,
+        rangePreset, selectedDate, customStart, customEnd, userGranularity)
+    val prepared = rememberPageStatistics(snapshots, initial, selection, reloadTick, canApply = !entering && !exiting)
+    val snapshot = prepared?.data
+    val preparedOverview = prepared?.overview
+    val displayPreferences = prepared?.preferences ?: DisplayPreferences()
+    val today = prepared?.today ?: initialDay
     val closeTicket = StatsHostState.closeTicket
     val requestExit: () -> Unit = {
         if (aboutDialogOpen) aboutDialogOpen = false
@@ -114,6 +120,12 @@ fun ListenStatsApp() {
         onDispose { presenter.close() }
     }
     LaunchedEffect(Unit) { UiPerformanceProbe.mark("window_composed") }
+    val entranceProbe = remember { if (UiPerformanceProbe.enabled) EntrancePerformanceProbe() else null }
+    if (entranceProbe != null && entering && !exiting) {
+        LaunchedEffect(entranceProbe) {
+            while (true) withFrameNanos(entranceProbe::frame)
+        }
+    }
     LaunchedEffect(exiting) {
         if (exiting) {
             entering = true
@@ -136,7 +148,7 @@ fun ListenStatsApp() {
     }
 
     CompositionLocalProvider(LocalStatsAnimationsEnabled provides displayPreferences.pageAnimations) {
-    StatsTheme(inheritMaterial = LocalStatsMaterialBridge.current) {
+    StatsTheme(inheritMaterial = LocalStatsMaterialBridge.current, initialFont = initial?.font) {
         val colors = LocalStatsColors.current
         val font = LocalHostFontFamily.current
         val inheritedText = SaltTheme.textStyles
@@ -146,8 +158,6 @@ fun ListenStatsApp() {
             paragraph = inheritedText.paragraph.copy(fontFamily = font),
             largeTitle = inheritedText.largeTitle.copy(fontFamily = font)
         )) {
-        val snapshot = data
-        val summary = remember(snapshot?.loadedAt, today) { snapshot?.let { StatsCalculations.summary(it, today) } }
         val ranking = rememberPageRanking(snapshot, rankingMode, rankingMetric, query,
             mayPrepare = !exiting && (page == StatsPage.Ranking || !entering))
         val displayedRankingEntries = ranking.entries
@@ -158,10 +168,14 @@ fun ListenStatsApp() {
             if (rankPage > totalPages) rankPage = totalPages
         }
         StatsPageEnter(exiting, exitMotion = StatsHostState.exitMotion,
-            onEntered = { entering = false; UiPerformanceProbe.mark("window_entered") }, onExited = {
+            onEntered = {
+                entering = false
+                entranceProbe?.entered()
+                UiPerformanceProbe.mark("window_entered")
+            }, onExited = {
             StatsHostState.finishClose(closeTicket)
         }) {
-        Surface(Modifier.fillMaxSize(), color = colors.pageBackground) {
+        Surface(Modifier.fillMaxSize().then(entranceProbe?.modifier ?: Modifier), color = colors.pageBackground) {
         StatsPageFrame(requestExit, actions = {
             Row(verticalAlignment = Alignment.CenterVertically) {
             if (snapshot != null && !snapshot.libraryAccessDenied) {
@@ -208,7 +222,7 @@ fun ListenStatsApp() {
                             Column(Modifier.fillMaxWidth()) {
                             if (snapshot?.libraryAccessDenied == true) {
                                 ErrorBanner(checkNotNull(snapshot.error))
-                            } else if (snapshot == null || summary == null) {
+                            } else if (snapshot == null) {
                                 StatsPlaceholder(shownPage)
                             } else {
                             snapshot.storageWarning?.let { warning ->
@@ -218,18 +232,16 @@ fun ListenStatsApp() {
                             if (snapshot.error != null) {
                                 ErrorBanner(snapshot.error)
                                 Box(Modifier.height(18.dp))
-                            } else if (snapshot.dailyMillis.values.none { it > 0 }) {
+                            } else if (preparedOverview?.summary?.activeDays == 0) {
                                 EmptyBanner()
                                 Box(Modifier.height(18.dp))
                             }
                             when (shownPage) {
                                 StatsPage.Overview -> OverviewPage(
                                     data = snapshot,
-                                    summary = summary,
+                                    prepared = preparedOverview,
                                     today = today,
-                                    year = heatmapYear,
-                                    weekly = heatmapWeekly,
-                                    heatmapRolling = heatmapRolling,
+                                    selection = selection,
                                     onYearSelected = { heatmapYear = it },
                                     onHeatmapRollingSelected = { heatmapRolling = it },
                                     onWeeklySelected = { weekly ->
@@ -241,12 +253,7 @@ fun ListenStatsApp() {
                                             Prefs.putStringAsync("range", rangePreset.storage)
                                         }
                                     },
-                                    selectedDate = selectedDate,
-                                    rangePreset = rangePreset,
-                                    customStart = customStart,
-                                    customEnd = customEnd,
                                     chartType = chartType,
-                                    userGranularity = userGranularity,
                                     onDaySelected = { date ->
                                         if (selectedDate == date && rangePreset == RangePreset.Selected) {
                                             selectedDate = null

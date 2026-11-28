@@ -12,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -176,14 +177,23 @@ fun hostStatsColors(hostDark: Boolean?, systemDark: Boolean): StatsColors =
     if (hostDark ?: systemDark) DarkStatsColors else LightStatsColors
 
 @Composable
-fun StatsTheme(inheritMaterial: Boolean = false, content: @Composable () -> Unit) {
+fun StatsTheme(inheritMaterial: Boolean = false, initialFont: FontFamily? = null,
+               content: @Composable () -> Unit) {
     val inheritedAppearance = LocalHostAppearance.current
     val hostAppearance = if (inheritedAppearance != null) inheritedAppearance else rememberHostAppearance()
     var systemDark by remember { mutableStateOf(false) }
-    var hostFont by remember { mutableStateOf<androidx.compose.ui.text.font.FontFamily>(androidx.compose.ui.text.font.FontFamily.Default) }
-    LaunchedEffect(hostAppearance.fontStrategy, hostAppearance.customFontPath) {
-        hostFont = withContext(Dispatchers.IO) {
-            HostFont.load(hostAppearance.fontStrategy, hostAppearance.customFontPath)
+    val fontSource = hostAppearance.fontStrategy to hostAppearance.customFontPath
+    var hostFont by remember { mutableStateOf(initialFont ?: FontFamily.Default) }
+    // The open preparation read the current settings. Observe subsequent changes in the inherited settings.
+    var loadedFor by remember { mutableStateOf(fontSource.takeIf { initialFont != null }) }
+    LaunchedEffect(fontSource) {
+        if (loadedFor != fontSource) {
+            val font = withContext(Dispatchers.IO) { HostFont.load(fontSource.first, fontSource.second) }
+            if (hostFont != font) {
+                hostFont = font
+                UiPerformanceProbe.mark("window_font_updated")
+            }
+            loadedFor = fontSource
         }
     }
     LaunchedEffect(hostAppearance.dark) {

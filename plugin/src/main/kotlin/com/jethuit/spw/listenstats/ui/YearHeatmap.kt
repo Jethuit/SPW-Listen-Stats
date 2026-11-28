@@ -27,11 +27,11 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.jethuit.spw.listenstats.data.HeatmapGrid
-import com.jethuit.spw.listenstats.data.HeatmapScale
+import com.jethuit.spw.listenstats.data.HeatmapDisplay
 import com.jethuit.spw.listenstats.data.StatsCalculations
 import com.jethuit.spw.listenstats.data.StatsData
 import com.jethuit.spw.listenstats.data.WeeklyCell
+import com.jethuit.spw.listenstats.data.prepareHeatmap
 import com.jethuit.spw.listenstats.util.formatDay
 import com.jethuit.spw.listenstats.util.formatDuration
 import com.moriafly.salt.ui.LocalTextStyle
@@ -60,13 +60,17 @@ fun YearHeatmap(
     viewportRevision: Int = 0,
     rolling: Boolean = false,
     revealAnimations: Boolean = true,
-    latinDurationUnits: Boolean = false
+    latinDurationUnits: Boolean = false,
+    prepared: HeatmapDisplay? = null
 ) {
     val colors = LocalStatsColors.current
     val measurer = rememberTextMeasurer()
     val labelStyle = AppType.tiny.copy(fontFamily = LocalTextStyle.current.fontFamily)
-    val grid = remember(year, rolling, today) { StatsCalculations.heatmapGrid(year, rolling, today) }
-    val dailyScale = remember(data.dailyMillis, today) { HeatmapScale.daily(data.dailyMillis, today) }
+    val heatmap = prepared ?: remember(data.snapshotIdentity, year, rolling, today, weekly) {
+        prepareHeatmap(data, StatsCalculations.heatmapGrid(year, rolling, today), today, weekly)
+    }
+    val grid = heatmap.grid
+    val dailyScale = heatmap.dailyScale
     val animations = LocalStatsAnimationsEnabled.current && revealAnimations
     val exiting = LocalStatsPageExiting.current
     val reveal = remember(grid.firstDay, grid.lastDay, weekly) { Animatable(if (animations) 0f else 1f) }
@@ -78,10 +82,10 @@ fun YearHeatmap(
     }
     fun inRange(date: LocalDate): Boolean =
         !date.isBefore(grid.firstDay) && !date.isAfter(grid.lastDay)
-    val weeks = remember(data, grid, today, weekly) {
-        if (weekly) StatsCalculations.weeklyCells(data, grid, today) else emptyList()
+    val weeks = heatmap.weeks
+    var tooltip by remember(grid.firstDay, grid.lastDay, weekly, viewportRevision, data.snapshotIdentity, latinDurationUnits) {
+        mutableStateOf<TooltipData?>(null)
     }
-    var tooltip by remember(grid.firstDay, grid.lastDay, weekly, viewportRevision, data, latinDurationUnits) { mutableStateOf<TooltipData?>(null) }
     var hoverWeek by remember(grid.firstDay, grid.lastDay, weekly, viewportRevision) { mutableStateOf<Int?>(null) }
     var hoverRow by remember(grid.firstDay, grid.lastDay, weekly, viewportRevision) { mutableStateOf<Int?>(null) }
     LaunchedEffect(exiting) {

@@ -1,6 +1,7 @@
 @file:OptIn(com.xuncorp.spw.workshop.api.UnstableSpwWorkshopApi::class)
 
 import com.jethuit.spw.listenstats.DisplayPreferences
+import com.jethuit.spw.listenstats.PageOptions
 import com.jethuit.spw.listenstats.data.*
 import com.jethuit.spw.listenstats.ui.StatsHostState
 import com.jethuit.spw.listenstats.ui.StatsNavigationHooks
@@ -25,18 +26,37 @@ fun checkSnapshotPreparation() {
         result
     }, preferences = { displayPreferences }, hasAccess = { allowed })
     runBlocking {
-        check(session.load().data.millisOn(day) == 60_000L)
-        check(session.load(reuse = true).data.millisOn(day) == 60_000L && reads == 1)
+        val first = session.load()
+        check(first.data.millisOn(day) == 60_000L)
+        check(session.load(reuse = true).let {
+            it.data === first.data && it.overview === first.overview && it.checkedAtNanos == first.checkedAtNanos
+        } && reads == 1)
+        val options = PageOptions(chartType = ChartType.Curve, granularity = Granularity.Week,
+            range = RangePreset.Custom, customStart = day.minusDays(20), customEnd = day,
+            rankingMode = RankingMode.Album, rankingMetric = RankingMetric.Duration)
         displayPreferences = DisplayPreferences(pageAnimations = false, refreshIntervalSeconds = 60,
-            detailVisibleRows = 3, showDetailHint = false, heatmapAnimations = false)
-        check(session.load(reuse = true).let { it.preferences == displayPreferences && it.data.millisOn(day) == 60_000L })
-        check(reads == 1) { "Opening with new preferences must reuse cached listening data" }
+            detailVisibleRows = 3, showDetailHint = false, heatmapAnimations = false, pageOptions = options)
+        val customized = session.load(reuse = true)
+        val overview = checkNotNull(customized.overview)
+        val range = DateRange(day.minusDays(20), day)
+        check(customized.preferences == displayPreferences && customized.options == options)
+        check(overview.summary.totalMillis == 60_000L && overview.summary.activeDays == 1)
+        check(overview.range == range && overview.granularity == Granularity.Week)
+        check(overview.buckets == StatsCalculations.chartBuckets(first.data, range, Granularity.Week))
+        check(overview.heatmap === first.overview?.heatmap && customized.checkedAtNanos == first.checkedAtNanos)
+        val switched = session.load(selection = OverviewSelection(day.year, false, true,
+            RangePreset.Selected, day, null, null, Granularity.Week))
+        check(switched.overview?.let {
+            it.granularity == Granularity.Day && it.buckets.size == 24 &&
+                it.heatmap.weeks.isNotEmpty() && it.heatmap.totalMillis == 60_000L
+        } == true)
+        check(reads == 2) { "Opening with new preferences must reuse cached listening data" }
         result = StatsData.empty(error = "synthetic database failure")
         check(session.load().data.let { it.millisOn(day) == 60_000L && it.error != null })
         throws = true
         check(session.load().data.let { it.millisOn(day) == 60_000L && it.error != null })
         allowed = false
-        check(session.load(reuse = true).data.let { it.libraryAccessDenied && it.dailyMillis.isEmpty() })
+        check(session.load(reuse = true).let { it.data.libraryAccessDenied && it.data.dailyMillis.isEmpty() && it.overview == null })
         allowed = true
         check(session.load().data.dailyMillis.isEmpty()) { "a read failure resurrected revoked history" }
         throws = false

@@ -39,6 +39,9 @@ data class StatsData(
     val missingHostTrackIds: Set<String> = emptySet(),
     val statisticsStart: Long = 0
 ) {
+    // Each published instance, including copies with a warning or error, has its own UI cache key.
+    internal val snapshotIdentity = Any()
+
     fun millisOn(date: LocalDate): Long = dailyMillis[date] ?: 0L
 
     fun hoursOn(date: LocalDate): LongArray = hourlyMillis[date] ?: LongArray(24)
