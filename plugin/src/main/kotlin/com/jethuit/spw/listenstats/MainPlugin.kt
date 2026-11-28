@@ -68,8 +68,9 @@ class MainPlugin(
                     "sidebar" in hooks -> "顶部入口不可用，可从侧栏「统计」或插件配置打开"
                     else -> "顶部和侧栏入口不可用，请从插件配置打开"
                 }
-                WorkshopApi.ui.toast(entryHint?.let { "听歌统计已启用。$it" } ?: "听歌统计已启用",
-                    if (entryHint == null) WorkshopApi.Ui.ToastType.Success else WorkshopApi.Ui.ToastType.Warning)
+                if (entryHint != null) {
+                    WorkshopApi.ui.toast(entryHint, WorkshopApi.Ui.ToastType.Warning)
+                }
             },
             failed = { failure ->
                 // Public playback recording and statistics preparation remain independent
